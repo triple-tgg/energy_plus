@@ -1,0 +1,43 @@
+# Environment Files
+.env
+.env.local
+.env.development
+.env.production
+
+# Dependencies
+node_modules/
+package.json
+package-lock.json
+
+# Build output
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Data files and uploads
+data/*.xlsx
+data/*.csv
+data/*.sql
+backend/uploads/
+*.pyc
+__pycache__/
+
+# Python scripts (if temporary)
+*.py
+
+# Database files
+database/
+Doc-Database/
+~$*.docx
+~$*.xlsx
