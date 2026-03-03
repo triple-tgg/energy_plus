@@ -1554,6 +1554,121 @@ body {
 
 
 /* =========================================
+   FILTER BAR
+   ========================================= */
+.filter-bar {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.filter-bar__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-bar__item {
+  min-width: 0;
+}
+
+.filter-bar__item select,
+.filter-bar__item input {
+  min-width: 120px;
+}
+
+.form-control-sm {
+  padding: 7px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  transition: all var(--transition);
+}
+
+.form-control-sm:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+
+/* =========================================
+   EXPORT BUTTONS
+   ========================================= */
+.export-buttons {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.btn-success {
+  background: var(--success);
+  color: white;
+  border: none;
+}
+
+.btn-success:hover {
+  background: var(--emerald-600);
+}
+
+.btn-info {
+  background: #0ea5e9;
+  color: white;
+  border: none;
+}
+
+.btn-info:hover {
+  background: #0284c7;
+}
+
+
+/* =========================================
+   STATUS BADGE (EXTENDED)
+   ========================================= */
+.badge-sm {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.badge-default {
+  background: var(--slate-100);
+  color: var(--slate-600);
+}
+
+.badge-info {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.badge-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+
+/* =========================================
+   PAGE TITLE
+   ========================================= */
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 20px;
+  letter-spacing: -0.3px;
+}
+
+.page-title__icon {
+  margin-right: 8px;
+}
+
+
+/* =========================================
    RESPONSIVE
    ========================================= */
 @media (max-width: 768px) {

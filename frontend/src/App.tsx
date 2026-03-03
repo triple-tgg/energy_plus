@@ -22,14 +22,26 @@ import AlarmGroupsPage from './pages/settings/AlarmGroupsPage';
 import AlarmConfigsPage from './pages/settings/AlarmConfigsPage';
 import BillingPage from './pages/settings/BillingPage';
 import DemandPage from './pages/settings/DemandPage';
+import LayoutSettingsPage from './pages/settings/LayoutSettingsPage';
+import ExportSettingsPage from './pages/settings/ExportSettingsPage';
 
 // Monitoring
 import RealtimePage from './pages/monitoring/RealtimePage';
+import DemandPeakPage from './pages/monitoring/DemandPeakPage';
 
 // Dashboard
 import ZoneDashboard from './pages/dashboard/ZoneDashboard';
+import MdbDashboard from './pages/dashboard/MdbDashboard';
+import DemandDashboard from './pages/dashboard/DemandDashboard';
+import ConsumptionTable from './pages/dashboard/ConsumptionTable';
 
-// Placeholder
+// Reports
+import EnergyReportPage from './pages/reports/EnergyReportPage';
+import HistoryReportPage from './pages/reports/HistoryReportPage';
+import ComparisonReportPage from './pages/reports/ComparisonReportPage';
+import AlarmReportPage from './pages/reports/AlarmReportPage';
+
+// Placeholder (for pages not yet implemented)
 import PlaceholderPage from './pages/PlaceholderPage';
 
 const App: React.FC = () => {
@@ -57,23 +69,28 @@ const App: React.FC = () => {
                         <Route path="/settings/alarm-configs" element={<AlarmConfigsPage />} />
                         <Route path="/settings/billing" element={<BillingPage />} />
                         <Route path="/settings/demand" element={<DemandPage />} />
+                        <Route path="/settings/layouts" element={<LayoutSettingsPage />} />
+                        <Route path="/settings/export" element={<ExportSettingsPage />} />
 
                         {/* Monitoring */}
                         <Route path="/monitoring/realtime" element={<RealtimePage />} />
+                        <Route path="/monitoring/layout" element={<PlaceholderPage title="สายทาง (Single Line Diagram)" icon="🔌" />} />
+                        <Route path="/monitoring/demand-peak" element={<DemandPeakPage />} />
 
                         {/* Reports */}
-                        <Route path="/reports/energy" element={<PlaceholderPage title="Energy Consumption Report" icon="📊" />} />
-                        <Route path="/reports/comparison" element={<PlaceholderPage title="Energy Comparison Report" icon="📈" />} />
-                        <Route path="/reports/alarms" element={<PlaceholderPage title="Alarm History Report" icon="🔔" />} />
+                        <Route path="/reports/energy" element={<EnergyReportPage />} />
+                        <Route path="/reports/history" element={<HistoryReportPage />} />
+                        <Route path="/reports/comparison" element={<ComparisonReportPage />} />
+                        <Route path="/reports/alarms" element={<AlarmReportPage />} />
 
                         {/* Dashboard */}
                         <Route path="/dashboard/zone" element={<ZoneDashboard />} />
-                        <Route path="/dashboard/mdb" element={<PlaceholderPage title="MDB Consumption Dashboard" icon="⚡" />} />
-                        <Route path="/dashboard/demand" element={<PlaceholderPage title="Demand Dashboard" icon="📈" />} />
-                        <Route path="/dashboard/consumption" element={<PlaceholderPage title="Consumption Table" icon="📋" />} />
+                        <Route path="/dashboard/mdb" element={<MdbDashboard />} />
+                        <Route path="/dashboard/demand" element={<DemandDashboard />} />
+                        <Route path="/dashboard/consumption" element={<ConsumptionTable />} />
 
                         {/* Default */}
-                        <Route path="/" element={<Navigate to="/admin/company" replace />} />
+                        <Route path="/" element={<Navigate to="/dashboard/zone" replace />} />
                     </Route>
                 </Routes>
             </AuthProvider>

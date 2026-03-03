@@ -37,6 +37,8 @@ const navGroups: NavGroup[] = [
             { label: 'ตั้งค่าแจ้งเตือน', path: '/settings/alarm-configs', icon: '⚠' },
             { label: 'อัตราค่าไฟ', path: '/settings/billing', icon: '💰' },
             { label: 'ดีมานด์ / ประหยัด', path: '/settings/demand', icon: '📉' },
+            { label: 'ตั้งค่าภาพแผนผัง', path: '/settings/layouts', icon: '🗺' },
+            { label: 'ตั้งค่าการ Export', path: '/settings/export', icon: '📤' },
         ],
     },
     {
@@ -44,6 +46,8 @@ const navGroups: NavGroup[] = [
         icon: '📡',
         items: [
             { label: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: '📊' },
+            { label: 'สายทาง', path: '/monitoring/layout', icon: '🔌' },
+            { label: 'พยากรณ์ Demand Peak', path: '/monitoring/demand-peak', icon: '⚡' },
         ],
     },
     {
@@ -51,8 +55,9 @@ const navGroups: NavGroup[] = [
         icon: '📄',
         items: [
             { label: 'พลังงานตามช่วงเวลา', path: '/reports/energy', icon: '📈' },
-            { label: 'เปรียบเทียบ', path: '/reports/comparison', icon: '🔀' },
-            { label: 'ประวัติแจ้งเตือน', path: '/reports/alarms', icon: '🕐' },
+            { label: 'ข้อมูลพลังงานย้อนหลัง', path: '/reports/history', icon: '📜' },
+            { label: 'เปรียบเทียบเดือนก่อน', path: '/reports/comparison', icon: '🔀' },
+            { label: 'ข้อมูลการแจ้งเตือน', path: '/reports/alarms', icon: '🕐' },
         ],
     },
     {

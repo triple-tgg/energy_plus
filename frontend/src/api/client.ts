@@ -136,3 +136,41 @@ export const dashboardApi = {
     getDemand: (params?: any) => api.get('/dashboard/demand', { params }),
     getConsumptionTable: (params?: any) => api.get('/dashboard/consumption-table', { params }),
 };
+
+// Reports
+export const reportsApi = {
+    getEnergyConsumption: (params?: any) => api.get('/reports/energy-consumption', { params }),
+    getHistory: (params?: any) => api.get('/reports/history', { params }),
+    getComparison: (params?: any) => api.get('/reports/comparison', { params }),
+    getAlarms: (params?: any) => api.get('/reports/alarms', { params }),
+    acknowledgeAlarm: (id: number) => api.put(`/reports/alarms/${id}/acknowledge`),
+    exportExcel: (reportType: string, params?: any) => api.get(`/reports/${reportType}/export/excel`, { params, responseType: 'blob' }),
+    exportText: (reportType: string, params?: any) => api.get(`/reports/${reportType}/export/text`, { params, responseType: 'blob' }),
+};
+
+// Layouts
+export const layoutsApi = {
+    getAll: (params?: any) => api.get('/layouts', { params }),
+    getById: (id: number) => api.get(`/layouts/${id}`),
+    create: (data: FormData) => api.post('/layouts', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    update: (id: number, data: FormData) => api.put(`/layouts/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    delete: (id: number) => api.delete(`/layouts/${id}`),
+    getPositions: (id: number) => api.get(`/layouts/${id}/positions`),
+    updatePositions: (id: number, data: any) => api.put(`/layouts/${id}/positions`, data),
+    getLiveData: (id: number) => api.get(`/layouts/${id}/live`),
+};
+
+// Export Settings
+export const exportApi = {
+    getAll: (params?: any) => api.get('/exports', { params }),
+    getById: (id: number) => api.get(`/exports/${id}`),
+    create: (data: any) => api.post('/exports', data),
+    update: (id: number, data: any) => api.put(`/exports/${id}`, data),
+    delete: (id: number) => api.delete(`/exports/${id}`),
+};
+
+// Demand Peak
+export const demandPeakApi = {
+    getData: (params?: any) => api.get('/demand-peak', { params }),
+    getCurrent: (params?: any) => api.get('/demand-peak/current', { params }),
+};
