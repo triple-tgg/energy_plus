@@ -40,9 +40,7 @@ const LoginPage: React.FC = () => {
                 {/* Logo */}
                 <div className="login__logo">
                     <div className="login__logo-icon">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                        </svg>
+                        <span style={{ fontSize: '32px', fontWeight: 800, color: '#dc2626', lineHeight: 1 }}>M</span>
                     </div>
                     <h1 className="login__brand">MAC <span>Energy</span></h1>
                     <p className="login__tagline">Smart Energy Monitoring Platform</p>
