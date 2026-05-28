@@ -14,10 +14,11 @@ export const createApp = (): Application => {
     app.use(helmet());
 
     // CORS
+    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
     app.use(cors({
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        origin: corsOrigin === '*' ? (origin, cb) => cb(null, true) : corsOrigin,
         credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
     }));
 
