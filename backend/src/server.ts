@@ -1,6 +1,7 @@
 import { createApp } from './config/app';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import pool from './config/database';
+import { connectRedis, disconnectRedis } from './config/redis';
 import { successResponse } from './utils/response';
 
 // Import routes
@@ -13,6 +14,8 @@ import companyRoutes from './modules/company/company.routes';
 import alarmsRoutes from './modules/alarms/alarms.routes';
 import billingRoutes from './modules/billing/billing.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
+import redisPubsubRoutes from './modules/redis-pubsub/redisPubsub.routes';
+import { autoSubscribeDefaultChannel, isAutoSubscribeEnabled } from './modules/redis-pubsub/redisPubsub.service';
 
 const app = createApp();
 const PORT = process.env.PORT || 3000;
@@ -47,6 +50,7 @@ app.use(`${API_PREFIX}/company`, companyRoutes);
 app.use(`${API_PREFIX}/alarms`, alarmsRoutes);
 app.use(`${API_PREFIX}/billing`, billingRoutes);
 app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
+app.use(`${API_PREFIX}/redis`, redisPubsubRoutes);
 
 // DEBUG: List databases and tables
 app.get(`${API_PREFIX}/debug/tables`, async (req, res) => {
@@ -74,11 +78,42 @@ app.get(`${API_PREFIX}/debug/users`, async (req, res) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`\n🚀 EnergyPlus API Server running on port ${PORT}`);
-    console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
-    console.log(`💚 Health check: http://localhost:${PORT}${API_PREFIX}/health\n`);
-});
+// Start server with Redis connection
+const startServer = async () => {
+    try {
+        // Connect to Redis
+        await connectRedis();
+        console.log('📡 Redis Pub/Sub ready');
+
+        // Auto-subscribe to default channel if enabled
+        if (isAutoSubscribeEnabled()) {
+            await autoSubscribeDefaultChannel();
+        }
+    } catch (error) {
+        console.warn('⚠️  Redis connection failed, server will start without Redis');
+    }
+
+    const server = app.listen(PORT, () => {
+        console.log(`\n🚀 EnergyPlus API Server running on port ${PORT}`);
+        console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
+        console.log(`💚 Health check: http://localhost:${PORT}${API_PREFIX}/health`);
+        console.log(`📡 Redis Pub/Sub: http://localhost:${PORT}${API_PREFIX}/redis/channels\n`);
+    });
+
+    // Graceful shutdown
+    const shutdown = async () => {
+        console.log('\n🔄 Shutting down gracefully...');
+        await disconnectRedis();
+        server.close(() => {
+            console.log('👋 Server closed');
+            process.exit(0);
+        });
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+};
+
+startServer();
 
 export default app;

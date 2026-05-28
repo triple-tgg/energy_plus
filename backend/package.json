@@ -7,7 +7,9 @@
     "dev": "ts-node src/server.ts",
     "dev:watch": "nodemon",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "db:seed": "node dist/scripts/migrate-and-seed.js",
+    "db:seed:dev": "ts-node src/scripts/migrate-and-seed.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -18,7 +20,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "redis": "^5.12.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
