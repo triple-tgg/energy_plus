@@ -3,7 +3,7 @@ import express from 'express';
 import path from 'path';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import pool from './config/database';
-import { connectRedis, disconnectRedis } from './config/redis';
+import { connectRedis, disconnectRedis, pubClient } from './config/redis';
 import { successResponse } from './utils/response';
 
 // Import routes
@@ -25,19 +25,23 @@ const API_PREFIX = '/api/v1';
 
 // Health check
 app.get(`${API_PREFIX}/health`, async (req, res) => {
+    const redisStatus = pubClient.isReady ? 'connected' : 'disconnected';
     try {
         const dbResult = await pool.query('SELECT NOW()');
         res.json(successResponse({
-            status: 'ok',
+            status: redisStatus === 'connected' ? 'ok' : 'degraded',
             timestamp: new Date().toISOString(),
             database: 'connected',
             dbTime: dbResult.rows[0].now,
+            redis: redisStatus,
+            redisHost: process.env.REDIS_HOST || 'localhost',
         }));
     } catch (error) {
         res.status(503).json(successResponse({
             status: 'error',
             timestamp: new Date().toISOString(),
             database: 'disconnected',
+            redis: redisStatus,
         }));
     }
 });
