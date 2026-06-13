@@ -163,3 +163,25 @@ export const autoSubscribeDefaultChannel = async (): Promise<void> => {
 
     console.log(`📡 Auto-subscribed to default channel: ${channel} (with DB save)`);
 };
+
+/**
+ * Get the latest reading for each meter from meter_data_realtime
+ */
+export const getLatestRealtimeData = async (): Promise<any[]> => {
+    const result = await pool.query(
+        `SELECT DISTINCT ON (site_id, address_id)
+            id, channel, site_id, address_id, device, code, type,
+            vl1, vl2, vl3, vl12, vl23, vl31,
+            il1, il2, il3,
+            kw1, kw2, kw3, kw_3ph,
+            kvar1, kvar2, kvar3, kvar_3ph,
+            kva1, kva2, kva3, kva_3ph,
+            pf1, pf2, pf3,
+            hz, import_kwhr,
+            device_datetime, received_at
+         FROM meter_data_realtime
+         ORDER BY site_id, address_id, device_datetime DESC`
+    );
+    return result.rows;
+};
+

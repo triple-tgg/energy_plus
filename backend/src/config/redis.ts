@@ -29,8 +29,8 @@ export const AUTO_SUBSCRIBE = process.env.REDIS_AUTO_SUBSCRIBE === 'true';
  */
 export const connectRedis = async (): Promise<void> => {
     try {
-        pubClient.on('error', (err) => console.error('❌ Redis Publisher Error:', err.message));
-        subClient.on('error', (err) => console.error('❌ Redis Subscriber Error:', err.message));
+        pubClient.on('error', (err: any) => console.error('❌ Redis Publisher Error:', err.message));
+        subClient.on('error', (err: any) => console.error('❌ Redis Subscriber Error:', err.message));
 
         await pubClient.connect();
         console.log('✅ Redis Publisher connected');
