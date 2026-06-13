@@ -9,7 +9,8 @@ const REDIS_CONFIG = {
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379', 10),
         connectTimeout: 10000,
-        reconnectStrategy: (retries: number) => {
+        reconnectStrategy: (retries: number) =>
+        {
             if (retries > 3) {
                 console.warn('⚠️  Redis max reconnect attempts reached, giving up');
                 return false as unknown as number;
@@ -35,16 +36,17 @@ export const AUTO_SUBSCRIBE = process.env.REDIS_AUTO_SUBSCRIBE === 'true';
 /**
  * Connect both Redis clients
  */
-export const connectRedis = async (): Promise<void> => {
+export const connectRedis = async (): Promise<void> =>
+{
     try {
         pubClient.on('error', (err: any) => console.error('❌ Redis Publisher Error:', err.message));
         subClient.on('error', (err: any) => console.error('❌ Redis Subscriber Error:', err.message));
 
         await pubClient.connect();
-        console.log('✅ Redis Publisher connected');
+        console.log('✅ Redis Publisher connected ');
 
         await subClient.connect();
-        console.log('✅ Redis Subscriber connected');
+        console.log('✅ Redis Subscriber connected ');
     } catch (error: any) {
         console.error('❌ Failed to connect to Redis:', error.message);
         throw error;
@@ -54,7 +56,8 @@ export const connectRedis = async (): Promise<void> => {
 /**
  * Disconnect both Redis clients (graceful shutdown)
  */
-export const disconnectRedis = async (): Promise<void> => {
+export const disconnectRedis = async (): Promise<void> =>
+{
     try {
         await subClient.unsubscribe();
         await subClient.quit();
