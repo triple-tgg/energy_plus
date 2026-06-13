@@ -1,4 +1,6 @@
 import { createApp } from './config/app';
+import express from 'express';
+import path from 'path';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import pool from './config/database';
 import { connectRedis, disconnectRedis } from './config/redis';
@@ -72,6 +74,21 @@ app.get(`${API_PREFIX}/debug/users`, async (req, res) => {
             res.json({ error1: e.message, error2: e2.message });
         }
     }
+});
+
+// ── Production: serve frontend static files ──
+const frontendPath = path.join(__dirname, '..', 'public');
+app.use(express.static(frontendPath));
+
+// SPA fallback — any non-API route serves index.html
+app.get(/^(?!\/api).*/, (req, res) => {
+    const indexPath = path.join(frontendPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            // If frontend is not built (dev mode), fall through to 404
+            res.status(404).json({ success: false, error: { message: 'Frontend not built. Run npm run build in frontend/' } });
+        }
+    });
 });
 
 // Error handling
