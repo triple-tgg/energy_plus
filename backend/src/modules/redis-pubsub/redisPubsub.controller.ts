@@ -79,3 +79,19 @@ export const channels = async (req: Request, res: Response): Promise<void> => {
         res.status(500).json(errorResponse('CHANNELS_ERROR', error.message));
     }
 };
+
+/**
+ * GET /latest
+ * Fetch the latest real-time reading for each meter from PostgreSQL
+ */
+export const latest = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { getLatestRealtimeData } = require('./redisPubsub.service');
+        const data = await getLatestRealtimeData();
+        res.json(successResponse(data));
+    } catch (error: any) {
+        console.error('Latest real-time error:', error);
+        res.status(500).json(errorResponse('LATEST_REALTIME_ERROR', error.message));
+    }
+};
+
