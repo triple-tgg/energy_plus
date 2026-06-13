@@ -74,7 +74,7 @@ const App: React.FC = () => {
 
                         {/* Monitoring */}
                         <Route path="/monitoring/realtime" element={<RealtimePage />} />
-                        <Route path="/monitoring/layout" element={<PlaceholderPage title="สายทาง (Single Line Diagram)" icon="🔌" />} />
+                        <Route path="/monitoring/layout" element={<PlaceholderPage title="สายทาง (Single Line Diagram) xxx" icon="🔌" />} />
                         <Route path="/monitoring/demand-peak" element={<DemandPeakPage />} />
 
                         {/* Reports */}
