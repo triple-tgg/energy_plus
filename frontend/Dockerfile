@@ -17,11 +17,15 @@ FROM nginx:alpine AS production
 # Copy built files
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy nginx template (uses envsubst for BACKEND_URL)
+# Copy nginx config as template (envsubst replaces ${PORT} at startup)
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
-EXPOSE 80
+# Railway injects PORT env var — default to 80 if not set
+ENV PORT=80
 
-# nginx:alpine auto-runs envsubst on /etc/nginx/templates/*.template
-# and outputs to /etc/nginx/conf.d/
+# Only substitute PORT (not nginx's own $uri, $host, etc.)
+ENV NGINX_ENVSUBST_FILTER=PORT
+
+EXPOSE ${PORT}
+
 CMD ["nginx", "-g", "daemon off;"]
