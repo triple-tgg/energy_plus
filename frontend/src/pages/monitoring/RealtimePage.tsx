@@ -1,7 +1,23 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid } from 'lucide-react';
 import axios from 'axios';
+import { useTheme } from '../../contexts/ThemeContext';
+
+const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+
+const THEMES = {
+    light: {
+        bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
+        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        red: '#dc2626', yellow: '#C08A1E', green: '#16a34a',
+    },
+    dark: {
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
+        red: '#f85149', yellow: '#D29922', green: '#34d399',
+    },
+};
 
 interface RealtimeMeterData {
     meter_code: string;
@@ -46,6 +62,8 @@ interface ChartDataPoint {
 }
 
 const RealtimePage: React.FC = () => {
+    const { theme } = useTheme();
+    const C = THEMES[theme];
     const [meters, setMeters] = useState<RealtimeMeterData[]>([]);
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
     const [dbSyncStatus, setDbSyncStatus] = useState<'active' | 'syncing' | 'error'>('syncing');
@@ -212,53 +230,39 @@ const RealtimePage: React.FC = () => {
         : 0;
 
     // Line colors for chart (high contrast themes)
-    const chartColors = ['#1d4ed8', '#059669', '#d97706', '#be185d', '#6d28d9'];
+    const chartColors = [C.accent, C.green, C.yellow, C.red, '#8b5cf6'];
+
+    const syncColor = dbSyncStatus === 'active' ? C.green : dbSyncStatus === 'syncing' ? C.yellow : C.red;
 
     return (
-        <div style={{ color: '#1e293b', padding: '10px 0' }}>
-            {/* Header section with white/light theme */}
-            <div className="card" style={{
-                padding: '20px 24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '16px',
-                marginBottom: '24px',
-                border: '1px solid var(--border-light)'
-            }}>
-                <div>
-                    <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Radio style={{ animation: dbSyncStatus === 'active' ? 'pulse 2s infinite' : 'none', color: 'var(--primary-600)' }} />
-                        Live Database Real-time Monitor
-                    </h2>
-                    <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0', fontSize: '14px', fontWeight: 500 }}>
-                        แสดงผลข้อมูลมิเตอร์จากตาราง <code style={{ color: 'var(--primary-600)', background: 'var(--primary-50)', padding: '2px 6px', borderRadius: '4px' }}>meter_data_realtime</code> อัปเดตผ่าน API ทุกๆ 5 วินาที
-                    </p>
+        <div style={{ color: C.ink, padding: '10px 0' }}>
+            {/* Command bar */}
+            <div style={{ background: C.bar, color: '#fff', display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
+                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
+                    <div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>MONITORING // REALTIME</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>
+                            แสดงผลข้อมูลมิเตอร์จากตาราง <code style={{ color: C.accent, padding: '1px 4px', background: C.barSub + '1a', fontFamily: MONO }}>meter_data_realtime</code>
+                        </div>
+                    </div>
                 </div>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'right' }}>
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>Last Sync</span>
-                        <span style={{ fontSize: '14px', color: 'var(--text)', fontWeight: 800 }}>{lastFetchTime || '-'}</span>
+
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: C.barSub }}>LAST SYNC:</span>
+                        <span style={{ color: '#fff', fontWeight: 700 }}>{lastFetchTime || '-'}</span>
                     </div>
 
                     <button 
                         onClick={() => fetchLatestData(false)}
-                        className="btn btn-outline"
                         style={{
-                            borderRadius: '8px',
-                            padding: '8px 14px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontSize: '13px',
-                            fontWeight: 700,
-                            borderColor: 'var(--border)'
+                            display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',
+                            background: 'transparent', border: `1px solid #ffffff33`, padding: '5px 9px', cursor: 'pointer'
                         }}
+                        title="Force Sync Data"
                     >
-                        <RefreshCw size={14} className={dbSyncStatus === 'syncing' ? 'spin' : ''} /> Force Sync
+                        <RefreshCw size={11} className={dbSyncStatus === 'syncing' ? 'spin' : ''} /> SYNC
                     </button>
                 </div>
             </div>
@@ -271,65 +275,63 @@ const RealtimePage: React.FC = () => {
                 marginBottom: '24px'
             }}>
                 {/* Database Sync Status Card */}
-                <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 700 }}>Sync Status</span>
-                        <Radio size={20} style={{
-                            color: dbSyncStatus === 'active' ? '#059669' : dbSyncStatus === 'syncing' ? '#d97706' : '#dc2626'
-                        }} />
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sync Status</span>
+                        <Radio size={20} style={{ color: syncColor }} />
                     </div>
-                    <h3 style={{ fontSize: '24px', fontWeight: 800, margin: '10px 0 4px 0', color: 'var(--text)' }}>
+                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
                         {dbSyncStatus === 'active' ? 'Connected' : dbSyncStatus === 'syncing' ? 'Syncing...' : 'Error'}
                     </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: dbSyncStatus === 'active' ? '#059669' : 'var(--text-secondary)', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: MONO, color: syncColor, fontWeight: 600 }}>
                         <span style={{
                             width: 8, height: 8, borderRadius: '50%',
-                            backgroundColor: dbSyncStatus === 'active' ? '#10b981' : dbSyncStatus === 'syncing' ? '#f59e0b' : '#ef4444',
-                            boxShadow: dbSyncStatus === 'active' ? '0 0 8px #10b981' : 'none'
+                            backgroundColor: syncColor,
+                            boxShadow: dbSyncStatus === 'active' ? `0 0 8px ${C.green}` : 'none'
                         }} />
-                        {dbSyncStatus === 'active' ? 'ดึงฐานข้อมูลแบบ Real-time (5s)' : 'กำลังอัปเดตข้อมูล...'}
+                        {dbSyncStatus === 'active' ? 'LIVE TELEMETRY (5S)' : 'UPDATING CACHE...'}
                     </div>
                 </div>
 
                 {/* Active Meters Card */}
-                <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 700 }}>Active Power Meters</span>
-                        <Cpu size={20} style={{ color: '#0284c7' }} />
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Power Meters</span>
+                        <Cpu size={20} style={{ color: C.accent }} />
                     </div>
-                    <h3 style={{ fontSize: '24px', fontWeight: 800, margin: '10px 0 4px 0', color: 'var(--text)' }}>
+                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
                         {activeCount} / 5
                     </h3>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                        จำนวนมิเตอร์ที่จำลองขึ้นในระบบ
+                    <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
+                        ACTIVE CHANNELS IN PROCESS
                     </span>
                 </div>
 
                 {/* Total Load Card */}
-                <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 700 }}>Total Active Load</span>
-                        <Zap size={20} style={{ color: '#d97706' }} />
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Active Load</span>
+                        <Zap size={20} style={{ color: C.yellow }} />
                     </div>
-                    <h3 style={{ fontSize: '24px', fontWeight: 800, margin: '10px 0 4px 0', color: '#d97706' }}>
+                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.yellow }}>
                         {totalPower.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW
                     </h3>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                        ผลรวมโหลดทั้ง 5 มิเตอร์แบบ real-time
+                    <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
+                        AGGREGATED REALTIME POWER DEMAND
                     </span>
                 </div>
 
                 {/* Avg Voltage Card */}
-                <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 700 }}>Avg Line-to-Neutral</span>
-                        <Activity size={20} style={{ color: '#2563eb' }} />
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Avg Line-to-Neutral</span>
+                        <Activity size={20} style={{ color: C.accent }} />
                     </div>
-                    <h3 style={{ fontSize: '24px', fontWeight: 800, margin: '10px 0 4px 0', color: 'var(--text)' }}>
+                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
                         {avgVoltage.toFixed(1)} V
                     </h3>
-                    <span style={{ fontSize: '12px', color: avgVoltage > 215 && avgVoltage < 230 ? '#059669' : '#dc2626', fontWeight: 600 }}>
-                        {avgVoltage > 215 && avgVoltage < 230 ? 'สถานะแรงดันไฟคงที่' : 'แรงดันไฟต่างจากมาตรฐาน'}
+                    <span style={{ fontSize: '11px', color: avgVoltage > 215 && avgVoltage < 230 ? C.green : C.red, fontWeight: 600, fontFamily: MONO }}>
+                        {avgVoltage > 215 && avgVoltage < 230 ? 'VOLTAGE NOMINAL' : 'VOLTAGE OUT OF TOLERANCE'}
                     </span>
                 </div>
             </div>
@@ -343,18 +345,21 @@ const RealtimePage: React.FC = () => {
                 alignItems: 'stretch'
             }}>
                 {/* Real-time Line Chart */}
-                <div className="card" style={{
+                <div style={{
+                    background: C.panel,
+                    border: `1px solid ${C.line}`,
                     padding: '20px',
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'space-between'
+                    justifyContent: 'space-between',
+                    borderRadius: 0
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Activity size={16} style={{ color: '#2563eb' }} />
-                            คลื่นการใช้พลังงานสด (Live Active Load - kW)
+                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
+                            <Activity size={16} style={{ color: C.accent }} />
+                            ACTIVE POWER LOAD WAVEFORM (kW)
                         </h4>
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>แสดงข้อมูล 15 จุดล่าสุด</span>
+                        <span style={{ fontSize: '10px', fontFamily: MONO, color: C.sub, fontWeight: 600 }}>15-POINT BUFFER</span>
                     </div>
 
                     <div style={{ width: '100%', height: 300 }}>
@@ -369,15 +374,15 @@ const RealtimePage: React.FC = () => {
                                             </linearGradient>
                                         ))}
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 0, 0, 0.05)" />
-                                    <XAxis dataKey="time" stroke="#475569" style={{ fontSize: 10, fontWeight: 600 }} />
-                                    <YAxis stroke="#475569" style={{ fontSize: 10, fontWeight: 600 }} unit=" kW" />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={C.line} />
+                                    <XAxis dataKey="time" stroke={C.sub} style={{ fontSize: 9, fontFamily: MONO, fontWeight: 600 }} />
+                                    <YAxis stroke={C.sub} style={{ fontSize: 9, fontFamily: MONO, fontWeight: 600 }} unit=" kW" />
                                     <Tooltip 
-                                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)' }}
-                                        itemStyle={{ fontSize: 12, fontWeight: 600 }}
-                                        labelStyle={{ fontSize: 12, fontWeight: 'bold', color: '#64748b', marginBottom: 4 }}
+                                        contentStyle={{ backgroundColor: C.panel, borderColor: C.line, color: C.ink, borderRadius: 0, fontFamily: MONO }}
+                                        itemStyle={{ fontSize: 11, fontWeight: 600 }}
+                                        labelStyle={{ fontSize: 11, fontWeight: 'bold', color: C.sub, marginBottom: 4 }}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10, fontWeight: 600 }} />
+                                    <Legend wrapperStyle={{ fontSize: 10, fontFamily: MONO, paddingTop: 10, fontWeight: 600, color: C.ink }} />
                                     {meters.map((m, idx) => (
                                         <Area
                                             key={m.meter_code}
@@ -386,57 +391,66 @@ const RealtimePage: React.FC = () => {
                                             stroke={chartColors[idx % chartColors.length]}
                                             fillOpacity={1}
                                             fill={`url(#color-${idx})`}
-                                            strokeWidth={2.5}
+                                            strokeWidth={2}
                                             dot={false}
-                                            activeDot={{ r: 5 }}
+                                            activeDot={{ r: 4 }}
                                         />
                                     ))}
                                 </AreaChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)' }}>
-                                กำลังโหลดข้อมูล...
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: MONO, color: C.sub }}>
+                                LOADING WAVEFORM DATA...
                             </div>
                         )}
                     </div>
                 </div>
 
                 {/* Alerts panel */}
-                <div className="card" style={{
+                <div style={{
+                    background: C.panel,
+                    border: `1px solid ${C.line}`,
                     padding: '20px',
                     display: 'flex',
                     flexDirection: 'column',
                     maxHeight: '380px',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    borderRadius: 0
                 }}>
-                    <h4 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <ShieldAlert size={16} style={{ color: '#dc2626' }} />
+                    <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
+                        <ShieldAlert size={16} style={{ color: C.red }} />
                         Realtime Alerts
                     </h4>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
                         {alerts.length > 0 ? (
-                            alerts.map(al => (
-                                <div key={al.id} style={{
-                                    borderLeft: `4px solid ${al.type === 'danger' ? '#dc2626' : '#d97706'}`,
-                                    background: al.type === 'danger' ? '#fef2f2' : '#fffbeb',
-                                    padding: '10px 12px',
-                                    borderRadius: '0 8px 8px 0',
-                                    fontSize: '12px'
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '10px', marginBottom: '4px' }}>
-                                        <span style={{ fontWeight: 700, color: al.type === 'danger' ? '#ef4444' : '#b45309' }}>
-                                            {al.type.toUpperCase()}
-                                        </span>
-                                        <span style={{ fontWeight: 600 }}>{al.time}</span>
+                            alerts.map(al => {
+                                const alertColor = al.type === 'danger' ? C.red : C.yellow;
+                                const alertBg = al.type === 'danger' 
+                                    ? (theme === 'light' ? '#fef2f2' : '#2d1a1e') 
+                                    : (theme === 'light' ? '#fffbeb' : '#2d241a');
+                                return (
+                                    <div key={al.id} style={{
+                                        borderLeft: `4px solid ${alertColor}`,
+                                        background: alertBg,
+                                        padding: '10px 12px',
+                                        borderRadius: 0,
+                                        fontSize: '12px'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sub, fontSize: '9px', fontFamily: MONO, marginBottom: '4px' }}>
+                                            <span style={{ fontWeight: 700, color: alertColor }}>
+                                                {al.type.toUpperCase()}
+                                            </span>
+                                            <span style={{ fontWeight: 600 }}>{al.time}</span>
+                                        </div>
+                                        <div style={{ color: C.ink, lineHeight: 1.4, fontWeight: 600 }}>{al.msg}</div>
                                     </div>
-                                    <div style={{ color: 'var(--text)', lineHeight: 1.4, fontWeight: 600 }}>{al.msg}</div>
-                                </div>
-                            ))
+                                );
+                            })
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', gap: '8px', paddingTop: '40px' }}>
-                                <AlertTriangle size={28} style={{ color: 'var(--border)' }} />
-                                <span style={{ fontWeight: 600 }}>No alerts at the moment</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: C.sub, gap: '8px', paddingTop: '40px' }}>
+                                <AlertTriangle size={24} style={{ color: C.line }} />
+                                <span style={{ fontWeight: 600, fontFamily: MONO, fontSize: 11 }}>SYSTEM HEALTH OK</span>
                             </div>
                         )}
                     </div>
@@ -444,32 +458,34 @@ const RealtimePage: React.FC = () => {
             </div>
 
             {/* Real-time Table */}
-            <div className="card" style={{
-                borderRadius: '16px',
+            <div style={{
+                background: C.panel,
+                border: `1px solid ${C.line}`,
+                borderRadius: 0,
                 padding: '20px',
                 overflow: 'hidden'
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Cpu size={16} style={{ color: 'var(--primary-600)' }} />
-                        ตารางการใช้พลังงานในแต่ละจุด (Realtime Values)
+                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
+                        <Cpu size={16} style={{ color: C.accent }} />
+                        METER CHANNELS REALTIME DIAGNOSTICS
                     </h4>
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', fontFamily: MONO }}>
                         <thead>
-                            <tr style={{ borderBottom: '2px solid var(--border-light)', color: 'var(--text-secondary)', fontWeight: 800 }}>
-                                <th style={{ padding: '12px 8px' }}>Code</th>
-                                <th style={{ padding: '12px 8px' }}>Meter Name</th>
-                                <th style={{ padding: '12px 8px' }}>Voltage (V)</th>
-                                <th style={{ padding: '12px 8px' }}>Current (A)</th>
-                                <th style={{ padding: '12px 8px' }}>Active Power (kW)</th>
-                                <th style={{ padding: '12px 8px' }}>Apparent Power (kVA)</th>
-                                <th style={{ padding: '12px 8px' }}>Power Factor</th>
-                                <th style={{ padding: '12px 8px' }}>Frequency (Hz)</th>
-                                <th style={{ padding: '12px 8px' }}>Total Energy (kWh)</th>
-                                <th style={{ padding: '12px 8px' }}>Update Time</th>
+                            <tr style={{ borderBottom: `2px solid ${C.line}`, color: C.sub, fontWeight: 700 }}>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Code</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Meter Name</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Voltage (V)</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Current (A)</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Active Power (kW)</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Apparent Power (kVA)</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Power Factor</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Frequency (Hz)</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Total Energy (kWh)</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Update Time</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -482,38 +498,40 @@ const RealtimePage: React.FC = () => {
 
                                     return (
                                         <tr key={m.meter_code} style={{
-                                            borderBottom: '1px solid var(--border-light)',
-                                            backgroundColor: isFlashing ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
+                                            borderBottom: `1px solid ${C.line}`,
+                                            backgroundColor: isFlashing 
+                                                ? (theme === 'light' ? 'rgba(43,76,126,0.12)' : 'rgba(54,194,206,0.12)') 
+                                                : 'transparent',
                                             transition: isFlashing ? 'none' : 'background-color 0.8s ease',
-                                            color: 'var(--text)',
+                                            color: C.ink,
                                             fontWeight: 500
                                         }}>
                                             <td style={{ padding: '14px 8px', fontWeight: 700 }}>{m.meter_code}</td>
-                                            <td style={{ padding: '14px 8px', color: '#0284c7', fontWeight: 600 }}>{m.meter_name}</td>
+                                            <td style={{ padding: '14px 8px', color: C.accent, fontWeight: 700 }}>{m.meter_name}</td>
                                             <td style={{ padding: '14px 8px' }}>
-                                                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>
+                                                <span style={{ fontSize: '10px', color: C.sub, display: 'block', fontWeight: 500 }}>
                                                     {m.vl1.toFixed(1)} / {m.vl2.toFixed(1)} / {m.vl3.toFixed(1)}
                                                 </span>
                                                 <span style={{ fontWeight: 700 }}>{avgV.toFixed(1)} V</span>
                                             </td>
                                             <td style={{ padding: '14px 8px' }}>
-                                                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>
+                                                <span style={{ fontSize: '10px', color: C.sub, display: 'block', fontWeight: 500 }}>
                                                     {m.il1.toFixed(2)} / {m.il2.toFixed(2)} / {m.il3.toFixed(2)}
                                                 </span>
                                                 <span style={{ fontWeight: 700 }}>{avgI.toFixed(2)} A</span>
                                             </td>
-                                            <td style={{ padding: '14px 8px', fontWeight: 800, color: '#d97706' }}>
+                                            <td style={{ padding: '14px 8px', fontWeight: 700, color: C.yellow }}>
                                                 {m.kw_3ph.toFixed(2)} kW
                                             </td>
                                             <td style={{ padding: '14px 8px', fontWeight: 600 }}>{m.kva_3ph.toFixed(2)} kVA</td>
-                                            <td style={{ padding: '14px 8px', color: avgPf > 0.85 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                                            <td style={{ padding: '14px 8px', color: avgPf > 0.85 ? C.green : C.red, fontWeight: 700 }}>
                                                 {avgPf.toFixed(3)}
                                             </td>
                                             <td style={{ padding: '14px 8px', fontWeight: 600 }}>{m.hz.toFixed(2)} Hz</td>
-                                            <td style={{ padding: '14px 8px', fontWeight: 700, color: '#059669' }}>
+                                            <td style={{ padding: '14px 8px', fontWeight: 700, color: C.green }}>
                                                 {m.import_kwhr.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                                             </td>
-                                            <td style={{ padding: '14px 8px', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 600 }}>
+                                            <td style={{ padding: '14px 8px', color: C.sub, fontSize: '12px', fontWeight: 600 }}>
                                                 {new Date(m.device_datetime).toLocaleTimeString()}
                                             </td>
                                         </tr>
@@ -521,8 +539,8 @@ const RealtimePage: React.FC = () => {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)' }}>
-                                        ไม่มีข้อมูลมิเตอร์
+                                    <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: C.sub }}>
+                                        NO METER REGISTRIES FOUND
                                     </td>
                                 </tr>
                             )}

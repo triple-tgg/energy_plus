@@ -2057,3 +2057,126 @@ body {
 .ec-theme-dark .topbar__dropdown-divider {
   border-top: 1px solid #2A313C;
 }
+
+/* --- Global Elements under ec-theme-light --- */
+.ec-theme-light .filter-bar {
+  background: #FBFAF4;
+  border: 1px solid #D4D1C0;
+  border-radius: 0;
+  padding: 16px;
+}
+
+.ec-theme-light .form-control {
+  background: #FBFAF4;
+  color: #23261E;
+  border: 1px solid #D4D1C0;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .form-control:focus {
+  border-color: #2B4C7E;
+  box-shadow: none;
+}
+
+.ec-theme-light .btn-primary {
+  background: #2B4C7E;
+  border-color: #2B4C7E;
+  color: #ffffff;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.ec-theme-light .btn-primary:hover:not(:disabled) {
+  background: #1d3557;
+  border-color: #1d3557;
+}
+
+.ec-theme-light .btn-secondary {
+  background: #F1EFE3;
+  border-color: #D4D1C0;
+  color: #23261E;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.ec-theme-light .btn-secondary:hover:not(:disabled) {
+  background: #EAE7DA;
+  border-color: #A6A892;
+}
+
+/* --- Global Elements under ec-theme-dark --- */
+.ec-theme-dark .filter-bar {
+  background: #161B22;
+  border: 1px solid #2A313C;
+  border-radius: 0;
+  padding: 16px;
+}
+
+.ec-theme-dark .form-control {
+  background: #161B22;
+  color: #E6EDF3;
+  border: 1px solid #2A313C;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .form-control:focus {
+  border-color: #36C2CE;
+  box-shadow: none;
+}
+
+.ec-theme-dark .btn-primary {
+  background: #36C2CE;
+  border-color: #36C2CE;
+  color: #0E1116;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.ec-theme-dark .btn-primary:hover:not(:disabled) {
+  background: #2bb0bc;
+  border-color: #2bb0bc;
+}
+
+.ec-theme-dark .btn-secondary {
+  background: #1C232E;
+  border-color: #2A313C;
+  color: #E6EDF3;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.ec-theme-dark .btn-secondary:hover:not(:disabled) {
+  background: #0E1116;
+  border-color: #6E7681;
+}
+
+/* --- Card Styles (used for Placeholder and simple summary cards) --- */
+.ec-theme-light .card {
+  background: #FBFAF4;
+  border: 1px solid #D4D1C0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ec-theme-dark .card {
+  background: #161B22;
+  border: 1px solid #2A313C;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ec-theme-light .card-body h2, .ec-theme-light .card-body p {
+  font-family: ui-monospace, monospace;
+  color: #23261E;
+}
+
+.ec-theme-dark .card-body h2, .ec-theme-dark .card-body p {
+  font-family: ui-monospace, monospace;
+  color: #E6EDF3;
+}

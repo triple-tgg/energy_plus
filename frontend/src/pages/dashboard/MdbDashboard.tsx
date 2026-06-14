@@ -4,11 +4,28 @@ import type { FilterValues } from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
 import { dashboardApi } from '../../api/client';
 import { Bar } from 'react-chartjs-2';
+import { LayoutGrid } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+
+const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+
+const THEMES = {
+    light: {
+        bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
+        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+    },
+    dark: {
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
+    },
+};
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const MdbDashboard: React.FC = () => {
+    const { theme } = useTheme();
+    const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [chartData, setChartData] = useState<any>(null);
@@ -33,15 +50,16 @@ const MdbDashboard: React.FC = () => {
 
             // Build chart
             if (items.length > 0) {
+                const activeC = THEMES[localStorage.getItem('ec-theme') as 'light' | 'dark' || 'light'];
                 setChartData({
                     labels: items.map((d: any) => d.mdb_name || d.name || `MDB-${d.id}`),
                     datasets: [{
                         label: 'Energy (kWh)',
                         data: items.map((d: any) => d.kwh || d.total_kwh || 0),
-                        backgroundColor: 'rgba(99, 102, 241, 0.7)',
-                        borderColor: 'rgba(99, 102, 241, 1)',
+                        backgroundColor: activeC.accent + 'cc',
+                        borderColor: activeC.accent,
                         borderWidth: 1,
-                        borderRadius: 6,
+                        borderRadius: 0,
                     }],
                 });
             }
@@ -72,23 +90,28 @@ const MdbDashboard: React.FC = () => {
 
     return (
         <div>
-            <h1 className="page-title">
-                <span className="page-title__icon">⚡</span>
-                MDB Consumption Dashboard
-            </h1>
+            {/* Command bar */}
+            <div style={{ background: C.bar, color: '#fff', display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
+                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
+                    <div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>DASHBOARD // MDB</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>แดชบอร์ดติดตามข้อมูลการใช้พลังงานแยกตามตู้ไฟ MDB</div>
+                    </div>
+                </div>
+            </div>
 
             <FilterBar onSubmit={fetchData} loading={loading} showSearchMeter={false} />
 
             {chartData && (
                 <div style={{
-                    background: 'var(--surface)',
-                    borderRadius: 'var(--radius-xl)',
-                    border: '1px solid var(--border-light)',
+                    background: C.panel,
+                    borderRadius: 0,
+                    border: `1px solid ${C.line}`,
                     padding: '20px 24px',
                     marginBottom: 20,
-                    boxShadow: 'var(--shadow-sm)',
                 }}>
-                    <h3 style={{ marginBottom: 16, fontWeight: 600 }}>Energy Consumption by MDB (kWh)</h3>
+                    <h3 style={{ marginBottom: 16, fontWeight: 700, fontFamily: MONO, fontSize: 14, color: C.ink, letterSpacing: '0.5px' }}>ENERGY CONSUMPTION BY MDB (KWH)</h3>
                     <div style={{ height: 350 }}>
                         <Bar
                             data={chartData}
@@ -97,8 +120,15 @@ const MdbDashboard: React.FC = () => {
                                 maintainAspectRatio: false,
                                 plugins: { legend: { display: false } },
                                 scales: {
-                                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
-                                    x: { grid: { display: false } },
+                                    y: { 
+                                        beginAtZero: true, 
+                                        grid: { color: C.line },
+                                        ticks: { color: C.sub, font: { family: MONO, size: 10 } }
+                                    },
+                                    x: { 
+                                        grid: { display: false },
+                                        ticks: { color: C.sub, font: { family: MONO, size: 10 } }
+                                    },
                                 },
                             }}
                         />
