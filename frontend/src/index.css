@@ -502,6 +502,99 @@ body {
   letter-spacing: 0.5px;
 }
 
+.ec-theme-light .card-body h2, .ec-theme-light .card-body p {
+  font-family: ui-monospace, monospace;
+  color: #23261E;
+}
+
+.ec-theme-dark .card-body h2, .ec-theme-dark .card-body p {
+  font-family: ui-monospace, monospace;
+  color: #E6EDF3;
+}
+
+/* --- Export Buttons (Success, Danger, Info) under ec-theme-light --- */
+.ec-theme-light .btn-success {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.ec-theme-light .btn-success:hover:not(:disabled) {
+  background: #116b32;
+  border-color: #116b32;
+}
+
+.ec-theme-light .btn-danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.ec-theme-light .btn-danger:hover:not(:disabled) {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+
+.ec-theme-light .btn-info {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.ec-theme-light .btn-info:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+/* --- Export Buttons (Success, Danger, Info) under ec-theme-dark --- */
+.ec-theme-dark .btn-success {
+  background: #34d399;
+  border-color: #34d399;
+  color: #0E1116;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.ec-theme-dark .btn-success:hover:not(:disabled) {
+  background: #059669;
+  border-color: #059669;
+  color: #0E1116;
+}
+
+.ec-theme-dark .btn-danger {
+  background: #f85149;
+  border-color: #f85149;
+  color: #0E1116;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.ec-theme-dark .btn-danger:hover:not(:disabled) {
+  background: #da3633;
+  border-color: #da3633;
+  color: #ffffff;
+}
+
+.ec-theme-dark .btn-info {
+  background: #58a6ff;
+  border-color: #58a6ff;
+  color: #0E1116;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.ec-theme-dark .btn-info:hover:not(:disabled) {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #ffffff;
+}
+
 .topbar__user-info {
   text-align: left;
 }
