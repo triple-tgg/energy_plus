@@ -1,66 +1,73 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    Zap, Droplet, Flame, Sun, ChevronRight, Home, Activity,
-    ArrowUpDown, X, Gauge, Search, Wifi, WifiOff, AlertTriangle,
-    Network, Pencil, Bell, PowerOff, LayoutGrid, BarChart3,
-    Compass, HelpCircle, Layers, CheckCircle2
+    Zap, Droplet, Flame, Sun, Home, Activity, ArrowUpDown, X, Gauge, Search,
+    Wifi, WifiOff, AlertTriangle, Network, Pencil, Bell, PowerOff, LayoutGrid, BarChart3, Moon,
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell,
+    PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
 
-/* ---------------------------------------------------------------------------
-   Energy Monitoring Dashboard — ระบบติดตามพลังงานแบบ drill-down
-   สาขา → ตึก → ชั้น → โซน → ห้อง(Meter) + ตาราง Realtime + สถานะสี
-   ข้อมูลจำลองอิงตาม schema meter_data_realtime (3-phase + import_kwhr)
- --------------------------------------------------------------------------- */
+/* ===========================================================================
+   Energy Console — ต้นแบบ Dashboard พลังงาน
+   Drill-down: สาขา → ตึก → ชั้น → โซน → ห้อง(Meter) + ตาราง Realtime + กราฟ
+   ข้อมูลจำลองอิง schema meter_data_realtime (3-phase + import_kwhr + received_at)
+=========================================================================== */
 
-// ── Color tokens using design system variables ──
-const C = {
-    bg: 'var(--bg)',
-    surface: 'var(--surface)',
-    text: 'var(--text)',
-    textSecondary: 'var(--text-secondary)',
-    textMuted: 'var(--text-muted)',
-    border: 'var(--border)',
-    borderLight: 'var(--border-light)',
-    primary: 'var(--primary-600)',
-    primaryHover: 'var(--primary-700)',
-    primaryLight: 'var(--primary-50)',
-    accent: 'var(--rose-500)',
-    accentLight: 'var(--rose-50)',
-    
-    // Status colors
-    green: '#10B981',
-    greenLight: '#ECFDF5',
-    greenBorder: '#A7F3D0',
-    
-    yellow: '#F59E0B',
-    yellowLight: '#FFFBEB',
-    yellowBorder: '#FDE68A',
-    
-    red: '#EF4444',
-    redLight: '#FEF2F2',
-    redBorder: '#FCA5A5',
-    
-    gray: '#6B7280',
-    grayLight: '#F3F4F6',
-    grayBorder: '#E5E7EB',
+const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+
+interface Theme {
+    bg: string;
+    panel: string;
+    panel2: string;
+    ink: string;
+    sub: string;
+    line: string;
+    bar: string;
+    barSub: string;
+    accent: string;
+    green: string;
+    yellow: string;
+    red: string;
+    grey: string;
+    palette: string[];
+}
+
+const THEMES: Record<'light' | 'dark', Theme> = {
+    light: { // Engineering Paper
+        bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
+        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        green: '#2E7D46', yellow: '#C08A1E', red: '#B4452E', grey: '#9AA08C',
+        palette: ['#2B4C7E', '#B45309', '#2E7D46', '#8C2F39', '#5B6B2E', '#6B4E86', '#9A6B2F', '#356E73'],
+    },
+    dark: { // Control Room
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
+        green: '#3FB950', yellow: '#D29922', red: '#F85149', grey: '#6E7681',
+        palette: ['#58A6FF', '#36C2CE', '#3FB950', '#F85149', '#BC8CFF', '#D29922', '#39C5CF', '#FF7B72'],
+    },
 };
 
-// ── Status & Mode maps ──
-const STATUS: Record<string, { color: string; bg: string; border: string; label: string }> = {
-    normal: { color: C.green, bg: C.greenLight, border: C.greenBorder, label: 'ปกติ' },
-    warning: { color: C.yellow, bg: C.yellowLight, border: C.yellowBorder, label: 'เตือน' },
-    over: { color: C.red, bg: C.redLight, border: C.redBorder, label: 'เกินเกณฑ์' },
-    offline: { color: C.gray, bg: C.grayLight, border: C.grayBorder, label: 'ไม่มีสัญญาณ' },
+const getStatusInfo = (s: string, C: Theme) => {
+    switch (s) {
+        case 'over':
+            return { color: C.red, label: 'เกินเกณฑ์' };
+        case 'offline':
+            return { color: C.grey, label: 'ไม่มีสัญญาณ' };
+        default:
+            return { color: C.green, label: 'ปกติ' };
+    }
 };
 
-const MODE: Record<string, { label: string; color: string; bg: string }> = {
-    auto: { label: 'Auto', color: 'var(--primary-600)', bg: 'var(--primary-50)' },
-    manual: { label: 'กรอกมือ', color: C.yellow, bg: C.yellowLight },
-    disabled: { label: 'ปิดใช้งาน', color: C.gray, bg: C.grayLight },
+const getModeInfo = (m: string, C: Theme) => {
+    switch (m) {
+        case 'manual':
+            return { label: 'MANUAL', color: C.yellow };
+        case 'disabled':
+            return { label: 'OFF', color: C.grey };
+        default:
+            return { label: 'AUTO', color: C.accent };
+    }
 };
 
 const STALE_MS = 30000;
@@ -113,7 +120,7 @@ interface ItemData {
     m?: MeterData;
 }
 
-/* ---------- Seeded RNG (stable layout across refreshes) ---------- */
+/* ---------- Seeded RNG ---------- */
 function mulberry32(a: number) {
     return function () {
         a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -172,8 +179,8 @@ function generateData() {
                         const inputMode = roll < 0.05 ? 'disabled' : roll < 0.17 ? 'manual' : 'auto';
                         const disabled = inputMode === 'disabled';
                         const startCum = 10000 + rnd() * 90000;
-                        const periodVal = rnd() * threshold * 1.25;
-                        const m: MeterData = {
+                        const period0 = rnd() * threshold * 1.25;
+                        const m = {
                             id: rId, code, channel: `CH${String(ch++).padStart(4, '0')}`,
                             site_id: bi + 1, address_id: addr++, device: `PM${2200 + ri(0, 99)}`,
                             type: '3P4W', loop: Math.floor((r - 1) / 32) + 1,
@@ -181,22 +188,13 @@ function generateData() {
                             pathNames: [bn, `ตึก ${String.fromCharCode(65 + j)}`, `ชั้น ${f}`, `โซน ${String.fromCharCode(65 + z)}`],
                             threshold, disabled, inputMode,
                             periodStart_kwhr: +startCum.toFixed(3),
-                            import_kwhr: +(startCum + periodVal).toFixed(3),
+                            import_kwhr: +(startCum + period0).toFixed(3),
                             _pf: 0.86 + rnd() * 0.1, _v: 228 + rnd() * 6,
                             kw_3ph: 3 + rnd() * 42,
-                            kw1: 0, kw2: 0, kw3: 0,
-                            pf1: 0, pf2: 0, pf3: 0,
-                            kva_3ph: 0, kvar_3ph: 0,
-                            kva1: 0, kva2: 0, kva3: 0,
-                            kvar1: 0, kvar2: 0, kvar3: 0,
-                            vl1: 0, vl2: 0, vl3: 0,
-                            vl12: 0, vl23: 0, vl31: 0,
-                            il1: 0, il2: 0, il3: 0,
-                            hz: 0,
                             received_at: disabled ? Date.now() - 600000
                                 : Date.now() - (rnd() < 0.08 ? 60000 + rnd() * 60000 : rnd() * 8000),
                             device_datetime: Date.now(),
-                        };
+                        } as MeterData;
                         refreshElectrical(m);
                         meters.push(m);
                         rooms.push({ id: rId, name: code, level: 'room' });
@@ -213,465 +211,124 @@ function generateData() {
 }
 
 const period = (m: MeterData) => Math.max(0, m.import_kwhr - m.periodStart_kwhr);
-
 function meterStatus(m: MeterData, now: number): string {
     if (m.disabled) return 'offline';
     if (now - m.received_at > STALE_MS) return 'offline';
     const p = period(m), t = m.threshold;
     if (p > t) return 'over';
-    if (p > t * 0.8) return 'warning';
     return 'normal';
 }
-
 function aggStatus(list: MeterData[], now: number): string {
-    let n = false, o = false;
+    let n = false;
     for (const m of list) {
         const s = meterStatus(m, now);
         if (s === 'over') return 'over';
-        if (s === 'warning') o = true;
         if (s === 'normal') n = true;
     }
-    return o ? 'warning' : n ? 'normal' : 'offline';
+    return n ? 'normal' : 'offline';
 }
-
 const fmt = (v: number, d = 0) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-
 const LEVEL_LABEL = ['สาขา', 'ตึก', 'ชั้น', 'โซน', 'ห้อง (Meter)'];
+const LEVEL_EN = ['BRANCH', 'BUILDING', 'FLOOR', 'ZONE', 'ROOM'];
 
-/* ──────────────────── UI Atoms ──────────────────── */
-function StatusDot({ s, size = 10, pulse }: { s: string; size?: number; pulse?: boolean }) {
-    const c = STATUS[s]?.color || C.gray;
+/* ----------------------------- atoms ----------------------------- */
+interface StatusDotProps {
+    s: string;
+    size?: number;
+    pulse?: boolean;
+    C: Theme;
+}
+function StatusDot({ s, size = 9, pulse, C }: StatusDotProps) {
+    const c = getStatusInfo(s, C).color;
     return (
-        <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+        <span style={{ position: 'relative', display: 'inline-flex', width: size, height: size }}>
             <span style={{
-                width: size, height: size, borderRadius: '50%', background: c, display: 'inline-block',
-                boxShadow: `0 0 0 3px ${c}22`
+                width: size, height: size, background: c, borderRadius: 2,
+                boxShadow: `0 0 5px ${c}AA, inset 0 0 0 1px rgba(255,255,255,.4)`
             }} />
             {pulse && s !== 'offline' && (
                 <span style={{
-                    position: 'absolute', inset: 0, borderRadius: '50%', background: c, opacity: 0.5,
-                    animation: 'ed-ping 1.6s cubic-bezier(0,0,.2,1) infinite'
+                    position: 'absolute', inset: 0, borderRadius: 2, background: c, opacity: 0.5,
+                    animation: 'ec-ping 1.7s cubic-bezier(0,0,.2,1) infinite'
                 }} />
             )}
         </span>
     );
 }
 
-function StatusTag({ s }: { s: string }) {
-    const info = STATUS[s] || { color: C.gray, bg: C.grayLight, border: C.grayBorder, label: 'ไม่มีสถานะ' };
+interface CapProps {
+    idx?: string;
+    en: string;
+    th?: string;
+    right?: React.ReactNode;
+    C: Theme;
+}
+function Cap({ idx, en, th, right, C }: CapProps) {
     return (
-        <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '3px 10px',
-            borderRadius: '9999px',
-            fontSize: '11.5px',
-            fontWeight: 600,
-            color: info.color,
-            background: info.bg,
-            border: `1px solid ${info.border}`
-        }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: info.color, display: 'inline-block' }} />
-            {info.label}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
+            {idx && <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: '#fff', background: C.bar, padding: '2px 6px' }}>{idx}</span>}
+            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: 1.5, color: C.accent, fontWeight: 700 }}>{en}</span>
+            {th && <span style={{ fontSize: 12.5, color: C.sub }}>{th}</span>}
+            <span style={{ flex: 1, height: 1, background: C.line }} />
+            {right}
+        </div>
     );
 }
 
-function Readout({ label, value, unit, accent }: { label: string; value: string; unit: string; accent?: string }) {
+interface ReadoutProps {
+    label: string;
+    value: string;
+    unit: string;
+    accent?: string;
+    C: Theme;
+}
+function Readout({ label, value, unit, accent, C }: ReadoutProps) {
     return (
-        <div style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border-light)',
-            borderRadius: 'var(--radius)',
-            padding: '12px 14px',
-            boxShadow: 'var(--shadow-sm)',
-            transition: 'var(--transition)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between'
-        }}>
-            <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500, marginBottom: 6 }}>{label}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{
-                    fontFamily: 'ui-monospace, monospace',
-                    fontVariantNumeric: 'tabular-nums',
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: accent || 'var(--text)'
-                }}>{value}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{unit}</span>
+        <div style={{ background: C.panel2, border: `1px solid ${C.line}`, padding: '9px 11px' }}>
+            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 0.5, color: C.sub, marginBottom: 4, textTransform: 'uppercase' }}>{label}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 18, fontWeight: 600, color: accent || C.ink }}>{value}</span>
+                <span style={{ fontSize: 11, color: C.sub }}>{unit}</span>
             </div>
-        </div>
-    );
-}
-
-/* ──────────────────── Meter Detail Popup ──────────────────── */
-function MeterDetail({ m, now, onClose }: { m: MeterData; now: number; onClose: () => void }) {
-    const s = meterStatus(m, now);
-    const ago = Math.round((now - m.received_at) / 1000);
-    const md = MODE[m.inputMode];
-    const consumed = period(m);
-    const pct = Math.min(100, (consumed / m.threshold) * 100);
-    const isOver = consumed > m.threshold;
-
-    return (
-        <div onClick={onClose} style={{
-            position: 'fixed', inset: 0,
-            background: 'rgba(15, 23, 42, 0.4)',
-            backdropFilter: 'blur(10px)',
-            display: 'grid', placeItems: 'center', padding: 20, zIndex: 1050
-        }}>
-            <div onClick={(e) => e.stopPropagation()} style={{
-                background: 'var(--surface)',
-                borderRadius: 'var(--radius-2xl)',
-                width: 'min(720px, 100%)',
-                maxHeight: '90vh',
-                overflow: 'hidden',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow-xl)',
-                display: 'flex',
-                flexDirection: 'column'
-            }}>
-                {/* Header */}
-                <div style={{
-                    padding: '20px 24px',
-                    borderBottom: '1px solid var(--border-light)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    background: 'linear-gradient(to right, var(--primary-50), var(--surface))'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <StatusDot s={s} size={12} pulse />
-                        <div>
-                            <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                {m.code}
-                                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>({m.device})</span>
-                            </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, fontWeight: 500 }}>
-                                {m.pathNames.join('  ›  ')}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700,
-                            color: md.color, background: md.bg, borderRadius: 'var(--radius-full)', padding: '4px 10px',
-                            border: `1px solid ${md.color}20`
-                        }}>
-                            {m.inputMode === 'manual' ? <Pencil size={11} /> : m.inputMode === 'disabled' ? <PowerOff size={11} /> : <Zap size={11} />}
-                            {md.label}
-                        </span>
-                        
-                        <StatusTag s={s} />
-
-                        <button onClick={onClose} style={{
-                            background: 'var(--gray-100)', border: 'none', borderRadius: '50%',
-                            width: 32, height: 32, cursor: 'pointer', display: 'grid', placeItems: 'center',
-                            color: 'var(--text-secondary)', transition: 'var(--transition)'
-                        }}><X size={16} /></button>
-                    </div>
-                </div>
-
-                {/* Body */}
-                <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-                    <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
-                        {/* kwh gauge card */}
-                        <div style={{
-                            flex: 1, minWidth: 260,
-                            background: 'var(--gray-950)', color: '#fff',
-                            borderRadius: 'var(--radius-xl)', padding: '20px',
-                            boxShadow: 'var(--shadow-md)', position: 'relative', overflow: 'hidden'
-                        }}>
-                            <div style={{ fontSize: 12, color: 'var(--gray-400)', fontWeight: 500, marginBottom: 4 }}>พลังงานสะสมงวดนี้</div>
-                            <div style={{
-                                fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
-                                fontSize: 32, fontWeight: 800
-                            }}>{fmt(consumed, 1)} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--gray-400)' }}>kWh</span></div>
-                            
-                            {/* Gauge bar */}
-                            <div style={{ marginTop: 14 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: 'var(--gray-400)' }}>
-                                    <span>ใช้จริง: {fmt(pct, 0)}%</span>
-                                    <span>เกณฑ์: {fmt(m.threshold, 0)} kWh</span>
-                                </div>
-                                <div style={{ height: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 99, overflow: 'hidden' }}>
-                                    <div style={{
-                                        width: `${pct}%`, height: '100%',
-                                        background: isOver ? C.red : pct > 80 ? C.yellow : C.green,
-                                        borderRadius: 99, transition: 'width 0.4s ease'
-                                    }} />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* kw monitor card */}
-                        <div style={{
-                            flex: 1, minWidth: 260,
-                            background: 'var(--primary-50)', border: '1px solid var(--primary-100)',
-                            borderRadius: 'var(--radius-xl)', padding: '20px',
-                            boxShadow: 'var(--shadow-sm)'
-                        }}>
-                            <div style={{ fontSize: 12, color: 'var(--primary-700)', fontWeight: 600, marginBottom: 4 }}>กำลังไฟรวมปัจจุบัน</div>
-                            <div style={{
-                                fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
-                                fontSize: 32, fontWeight: 800, color: 'var(--primary-700)'
-                            }}>{fmt(m.kw_3ph, 2)} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--primary-600)' }}>kW</span></div>
-                            
-                            <div style={{ display: 'flex', gap: 12, marginTop: 14, borderTop: '1px solid var(--primary-100)', paddingTop: 10, fontSize: 11.5, color: 'var(--primary-600)' }}>
-                                <div>kVA: <b>{fmt(m.kva_3ph, 1)}</b></div>
-                                <div>kVAR: <b>{fmt(m.kvar_3ph, 1)}</b></div>
-                                <div style={{ marginLeft: 'auto' }}>อัปเดต: <b>{ago}s ที่แล้ว</b></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Layers size={14} color="var(--primary-600)" />
-                        ค่าวัดระบบไฟฟ้าแบบ 3 เฟส
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 10 }}>
-                        <Readout label="แรงดันไฟฟ้า L-N" value={`${fmt(m.vl1)}/${fmt(m.vl2)}/${fmt(m.vl3)}`} unit="V" />
-                        <Readout label="แรงดันไฟฟ้า L-L" value={`${fmt(m.vl12)}/${fmt(m.vl23)}/${fmt(m.vl31)}`} unit="V" />
-                        <Readout label="กระแสไฟฟ้า" value={`${fmt(m.il1, 1)}/${fmt(m.il2, 1)}/${fmt(m.il3, 1)}`} unit="A" />
-                        <Readout label="กำลังไฟฟ้า kW" value={`${fmt(m.kw1, 1)}/${fmt(m.kw2, 1)}/${fmt(m.kw3, 1)}`} unit="kW" />
-                        <Readout label="Power Factor" value={`${m.pf1.toFixed(2)}/${m.pf2.toFixed(2)}/${m.pf3.toFixed(2)}`} unit="" accent="var(--primary-600)" />
-                        <Readout label="ความถี่ไฟฟ้า" value={fmt(m.hz, 2)} unit="Hz" />
-                    </div>
-
-                    <div style={{
-                        marginTop: 20, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
-                        background: 'var(--gray-50)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius)', padding: '12px 16px'
-                    }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>ข้อมูลจำเพาะมิเตอร์</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
-                            <div>Channel: <b style={{ fontFamily: 'monospace' }}>{m.channel}</b></div>
-                            <div>Wiring Type: <b>{m.type}</b></div>
-                            <div>Site ID: <b>{m.site_id}</b></div>
-                            <div>Modbus Address ID: <b>{m.address_id}</b></div>
-                            <div>วันเวลาในอุปกรณ์: <b>{new Date(m.device_datetime).toLocaleTimeString('th-TH')}</b></div>
-                            <div>อัปเดตระบบ: <b>{new Date(m.received_at).toLocaleTimeString('th-TH')}</b></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ──────────────────── Zone Floor Plan ──────────────────── */
-function ZonePlan({ items, onPick }: { items: ItemData[]; onPick: (it: ItemData) => void }) {
-    return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-            {items.map((it) => {
-                const info = STATUS[it.status];
-                return (
-                    <button key={it.node.id} onClick={() => onPick(it)} style={{
-                        textAlign: 'left', cursor: 'pointer',
-                        border: `1px solid ${info.border}`,
-                        borderRadius: 'var(--radius-xl)',
-                        background: 'var(--surface)',
-                        padding: '16px 20px',
-                        display: 'flex', flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        minHeight: 120,
-                        boxShadow: 'var(--shadow-sm)',
-                        transition: 'var(--transition)',
-                        position: 'relative',
-                        overflow: 'hidden'
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                        e.currentTarget.style.borderColor = info.color;
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                        e.currentTarget.style.borderColor = info.border;
-                    }}
-                    >
-                        {/* Visual accent bar at the top */}
-                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: info.color }} />
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                            <span style={{ fontWeight: 700, fontSize: 14.5, color: 'var(--text)' }}>{it.node.name}</span>
-                            <StatusTag s={it.status} />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 'auto' }}>
-                            <span style={{
-                                fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
-                                fontSize: 26, fontWeight: 800, color: 'var(--text)'
-                            }}>{fmt(it.kwh)}</span>
-                            <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>kWh</span>
-                        </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 4, fontWeight: 500 }}>
-                            ติดตั้งแล้ว {it.count} มิเตอร์
-                        </div>
-                    </button>
-                );
-            })}
-        </div>
-    );
-}
-
-/* ──────────────────── Loop / Room Grid ──────────────────── */
-function LoopGrid({ groups, onPick }: { groups: { loop: number; items: ItemData[] }[]; onPick: (m: MeterData) => void }) {
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {groups.map((g) => (
-                <div key={g.loop} style={{
-                    border: '1px solid var(--border-light)',
-                    borderRadius: 'var(--radius-xl)',
-                    background: 'var(--surface)',
-                    padding: 16,
-                    boxShadow: 'var(--shadow-sm)'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                        <span style={{
-                            fontWeight: 700, fontSize: 13,
-                            background: 'var(--gray-950)', color: '#fff',
-                            borderRadius: 'var(--radius-sm)', padding: '4px 12px'
-                        }}>
-                            Loop {g.loop}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                            ความหนาแน่นอุปกรณ์: <b>{g.items.length}</b> / 32 Meter
-                        </span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 10 }}>
-                        {g.items.map((it) => {
-                            const info = STATUS[it.status];
-                            const md = MODE[it.m!.inputMode];
-                            const dim = it.m!.inputMode === 'disabled';
-                            return (
-                                <button key={it.node.id} onClick={() => onPick(it.m!)} title={`${it.node.name} · ${md.label}`} style={{
-                                    cursor: 'pointer', border: `1px solid var(--border-light)`,
-                                    borderRadius: 'var(--radius-lg)', padding: '12px 8px',
-                                    background: dim ? 'var(--gray-50)' : 'var(--surface)',
-                                    opacity: dim ? 0.6 : 1, display: 'flex',
-                                    flexDirection: 'column', alignItems: 'center', gap: 6, position: 'relative',
-                                    transition: 'var(--transition)',
-                                    boxShadow: 'var(--shadow-xs)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!dim) {
-                                        e.currentTarget.style.transform = 'scale(1.04)';
-                                        e.currentTarget.style.borderColor = info.color;
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!dim) {
-                                        e.currentTarget.style.transform = 'scale(1)';
-                                        e.currentTarget.style.borderColor = 'var(--border-light)';
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-xs)';
-                                    }
-                                }}
-                                >
-                                    {it.m!.inputMode === 'manual' && (
-                                        <span style={{ position: 'absolute', top: 6, right: 6, color: C.yellow }}><Pencil size={11} /></span>
-                                    )}
-                                    <span style={{
-                                        width: 10, height: 10, borderRadius: '50%', background: info.color,
-                                        boxShadow: `0 0 8px ${info.color}`, display: 'block'
-                                    }} />
-                                    <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text)' }}>{it.node.name}</span>
-                                    <span style={{
-                                        fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
-                                        fontSize: 13, fontWeight: 800, color: 'var(--text)'
-                                    }}>{fmt(it.kwh)}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            ))}
         </div>
     );
 }
 
 /* ──────────────────── Single Line Diagram ──────────────────── */
-function SingleLine({ main, feeders, onPick }: {
-    main: { name: string; kwh: number; status: string };
+interface SingleLineProps {
+    main: { name: string | undefined; kwh: number; status: string };
     feeders: ItemData[];
     onPick: (id: string) => void;
-}) {
-    const info = STATUS[main.status];
+    C: Theme;
+}
+function SingleLine({ main, feeders, onPick, C }: SingleLineProps) {
+    const ms = getStatusInfo(main.status, C);
     return (
-        <div style={{
-            border: '1px solid var(--border-light)',
-            borderRadius: 'var(--radius-xl)',
-            background: 'var(--surface)',
-            padding: '24px 16px',
-            boxShadow: 'var(--shadow-sm)'
-        }}>
+        <div style={{ border: `1px solid ${C.line}`, background: C.panel, padding: '22px 14px 26px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {/* Main */}
-                <div style={{
-                    border: `2px solid ${info.color}`,
-                    borderRadius: 'var(--radius-lg)',
-                    padding: '12px 20px',
-                    minWidth: 180,
-                    textAlign: 'center',
-                    background: 'var(--surface)',
-                    boxShadow: 'var(--shadow-sm)'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 4 }}>
-                        <StatusDot s={main.status} />
-                        <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--text)' }}>Main · {main.name}</span>
+                <div style={{ border: `2px solid ${ms.color}`, padding: '10px 18px', minWidth: 170, textAlign: 'center', background: C.panel2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <StatusDot s={main.status} C={C} />
+                        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 12, letterSpacing: 0.5 }}>MAIN · {main.name}</span>
                     </div>
-                    <div style={{ fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
-                        {fmt(main.kwh)} <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>kWh</span>
-                    </div>
+                    <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 19, fontWeight: 700, marginTop: 2 }}>{fmt(main.kwh)} <span style={{ fontSize: 11, color: C.sub }}>kWh</span></div>
                 </div>
-
-                {/* Busbar Line */}
-                <div style={{ width: 3, height: 24, background: 'var(--gray-950)' }} />
-                
-                {/* Horizontal Busbar */}
-                <div style={{
-                    height: 4,
-                    background: 'var(--gray-950)',
-                    width: `${Math.max(60, Math.min(96, feeders.length * 12))}%`,
-                    borderRadius: 99
-                }} />
-
-                {/* Feeders Grid */}
-                <div style={{ display: 'flex', gap: 14, marginTop: 0, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <div style={{ width: 2, height: 20, background: C.ink }} />
+                <div style={{ height: 2, background: C.ink, width: `${Math.min(100, feeders.length * 22)}%`, maxWidth: '100%' }} />
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                     {feeders.map((f, i) => {
-                        const sInfo = STATUS[f.status];
+                        const st = getStatusInfo(f.status, C);
                         return (
                             <div key={f.node.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <div style={{ width: 2, height: 20, background: 'var(--gray-950)', borderStyle: 'dashed' }} />
-                                <button onClick={() => onPick(f.node.id)} style={{
-                                    cursor: 'pointer', border: '1px solid var(--border-light)',
-                                    borderTop: `4px solid ${sInfo.color}`,
-                                    borderRadius: 'var(--radius)', padding: '12px 14px',
-                                    background: 'var(--surface)', textAlign: 'center',
-                                    minWidth: 110, transition: 'var(--transition)',
-                                    boxShadow: 'var(--shadow-xs)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(2px)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-xs)';
-                                }}
-                                >
-                                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 2 }}>F{i + 1}</div>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
-                                        <StatusDot s={f.status} size={8} />
-                                        <span style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--text)' }}>{f.node.name}</span>
+                                <div style={{ width: 2, height: 18, background: C.ink }} />
+                                <button className="ec-card" onClick={() => onPick(f.node.id)} style={{
+                                    cursor: 'pointer', border: `1px solid ${C.line}`, borderTop: `3px solid ${st.color}`, padding: '9px 11px', background: C.panel, textAlign: 'center', minWidth: 96
+                                }}>
+                                    <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>F{i + 1}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                                        <StatusDot s={f.status} size={8} C={C} /><span style={{ fontWeight: 600, fontSize: 12 }}>{f.node.name}</span>
                                     </div>
-                                    <div style={{ fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
-                                        {fmt(f.kwh)} <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 500 }}>kWh</span>
-                                    </div>
+                                    <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 700 }}>{fmt(f.kwh)} <span style={{ fontSize: 10, color: C.sub }}>kWh</span></div>
                                 </button>
                             </div>
                         );
@@ -682,35 +339,221 @@ function SingleLine({ main, feeders, onPick }: {
     );
 }
 
-/* ──────────────────── Compare / Analytics ──────────────────── */
-const PALETTE = ['var(--primary-600)', '#2563EB', '#7C3AED', '#DB2777', '#EA580C', '#CA8A04', '#16A34A', '#0891B2'];
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div style={{
-                background: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid var(--border-light)',
-                borderRadius: 'var(--radius)',
-                padding: '12px 14px',
-                boxShadow: 'var(--shadow-lg)'
-            }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 8 }}>{label}</p>
-                {payload.map((p: any, idx: number) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, marginBottom: 4 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-                        <span style={{ color: 'var(--text-secondary)' }}>{p.name}:</span>
-                        <span style={{ fontWeight: 800, marginLeft: 'auto', fontFamily: 'monospace' }}>{p.value.toLocaleString()} kWh</span>
-                    </div>
-                ))}
+/* ──────────────────── Zone Floor Plan ──────────────────── */
+interface ZonePlanProps {
+    items: ItemData[];
+    onPick: (it: ItemData) => void;
+    C: Theme;
+}
+function ZonePlan({ items, onPick, C }: ZonePlanProps) {
+    return (
+        <div style={{ border: `2px solid ${C.ink}`, background: C.panel, padding: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {items.map((it) => {
+                    const st = getStatusInfo(it.status, C);
+                    return (
+                        <button key={it.node.id} className="ec-card" onClick={() => onPick(it)} style={{
+                            textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderTop: `3px solid ${st.color}`,
+                            background: C.panel2, padding: 15, minHeight: 108, display: 'flex', flexDirection: 'column'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <StatusDot s={it.status} pulse C={C} /><span style={{ fontWeight: 700, fontSize: 14 }}>{it.node.name}</span>
+                            </div>
+                            <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                                <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 24, fontWeight: 700 }}>{fmt(it.kwh)}</span>
+                                <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
+                            </div>
+                            <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub }}>{it.count} METERS</div>
+                        </button>
+                    );
+                })}
             </div>
-        );
-    }
-    return null;
-};
+        </div>
+    );
+}
 
-function Compare({ meters, tree, now }: { meters: MeterData[]; tree: TreeNode[]; now: number }) {
+/* ──────────────────── Loop / Room Grid ──────────────────── */
+interface LoopGridProps {
+    groups: { loop: number; items: ItemData[] }[];
+    onPick: (m: MeterData) => void;
+    C: Theme;
+}
+function LoopGrid({ groups, onPick, C }: LoopGridProps) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {groups.map((g) => (
+                <div key={g.loop} style={{ border: `1px solid ${C.line}`, background: C.panel, padding: 11 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 11.5, letterSpacing: 1, background: C.bar, color: '#fff', padding: '3px 9px' }}>LOOP {g.loop}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub }}>{g.items.length} / 32 METER</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(76px,1fr))', gap: 7 }}>
+                        {g.items.map((it) => {
+                            const dim = it.m!.inputMode === 'disabled';
+                            return (
+                                <button key={it.node.id} className="ec-card" onClick={() => onPick(it.m!)} title={`${it.node.name} · ${getModeInfo(it.m!.inputMode, C).label}`} style={{
+                                    cursor: 'pointer', border: `1px solid ${C.line}`, padding: '9px 6px 7px', background: dim ? C.panel2 : C.panel,
+                                    opacity: dim ? 0.7 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative'
+                                }}>
+                                    {it.m!.inputMode === 'manual' && <span style={{ position: 'absolute', top: 3, right: 3, color: C.yellow }}><Pencil size={9} /></span>}
+                                    <StatusDot s={it.status} size={14} C={C} />
+                                    <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{it.node.name}</span>
+                                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>{dim ? '—' : `${fmt(it.kwh)} kWh`}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/* ──────────────────── Detailed Meter Table (Level 4) ──────────────────── */
+interface MeterTableProps {
+    groups: { loop: number; items: ItemData[] }[];
+    now: number;
+    onPick: (m: MeterData) => void;
+    C: Theme;
+}
+function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
+    const avg = (a: number, b: number, c: number) => (a + b + c) / 3;
+    const thx = (): React.CSSProperties => ({ padding: '8px 9px', fontWeight: 700, fontSize: 10, letterSpacing: 0.8, textAlign: 'right', fontFamily: MONO });
+    const tdx = (): React.CSSProperties => ({ padding: '7px 9px', textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' });
+
+    return (
+        <div style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div style={{ maxHeight: 600, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                    <thead>
+                        <tr style={{ position: 'sticky', top: 0, background: C.bar, color: '#fff', fontFamily: MONO, zIndex: 1 }}>
+                            <th style={{ ...thx(), textAlign: 'left' }}>#</th>
+                            <th style={{ ...thx(), textAlign: 'left' }}>METER</th>
+                            <th style={{ ...thx(), textAlign: 'center' }}>STS</th>
+                            <th style={{ ...thx(), textAlign: 'center' }}>MODE</th>
+                            <th style={thx()}>kWh</th>
+                            <th style={thx()}>kW</th>
+                            <th style={thx()}>V</th>
+                            <th style={thx()}>A</th>
+                            <th style={thx()}>PF</th>
+                            <th style={thx()}>Hz</th>
+                            <th style={thx()}>AGE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {groups.map((g) => (
+                            <React.Fragment key={g.loop}>
+                                <tr style={{ background: C.panel2 }}>
+                                    <td colSpan={11} style={{ padding: '6px 11px', fontFamily: MONO, fontSize: 10.5, letterSpacing: 1, color: C.sub, borderTop: `1px solid ${C.line}` }}>
+                                        <b style={{ color: C.ink }}>LOOP {g.loop}</b> · {g.items.length}/32 METER
+                                    </td>
+                                </tr>
+                                {g.items.map((it, i) => {
+                                    const m = it.m!;
+                                    const md = getModeInfo(m.inputMode, C);
+                                    const off = m.inputMode === 'disabled' || it.status === 'offline';
+                                    const ago = Math.round((now - m.received_at) / 1000);
+                                    const dash = (x: number, d = 0) => (off ? '—' : fmt(x, d));
+                                    return (
+                                        <tr key={it.node.id} className="ec-row" onClick={() => onPick(m)} style={{ borderTop: `1px solid ${C.line}`, opacity: off ? 0.6 : 1 }}>
+                                            <td style={{ ...tdx(), textAlign: 'left', color: C.sub }}>{String(i + 1).padStart(2, '0')}</td>
+                                            <td style={{ ...tdx(), textAlign: 'left', whiteSpace: 'nowrap' }}><b>{m.code}</b> <span style={{ color: C.sub }}>{m.device}</span></td>
+                                            <td style={{ ...tdx(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
+                                            <td style={{ ...tdx(), textAlign: 'center', color: md.color, fontSize: 10 }}>{md.label}</td>
+                                            <td style={{ ...tdx(), fontWeight: 700 }}>{dash(it.kwh)}</td>
+                                            <td style={tdx()}>{dash(m.kw_3ph, 2)}</td>
+                                            <td style={tdx()}>{dash(avg(m.vl1, m.vl2, m.vl3), 0)}</td>
+                                            <td style={tdx()}>{dash(avg(m.il1, m.il2, m.il3), 1)}</td>
+                                            <td style={tdx()}>{off ? '—' : avg(m.pf1, m.pf2, m.pf3).toFixed(2)}</td>
+                                            <td style={tdx()}>{dash(m.hz, 2)}</td>
+                                            <td style={{ ...tdx(), color: C.sub, fontSize: 10 }}>{off ? '—' : ago > 30 ? `${ago}s!` : `${ago}s`}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </React.Fragment>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <div style={{ padding: '7px 12px', borderTop: `1px solid ${C.line}`, fontFamily: MONO, fontSize: 10, color: C.sub, letterSpacing: 0.3 }}>
+                คลิกแถวเพื่อดูค่า 3 เฟสเต็ม · V = เฉลี่ย L-N · A = เฉลี่ย L1–L3 · PF = เฉลี่ย
+            </div>
+        </div>
+    );
+}
+
+/* ──────────────────── Meter Detail ──────────────────── */
+interface MeterDetailProps {
+    m: MeterData;
+    now: number;
+    onClose: () => void;
+    C: Theme;
+}
+function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
+    const s = meterStatus(m, now);
+    const st = getStatusInfo(s, C);
+    const md = getModeInfo(m.inputMode, C);
+    const ago = Math.round((now - m.received_at) / 1000);
+    return (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: '#23261ECC', display: 'grid', placeItems: 'center', padding: 16, zIndex: 1050 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, width: 'min(690px,100%)', maxHeight: '90vh', overflow: 'auto', border: `1px solid ${C.ink}` }}>
+                <div style={{ padding: '13px 16px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 11, background: C.bar, color: '#fff' }}>
+                    <StatusDot s={s} size={13} pulse C={C} />
+                    <div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 15, letterSpacing: 0.5 }}>{m.code}<span style={{ fontSize: 11, color: C.barSub, fontWeight: 400 }}> · {m.device}</span></div>
+                        <div style={{ fontSize: 11, color: C.barSub }}>{m.pathNames.join('  ›  ')}</div>
+                    </div>
+                    <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: '#fff', border: `1px solid ${md.color}`, padding: '3px 7px' }}>
+                        {m.inputMode === 'manual' ? '✎ ' : m.inputMode === 'disabled' ? '⏻ ' : '⚡ '}{md.label}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: st.color, fontFamily: MONO, fontSize: 11.5, fontWeight: 700 }}>
+                        {s === 'offline' ? <WifiOff size={13} /> : <Wifi size={13} />} {st.label}
+                    </span>
+                    <button onClick={onClose} style={{ background: 'transparent', border: `1px solid #ffffff33`, width: 28, height: 28, cursor: 'pointer', display: 'grid', placeItems: 'center', color: '#fff' }}><X size={15} /></button>
+                </div>
+
+                <div style={{ padding: 16 }}>
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 190, background: C.bar, color: '#fff', padding: 14 }}>
+                            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 0.5, color: C.barSub }}>IMPORT_KWHR · สะสม</div>
+                            <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 25, fontWeight: 700 }}>{fmt(m.import_kwhr, 1)} <span style={{ fontSize: 12 }}>kWh</span></div>
+                            <div style={{ fontFamily: MONO, fontSize: 11, color: C.barSub, marginTop: 6 }}>งวดนี้ <b style={{ color: '#8FBF9C' }}>{fmt(period(m), 1)}</b> / เกณฑ์ {fmt(m.threshold)}</div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 190, background: C.panel2, border: `1px solid ${C.line}`, padding: 14 }}>
+                            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 0.5, color: C.accent }}>KW_3PH · กำลังไฟ</div>
+                            <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 25, fontWeight: 700, color: C.ink }}>{fmt(m.kw_3ph, 2)} <span style={{ fontSize: 12 }}>kW</span></div>
+                            <div style={{ fontFamily: MONO, fontSize: 11, color: C.sub, marginTop: 6 }}>kVA {fmt(m.kva_3ph, 1)} · kVAR {fmt(m.kvar_3ph, 1)} · {ago}s</div>
+                        </div>
+                    </div>
+
+                    <Cap en="3-PHASE" th="ค่าวัดแบบ 3 เฟส" C={C} />
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(120px,1fr))', gap: 8 }}>
+                        <Readout label="V L-N 1/2/3" value={`${fmt(m.vl1)}/${fmt(m.vl2)}/${fmt(m.vl3)}`} unit="V" C={C} />
+                        <Readout label="V L-L 12/23/31" value={`${fmt(m.vl12)}/${fmt(m.vl23)}/${fmt(m.vl31)}`} unit="V" C={C} />
+                        <Readout label="I L1/L2/L3" value={`${fmt(m.il1, 1)}/${fmt(m.il2, 1)}/${fmt(m.il3, 1)}`} unit="A" C={C} />
+                        <Readout label="kW L1/L2/L3" value={`${fmt(m.kw1, 1)}/${fmt(m.kw2, 1)}/${fmt(m.kw3, 1)}`} unit="kW" C={C} />
+                        <Readout label="PF L1/L2/L3" value={`${m.pf1.toFixed(2)}/${m.pf2.toFixed(2)}/${m.pf3.toFixed(2)}`} unit="" accent={C.accent} C={C} />
+                        <Readout label="FREQ" value={fmt(m.hz, 2)} unit="Hz" C={C} />
+                    </div>
+
+                    <div style={{ marginTop: 14, fontFamily: MONO, fontSize: 10.5, color: C.sub, lineHeight: 1.8, background: C.panel2, border: `1px solid ${C.line}`, padding: '10px 12px' }}>
+                        site_id={m.site_id} · address_id={m.address_id} · channel={m.channel} · type={m.type} ·
+                        device_dt={new Date(m.device_datetime).toLocaleTimeString('th-TH')} · received={new Date(m.received_at).toLocaleTimeString('th-TH')}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ──────────────────── Compare / Analytics Mode ──────────────────── */
+interface CompareProps {
+    meters: MeterData[];
+    tree: TreeNode[];
+    now: number;
+    C: Theme;
+}
+function Compare({ meters, tree, now, C }: CompareProps) {
     const [dim, setDim] = useState('overview');
     const [gran, setGran] = useState('year');
     const [billing, setBilling] = useState(false);
@@ -755,120 +598,88 @@ function Compare({ meters, tree, now }: { meters: MeterData[]; tree: TreeNode[];
         return row;
     }), [buckets, entities, gran]);
 
-    const totals = entities.map((e) => ({ name: e.name, value: +data.reduce((s, r) => s + (r[e.name] || 0), 0).toFixed(1) }))
-        .sort((a, b) => b.value - a.value);
+    const totals = entities.map((e) => ({ name: e.name, value: +data.reduce((s, r) => s + (r[e.name] || 0), 0).toFixed(1) })).sort((a, b) => b.value - a.value);
     const grand = totals.reduce((s, t) => s + t.value, 0) || 1;
-    const colorOf: Record<string, string> = {}; entities.forEach((e, i) => (colorOf[e.name] = PALETTE[i % PALETTE.length]));
+    const colorOf: Record<string, string> = {}; entities.forEach((e, i) => (colorOf[e.name] = C.palette[i % C.palette.length]));
 
     const yr = 2569;
     const windowText = gran === 'year'
-        ? `รอบปี ${yr - 1} · ค่ามิเตอร์ 00:00 น. 1 ม.ค. ${yr} − 00:00 น. 1 ม.ค. ${yr - 1}`
+        ? `รอบปี ${yr - 1} · 00:00 น. 1 ม.ค. ${yr} − 00:00 น. 1 ม.ค. ${yr - 1}`
         : gran === 'month'
             ? (billing ? `รอบบิล (ตัดวันที่ 20) · 00:00 น. 20 ธ.ค. ${yr - 1} − 00:00 น. 20 ม.ค. ${yr}` : `รอบปฏิทิน · 1 ม.ค. − 31 ม.ค. ${yr}`)
             : gran === 'week' ? 'สัปดาห์ล่าสุด · จันทร์ − อาทิตย์' : 'วันล่าสุด · 00:00 − 24:00 น. (รายชั่วโมง)';
 
-    const DIMS: [string, string][] = [['overview', 'ภาพรวม'], ['branch', 'ตามสาขา'], ['building', 'ตามตึก'], ['mdb', 'ตาม MDB']];
-    const GRANS: [string, string][] = [['year', 'รายปี'], ['month', 'รายเดือน'], ['week', 'รายสัปดาห์'], ['day', 'รายวัน']];
-    
-    const tabStyle = (a: boolean): React.CSSProperties => ({
-        fontSize: 12.5, padding: '8px 16px', borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer',
-        fontWeight: a ? 700 : 500,
-        background: a ? 'var(--primary-600)' : 'var(--surface)',
-        color: a ? '#fff' : 'var(--text-secondary)',
-        boxShadow: a ? 'var(--shadow-sm)' : 'inset 0 0 0 1px var(--border-light)',
-        transition: 'var(--transition)'
+    const DIMS = [['overview', 'ภาพรวม'], ['branch', 'ตามสาขา'], ['building', 'ตามตึก'], ['mdb', 'ตาม MDB']];
+    const GRANS = [['year', 'รายปี'], ['month', 'รายเดือน'], ['week', 'รายสัปดาห์'], ['day', 'รายวัน']];
+    const chip = (a: boolean): React.CSSProperties => ({
+        fontFamily: MONO, fontSize: 11.5, letterSpacing: 0.3, padding: '6px 12px', border: `1px solid ${a ? C.accent : C.line}`,
+        cursor: 'pointer', background: a ? C.accent : C.panel, color: a ? '#fff' : C.sub, marginRight: 6, marginBottom: 6,
+        borderRadius: 0,
     });
+    const axisTick = { fontSize: 10.5, fill: C.sub, fontFamily: MONO };
 
     return (
-        <div style={{ padding: '8px 0' }}>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div style={{ padding: 16 }}>
+            <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 12 }}>
                 <div>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>เปรียบเทียบตาม</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {DIMS.map(([k, lb]) => <button key={k} onClick={() => setDim(k)} style={tabStyle(dim === k)}>{lb}</button>)}
-                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, marginBottom: 6, textTransform: 'uppercase' }}>เปรียบเทียบตาม</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap' }}>{DIMS.map(([k, lb]) => <button key={k} onClick={() => setDim(k)} style={chip(dim === k)}>{lb}</button>)}</div>
                 </div>
                 <div>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>ช่วงเวลา (รูปแบบ)</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {GRANS.map(([k, lb]) => <button key={k} onClick={() => setGran(k)} style={tabStyle(gran === k)}>{lb}</button>)}
-                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, marginBottom: 6, textTransform: 'uppercase' }}>ช่วงเวลา</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap' }}>{GRANS.map(([k, lb]) => <button key={k} onClick={() => setGran(k)} style={chip(gran === k)}>{lb}</button>)}</div>
                 </div>
                 {gran === 'month' && (
                     <div>
-                        <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>การตัดรอบ</div>
-                        <button onClick={() => setBilling((v) => !v)} style={tabStyle(billing)}>
-                            {billing ? 'รอบบิล 20→20' : 'รอบปฏิทิน'}
-                        </button>
+                        <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, marginBottom: 6, textTransform: 'uppercase' }}>การตัดรอบ</div>
+                        <button onClick={() => setBilling((v) => !v)} style={chip(billing)}>{billing ? 'รอบบิล 20→20' : 'รอบปฏิทิน'}</button>
                     </div>
                 )}
             </div>
 
             <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: 'var(--primary-50)', color: 'var(--primary-700)',
-                borderRadius: 'var(--radius-lg)', padding: '10px 16px', fontSize: 12.5, marginBottom: 18,
-                fontWeight: 600, border: '1px solid var(--primary-100)'
+                display: 'flex', alignItems: 'center', gap: 8, background: C.panel, border: `1px solid ${C.line}`,
+                borderLeft: `3px solid ${C.accent}`, padding: '8px 13px', fontFamily: MONO, fontSize: 11.5, color: C.ink, marginBottom: 14, letterSpacing: 0.2
             }}>
-                <Gauge size={15} /> ช่วงข้อมูล: {windowText}
+                <Gauge size={14} color={C.accent} /> WINDOW · {windowText}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 16 }}>
-                {/* Stacked Bar */}
-                <div style={{
-                    background: 'var(--surface)', border: '1px solid var(--border-light)',
-                    borderRadius: 'var(--radius-xl)', padding: '20px 18px', boxShadow: 'var(--shadow-sm)'
-                }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>
-                        ปริมาณไฟฟ้า (kWh) {gran === 'year' ? 'รายเดือน' : gran === 'month' ? 'รายวัน' : gran === 'week' ? 'รายวัน' : 'รายชั่วโมง'} · {DIMS.find((d) => d[0] === dim)?.[1]}
-                    </div>
-                    <div style={{ height: 350 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 14 }}>
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '12px 10px 6px' }}>
+                    <Cap en="ENERGY" th={`(kWh) ${gran === 'year' ? 'รายเดือน' : gran === 'day' ? 'รายชั่วโมง' : 'รายวัน'} · ${DIMS.find((d) => d[0] === dim)![1].replace('ตาม', '').replace('ภาพรวม', 'สาขา')}`} C={C} />
+                    <div style={{ height: 330 }}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data} margin={{ top: 8, right: 8, left: -14, bottom: 4 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" vertical={false} />
-                                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} interval={gran === 'month' ? 2 : 0} />
-                                <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} width={48} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 10 }} />
-                                {entities.map((e, i) => (
-                                    <Bar key={e.id} dataKey={e.name} stackId="a" fill={PALETTE[i % PALETTE.length]}
-                                        radius={i === entities.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-                                ))}
+                            <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 2 }}>
+                                <CartesianGrid strokeDasharray="2 3" stroke={C.line} vertical={false} />
+                                <XAxis dataKey="label" tick={axisTick} interval={gran === 'month' ? 2 : 0} tickLine={{ stroke: C.line }} axisLine={{ stroke: C.line }} />
+                                <YAxis tick={axisTick} width={46} tickLine={{ stroke: C.line }} axisLine={{ stroke: C.line }} />
+                                <Tooltip contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }} formatter={(v) => [`${fmt(Number(v))} kWh`, '']} />
+                                <Legend wrapperStyle={{ fontSize: 11, fontFamily: MONO, color: C.sub }} />
+                                {entities.map((e, i) => <Bar key={e.id} dataKey={e.name} stackId="a" fill={C.palette[i % C.palette.length]} />)}
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Pie + share */}
-                <div style={{
-                    background: 'var(--surface)', border: '1px solid var(--border-light)',
-                    borderRadius: 'var(--radius-xl)', padding: '20px 18px', boxShadow: 'var(--shadow-sm)',
-                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
-                }}>
-                    <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>สัดส่วนการใช้พลังงาน (%)</div>
-                        <div style={{ height: 180, position: 'relative' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={totals} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} paddingAngle={3}>
-                                        {totals.map((t) => <Cell key={t.name} fill={colorOf[t.name]} />)}
-                                    </Pie>
-                                    <Tooltip formatter={(v: any) => `${fmt(v)} kWh`} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: 12 }}>
+                    <Cap en="SHARE" th="สัดส่วน %" C={C} />
+                    <div style={{ height: 175 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={totals} dataKey="value" nameKey="name" innerRadius={40} outerRadius={68} paddingAngle={1} stroke={C.panel}>
+                                    {totals.map((t) => <Cell key={t.name} fill={colorOf[t.name]} />)}
+                                </Pie>
+                                <Tooltip formatter={(v) => `${fmt(Number(v))} kWh`} contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }} />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {totals.map((t) => (
-                            <div key={t.name} style={{
-                                display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5,
-                                padding: '6px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--gray-50)'
-                            }}>
-                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorOf[t.name], display: 'inline-block' }} />
-                                <span style={{ flex: 1, color: 'var(--text-secondary)', fontWeight: 500 }}>{t.name}</span>
-                                <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>{fmt(t.value)}</span>
-                                <b style={{ fontFamily: 'ui-monospace, monospace', minWidth: 46, textAlign: 'right', color: 'var(--primary-600)' }}>
-                                    {((t.value / grand) * 100).toFixed(1)}%</b>
+                            <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                <span style={{ width: 10, height: 10, background: colorOf[t.name] }} />
+                                <span style={{ flex: 1 }}>{t.name}</span>
+                                <span style={{ fontFamily: MONO, color: C.sub, fontSize: 11 }}>{fmt(t.value)}</span>
+                                <b style={{ fontFamily: MONO, minWidth: 44, textAlign: 'right' }}>{((t.value / grand) * 100).toFixed(1)}%</b>
                             </div>
                         ))}
                     </div>
@@ -877,41 +688,6 @@ function Compare({ meters, tree, now }: { meters: MeterData[]; tree: TreeNode[];
         </div>
     );
 }
-
-/* ──────────────────── Style helpers ──────────────────── */
-const crumb = (active: boolean): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--radius)',
-    border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: active ? 700 : 500,
-    background: active ? 'var(--primary-50)' : 'transparent',
-    color: active ? 'var(--primary-600)' : 'var(--text-secondary)',
-    transition: 'var(--transition)',
-    boxShadow: active ? 'var(--shadow-xs)' : 'none'
-});
-
-const kpi = (primary = false): React.CSSProperties => ({
-    background: 'var(--surface)',
-    border: primary ? '1px solid var(--primary-100)' : '1px solid var(--border-light)',
-    borderTop: primary ? '4px solid var(--primary-600)' : '4px solid var(--border-light)',
-    borderRadius: 'var(--radius-xl)',
-    padding: '16px 20px',
-    minWidth: 130,
-    flex: 1,
-    boxShadow: 'var(--shadow-sm)',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    transition: 'var(--transition)',
-    position: 'relative',
-    overflow: 'hidden'
-});
-
-const th = (): React.CSSProperties => ({
-    padding: '12px 14px', fontWeight: 700, fontSize: 12,
-    color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-light)'
-});
-const td = (): React.CSSProperties => ({
-    padding: '14px', fontSize: 13, color: 'var(--text)'
-});
 
 /* ═══════════════════ MAIN DASHBOARD ═══════════════════ */
 const ZoneDashboard: React.FC = () => {
@@ -926,6 +702,18 @@ const ZoneDashboard: React.FC = () => {
     const [, setTick] = useState(0);
     const [clock, setClock] = useState(Date.now());
     const [mode, setMode] = useState('monitor');
+    const [theme, setTheme] = useState<'light' | 'dark'>('light'); // light = Engineering Paper, dark = Control Room
+    const C = THEMES[theme];
+
+    const crumb = (active: boolean): React.CSSProperties => ({
+        display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', border: 'none', cursor: 'pointer',
+        fontFamily: MONO, fontSize: 12, fontWeight: active ? 700 : 400,
+        background: active ? C.accent : 'transparent', color: active ? '#fff' : C.sub,
+    });
+
+    const histRef = useRef<{ t: number; kw: number }[]>([]); // บัฟเฟอร์กราฟ Realtime (kW ของขอบเขตปัจจุบัน)
+    const [, setHistVer] = useState(0);
+    const [trendTick, setTrendTick] = useState(0); // ตัวจับเวลากราฟ (ทุก 1 นาที)
 
     useEffect(() => {
         const a = setInterval(() => {
@@ -940,13 +728,28 @@ const ZoneDashboard: React.FC = () => {
             setTick((t) => t + 1);
         }, 2000);
         const b = setInterval(() => setClock(Date.now()), 1000);
-        return () => { clearInterval(a); clearInterval(b); };
+        const c = setInterval(() => setTrendTick((t) => t + 1), 60000); // กราฟ Realtime: เก็บจุดทุก 1 นาที
+        return () => { clearInterval(a); clearInterval(b); clearInterval(c); };
     }, [meters]);
 
     const now = clock;
     const metersUnder = (p: string[]) => meters.filter((m) => p.every((id, i) => m.pathIds[i] === id));
+    const scopeKw = () => metersUnder(path).reduce((s, m) => s + (m.disabled ? 0 : m.kw_3ph), 0);
 
-    // Current level items
+    // กราฟ Realtime: รีเซ็ตเมื่อเปลี่ยนขอบเขต, เก็บตัวอย่างทุก 1 นาที (สูงสุด ~1 ชั่วโมง)
+    useEffect(() => {
+        histRef.current = [{ t: Date.now(), kw: +scopeKw().toFixed(1) }];
+        setHistVer((v) => v + 1);
+    }, [path.join('/')]);
+
+    useEffect(() => {
+        if (mode !== 'monitor') return;
+        const buf = histRef.current;
+        buf.push({ t: Date.now(), kw: +scopeKw().toFixed(1) });
+        if (buf.length > 60) buf.shift();
+        setHistVer((v) => v + 1);
+    }, [trendTick]);
+
     let nodes: TreeNode[] = tree;
     for (const id of path) nodes = (nodes.find((n) => n.id === id)?.children) || [];
     const level = path.length;
@@ -961,443 +764,344 @@ const ZoneDashboard: React.FC = () => {
     });
     const sorted = [...items].sort((a, b) => (sortDesc ? b.kwh - a.kwh : a.kwh - b.kwh));
 
-    // Floor view
     const fnum = (n: string) => parseInt((String(n).match(/\d+/) || ['0'])[0], 10);
     const floorView = level === 2;
     const floorItems = floorView ? [...items].sort((a, b) => fnum(b.node.name) - fnum(a.node.name)) : [];
     const maxFloorKwh = floorView ? Math.max(1, ...items.map((i) => i.kwh)) : 1;
-    const currentName = (() => { let n: TreeNode[] = tree; let node: TreeNode | undefined; for (let k = 0; k < path.length; k++) { node = n.find((x) => x.id === path[k]); n = node?.children || []; } return node?.name; })();
+    const currentName = (() => { let n = tree; let node: TreeNode | undefined; for (let k = 0; k < path.length; k++) { node = n.find((x) => x.id === path[k]); n = node?.children || []; } return node?.name; })();
 
-    // Loop groups for room view
     const loopGroups = level === 4
         ? Object.values(items.reduce((a: Record<number, { loop: number; items: ItemData[] }>, it) => {
-            const L = it.m!.loop; (a[L] = a[L] || { loop: L, items: [] }).items.push(it); return a;
+            const L = it.m!.loop;
+            (a[L] = a[L] || { loop: L, items: [] }).items.push(it);
+            return a;
         }, {})).sort((a, b) => a.loop - b.loop)
         : [];
-
-    // Zone items
     const zoneItems = level === 3 ? [...items].sort((a, b) => a.node.name.localeCompare(b.node.name, 'th')) : [];
 
-    // Card renderer for Branches/General Cards
     const renderCard = (it: ItemData) => {
-        const info = STATUS[it.status];
+        const st = getStatusInfo(it.status, C);
         const over = it.node.level === 'room' && it.m && period(it.m) > it.m.threshold;
         return (
-            <button key={it.node.id} onClick={() => openItem(it)} style={{
-                textAlign: 'left', background: 'var(--surface)', border: '1px solid var(--border-light)',
-                borderTop: `4px solid ${info.color}`, borderRadius: 'var(--radius-xl)', padding: '16px',
-                cursor: 'pointer', boxShadow: 'var(--shadow-sm)', transition: 'var(--transition)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 110
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-            }}
-            >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{it.node.name}</span>
-                    <StatusTag s={it.status} />
+            <button key={it.node.id} className="ec-card" onClick={() => openItem(it)} style={{
+                textAlign: 'left', background: C.panel, border: `1px solid ${C.line}`, borderTop: `2px solid ${st.color}`,
+                padding: 12, cursor: 'pointer', borderRadius: 0,
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, fontSize: 13, color: C.ink }}>{it.node.name}</span>
+                    <StatusDot s={it.status} pulse C={C} />
                 </div>
-                
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 12 }}>
-                    <span style={{
-                        fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
-                        fontSize: 24, fontWeight: 800, color: 'var(--text)'
-                    }}>{fmt(it.kwh)}</span>
-                    <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500 }}>kWh</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 10 }}>
+                    <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>kWh</span>
                 </div>
-                
-                <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', width: '100%', borderTop: '1px solid var(--border-light)', paddingTop: 6 }}>
-                    <span style={{ fontWeight: 500 }}>{it.node.level === 'room' ? `${it.m!.device} · Loop ${it.m!.loop}` : `${it.count} meter`}</span>
-                    {over && <span style={{ color: C.red, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
-                        <AlertTriangle size={12} /> {fmt((period(it.m!) / it.m!.threshold) * 100)}%</span>}
+                <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10.5, color: C.sub, display: 'flex', justifyContent: 'space-between', letterSpacing: 0.3 }}>
+                    <span>{it.node.level === 'room' ? `${it.m!.device} · L${it.m!.loop}` : `${it.count} MTR`}</span>
+                    {over && <span style={{ color: C.red, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <AlertTriangle size={10} /> {fmt((period(it.m!) / it.m!.threshold) * 100)}%</span>}
                 </div>
             </button>
         );
     };
 
-    // Status counts
     const scope = metersUnder(path);
-    const counts = scope.reduce((acc: Record<string, number>, m) => { acc[meterStatus(m, now)]++; return acc; },
-        { normal: 0, warning: 0, over: 0, offline: 0 });
+    const counts = scope.reduce((acc: Record<string, number>, m) => { acc[meterStatus(m, now)]++; return acc; }, { normal: 0, over: 0, offline: 0 });
     const totalKwh = scope.reduce((s, m) => s + period(m), 0);
 
     const go = (id: string) => { setPath([...path, id]); setSelected(null); };
     const jump = (i: number) => { setPath(path.slice(0, i)); setSelected(null); };
     const openItem = (it: ItemData) => { it.node.level === 'room' ? setSelected(it.m!) : go(it.node.id); };
 
+    const tabBar = (active: boolean): React.CSSProperties => ({
+        display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 11.5, letterSpacing: 0.5,
+        padding: '6px 12px', border: 'none', cursor: 'pointer', textTransform: 'uppercase',
+        background: active ? C.accent : 'transparent', color: active ? '#fff' : C.barSub, borderRadius: 0,
+    });
+
+    const th = (): React.CSSProperties => ({ padding: '8px 11px', fontWeight: 700, fontSize: 10.5, letterSpacing: 1 });
+    const td = (): React.CSSProperties => ({ padding: '8px 11px' });
+
     return (
-        <div style={{ fontFamily: "'Noto Sans Thai', 'Plus Jakarta Sans', system-ui, sans-serif", color: 'var(--text)' }}>
-            <style>{`@keyframes ed-ping{75%,100%{transform:scale(2.2);opacity:0}}`}</style>
+        <div className="ec-grid" style={{ fontFamily: "'Noto Sans Thai', system-ui, sans-serif", background: C.bg, minHeight: 660, color: C.ink }}>
+            <style>{`
+                @keyframes ec-ping{75%,100%{transform:scale(2.4);opacity:0}}
+                .ec-grid{
+                    background-image: linear-gradient(${theme === 'light' ? 'rgba(35,38,30,.04)' : 'rgba(230,237,243,.02)'} 1px,transparent 1px),
+                                      linear-gradient(90deg,${theme === 'light' ? 'rgba(35,38,30,.04)' : 'rgba(230,237,243,.02)'} 1px,transparent 1px);
+                    background-size: 24px 24px;
+                    padding-bottom: 24px;
+                }
+                .ec-card{transition:border-color .12s,transform .08s; border-radius: 0px !important;}
+                .ec-card:hover{border-top-width:2px;transform:translateY(-1px);outline:1px solid ${C.ink}33;}
+                .ec-row{transition:background .1s;cursor:pointer;}
+                .ec-row:hover{background:${C.panel2};}
+            `}</style>
 
-            {/* Dashboard Header Title (Consistent with system layout) */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <h1 className="page-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span className="page-title__icon" style={{
-                            background: 'var(--primary-50)', color: 'var(--primary-600)',
-                            width: 36, height: 36, borderRadius: 'var(--radius-lg)', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center'
-                        }}><Compass size={20} /></span>
-                        Zone Monitoring
-                    </h1>
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, fontWeight: 500 }}>
-                        ระบบวิเคราะห์การใช้พลังงานเชิงโครงสร้างแบบเจาะลึก
-                    </p>
+            {/* Command bar */}
+            <div style={{ background: C.bar, color: '#fff', display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderRight: `1px solid #ffffff1a` }}>
+                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><Gauge size={16} /></div>
+                    <div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>ENERGY//CONSOLE</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>ระบบติดตามการใช้พลังงาน · ต้นแบบ</div>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {/* Live indicator block */}
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        background: 'var(--surface)', padding: '6px 12px',
-                        borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-light)',
-                        boxShadow: 'var(--shadow-sm)', fontSize: 12.5, fontWeight: 600
-                    }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: C.green }}>
-                            <Activity size={14} style={{ animation: 'pulse 1.8s infinite' }} /> Realtime
-                        </span>
-                        <span style={{ width: 1, height: 14, background: 'var(--border)' }} />
-                        <span style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--text-secondary)' }}>
-                            {new Date(now).toLocaleTimeString('th-TH')}
-                        </span>
-                    </div>
+                <div style={{ display: 'flex' }}>
+                    {([['monitor', 'REALTIME', Activity], ['compare', 'เปรียบเทียบ', BarChart3]] as [string, string, any][]).map(([k, lb, Ic]) => (
+                        <button key={k} onClick={() => setMode(k)} style={{ ...tabBar(mode === k), borderRight: `1px solid #ffffff14` }}>
+                            <Ic size={14} /> {lb}
+                        </button>
+                    ))}
+                </div>
 
-                    {/* Mode toggler slider */}
-                    <div style={{ display: 'flex', background: 'var(--gray-100)', padding: 4, borderRadius: 'var(--radius-xl)' }}>
-                        {([['monitor', 'ภาพรวมโครงสร้าง', Layers], ['compare', 'วิเคราะห์เปรียบเทียบ', BarChart3]] as [string, string, any][]).map(([k, lb, Ic]) => (
-                            <button key={k} onClick={() => setMode(k)} style={{
-                                display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, padding: '8px 16px',
-                                borderRadius: 'var(--radius-lg)', border: 'none', cursor: 'pointer',
-                                fontWeight: mode === k ? 700 : 500,
-                                background: mode === k ? 'var(--surface)' : 'transparent',
-                                color: mode === k ? 'var(--primary-600)' : 'var(--text-secondary)',
-                                boxShadow: mode === k ? 'var(--shadow-sm)' : 'none',
-                                transition: 'var(--transition)'
+                <div style={{ display: 'flex', alignItems: 'center', gap: 1, padding: '0 8px', borderLeft: `1px solid #ffffff14` }}>
+                    {[
+                        { k: 'e', icon: Zap, label: 'ไฟฟ้า', on: true },
+                        { k: 'w', icon: Droplet, label: 'น้ำ' },
+                        { k: 'g', icon: Flame, label: 'แก๊ส' },
+                        { k: 's', icon: Sun, label: 'Solar' },
+                    ].map((t) => {
+                        const Ico = t.icon;
+                        return (
+                            <div key={t.k} title={t.on ? '' : 'เร็วๆ นี้'} style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', fontFamily: MONO, fontSize: 11,
+                                cursor: t.on ? 'default' : 'not-allowed', color: t.on ? '#fff' : '#6b6e5f',
+                                borderBottom: t.on ? `2px solid ${C.accent}` : '2px solid transparent'
                             }}>
-                                <Ic size={14} /> {lb}
-                            </button>
-                        ))}
-                    </div>
+                                <Ico size={13} /> {t.label}
+                            </div>
+                        );
+                    })}
                 </div>
-            </div>
 
-            {/* Sensor / Source Selector Strip */}
-            <div style={{
-                display: 'flex', gap: 8, padding: '12px 18px', background: 'var(--surface)',
-                borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-light)',
-                boxShadow: 'var(--shadow-sm)', marginBottom: 18, alignItems: 'center', flexWrap: 'wrap'
-            }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', marginRight: 6 }}>
-                    ประเภทแหล่งพลังงาน:
-                </span>
-                {[
-                    { k: 'e', icon: Zap, label: 'กระแสไฟฟ้า', on: true, activeBg: 'var(--primary-50)', activeColor: 'var(--primary-600)', activeBorder: 'var(--primary-200)' },
-                    { k: 'w', icon: Droplet, label: 'น้ำประปา', on: false },
-                    { k: 'g', icon: Flame, label: 'แก๊สเชื้อเพลิง', on: false },
-                    { k: 's', icon: Sun, label: 'โซลาร์เซลล์', on: false },
-                ].map((t) => {
-                    const Ico = t.icon;
-                    return (
-                        <div key={t.k} title={t.on ? '' : 'ยังไม่เปิดใช้งานในสาขานี้'} style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-                            borderRadius: 'var(--radius-lg)', fontSize: 12.5, fontWeight: 600,
-                            cursor: t.on ? 'default' : 'not-allowed',
-                            background: t.on ? t.activeBg : 'transparent',
-                            color: t.on ? t.activeColor : 'var(--text-muted)',
-                            border: t.on ? `1px solid ${t.activeBorder}` : '1px solid transparent'
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
+                    <button onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+                        title={theme === 'light' ? 'สลับเป็นโหมดมืด (Control Room)' : 'สลับเป็นโหมดสว่าง (Engineering Paper)'}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',
+                            background: 'transparent', border: `1px solid #ffffff33`, padding: '5px 9px', cursor: 'pointer'
                         }}>
-                            <Ico size={14} /> {t.label}
-                        </div>
-                    );
-                })}
+                        {theme === 'light' ? <Moon size={13} /> : <Sun size={13} />} {theme === 'light' ? 'DARK' : 'LIGHT'}
+                    </button>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+                        <StatusDot s="normal" size={8} pulse C={C} /> LIVE
+                    </span>
+                    <span style={{ color: C.barSub, fontVariantNumeric: 'tabular-nums' }}>{new Date(now).toLocaleTimeString('th-TH')}</span>
+                </div>
             </div>
 
             {mode === 'monitor' ? (
                 <React.Fragment>
-                    {/* Navigation Path Breadcrumbs */}
+                    {/* Breadcrumb */}
                     <div style={{
-                        padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 6,
-                        flexWrap: 'wrap', background: 'var(--surface)',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: 'var(--radius-xl)',
-                        boxShadow: 'var(--shadow-sm)',
-                        marginBottom: 14
+                        padding: '9px 16px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                        background: C.panel, borderBottom: `1px solid ${C.line}`, fontFamily: MONO, fontSize: 12,
+                        margin: '0 16px 12px'
                     }}>
-                        <button onClick={() => jump(0)} style={crumb(path.length === 0)}>
-                            <Home size={13} /> ทุกสาขา
-                        </button>
+                        <button onClick={() => jump(0)} style={crumb(path.length === 0)}><Home size={12} /> ROOT</button>
                         {path.map((id, i) => {
-                            let n: TreeNode[] = tree; let node: TreeNode | undefined;
+                            let n = tree; let node: TreeNode | undefined;
                             for (let k = 0; k <= i; k++) { node = n.find((x) => x.id === path[k]); n = node?.children || []; }
                             return (
                                 <React.Fragment key={id}>
-                                    <ChevronRight size={13} color="var(--border)" />
+                                    <span style={{ color: C.sub }}>/</span>
                                     <button onClick={() => jump(i + 1)} style={crumb(i === path.length - 1)}>{node?.name}</button>
                                 </React.Fragment>
                             );
                         })}
-                        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                            โครงสร้างระดับ: <span style={{ color: 'var(--primary-600)', fontWeight: 700 }}>{LEVEL_LABEL[level]}</span>
+                        <span style={{ marginLeft: 'auto', color: C.sub, letterSpacing: 1 }}>
+                            LEVEL: <b style={{ color: C.accent }}>{LEVEL_EN[level]}</b>
                         </span>
                     </div>
 
-                    {/* Summary Counters Block */}
-                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-                        {/* kwh total card */}
-                        <div style={kpi(true)}>
-                            <div style={{ fontSize: 11.5, color: 'var(--primary-700)', fontWeight: 700 }}>การใช้ไฟฟ้าสะสมงวดนี้</div>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 8 }}>
-                                <span style={{
-                                    fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
-                                    fontSize: 26, fontWeight: 800, color: 'var(--primary-700)'
-                                }}>{fmt(totalKwh)}</span>
-                                <span style={{ fontSize: 12, color: 'var(--primary-600)', fontWeight: 600 }}>kWh</span>
+                    {/* Summary strip */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', background: C.panel, borderBottom: `1px solid ${C.line}`, margin: '0 16px 16px', border: `1px solid ${C.line}` }}>
+                        <div style={{ padding: '11px 18px', borderRight: `1px solid ${C.line}`, minWidth: 180 }}>
+                            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, textTransform: 'uppercase' }}>Total · งวดนี้</div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                                <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 24, fontWeight: 700, color: C.accent }}>{fmt(totalKwh)}</span>
+                                <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
                             </div>
                         </div>
-
-                        {/* Status grids */}
-                        {(['normal', 'warning', 'over', 'offline'] as string[]).map((s) => {
-                            const info = STATUS[s];
-                            return (
-                                <div key={s} style={{
-                                    ...kpi(false),
-                                    borderTop: `4px solid ${info.color}`
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 600 }}>{info.label}</span>
-                                        <StatusDot s={s} size={10} pulse={s === 'over' || s === 'warning'} />
-                                    </div>
-                                    <div style={{
-                                        fontFamily: 'ui-monospace, monospace', fontSize: 24,
-                                        fontWeight: 800, color: 'var(--text)', marginTop: 8
-                                    }}>
-                                        {counts[s]} <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>จุด</span>
-                                    </div>
+                        {['normal', 'over', 'offline'].map((s) => (
+                            <div key={s} style={{ padding: '11px 16px', borderRight: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 9, minWidth: 110 }}>
+                                <StatusDot s={s} size={11} C={C} />
+                                <div>
+                                    <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: 0.5, color: C.sub, textTransform: 'uppercase' }}>{getStatusInfo(s, C).label}</div>
+                                    <div style={{ fontFamily: MONO, fontSize: 17, fontWeight: 700, color: C.ink }}>{counts[s]}</div>
                                 </div>
-                            );
-                        })}
-
-                        {/* Total meters */}
-                        <div style={kpi(false)}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                                <Search size={14} color="var(--primary-600)" />
-                                <span style={{ fontSize: 11.5, fontWeight: 600 }}>มิเตอร์ที่ตรวจสอบ</span>
                             </div>
-                            <div style={{
-                                fontFamily: 'ui-monospace, monospace', fontSize: 24,
-                                fontWeight: 800, color: 'var(--text)', marginTop: 8
-                            }}>
-                                {scope.length} <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>เครื่อง</span>
+                        ))}
+                        <div style={{ padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 9 }}>
+                            <Search size={15} color={C.accent} />
+                            <div>
+                                <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: 0.5, color: C.sub }}>METERS</div>
+                                <div style={{ fontFamily: MONO, fontSize: 17, fontWeight: 700, color: C.ink }}>{scope.length}</div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Main Content Area */}
-                    <div style={{
-                        display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)',
-                        gap: 16, padding: '4px 0 20px'
-                    }}>
-                        {/* Left Panel: Modular Architectural Visualizations */}
+                    {/* Body */}
+                    <div style={{ display: 'grid', gridTemplateColumns: level === 4 ? '1fr' : 'minmax(0,1.55fr) minmax(0,1fr)', gap: 14, padding: '0 16px 16px' }}>
                         <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <Layers size={14} color="var(--primary-600)" />
-                                    {level === 2 ? (bldgView === 'sld' ? `ผังวงจรไฟฟ้าทางเดียว (Single Line Diagram) · ${currentName}` : `ผังอาคารทางกายภาพ (Side Deck View) · ${currentName}`)
-                                        : level === 3 ? `ผังเชิงโซนพื้นที่ (Zone Plan) · ${currentName}`
-                                            : level === 4 ? `การกระจายอุปกรณ์ใน Loop · ${currentName}`
-                                                : `ข้อมูลแยกตาม${LEVEL_LABEL[level]}`}
-                                </div>
-                                {level === 2 && (
-                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--gray-100)', padding: 3, borderRadius: 'var(--radius-lg)' }}>
-                                        {([['side', 'ผังอาคารกึ่งสามมิติ', LayoutGrid], ['sld', 'วงจรไฟฟ้าหลัก (SLD)', Network]] as [string, string, any][]).map(([k, lb, Ic]) => (
+                            <Cap idx={`0${level + 1}`} en={level === 2 ? (bldgView === 'sld' ? 'SINGLE LINE' : 'FLOOR VIEW') : level === 3 ? 'ZONE PLAN' : level === 4 ? 'UNITS' : LEVEL_EN[level]}
+                                th={level === 2 ? `${currentName} · ${bldgView === 'sld' ? 'ไดอะแกรมเส้นเดียว' : 'ผังด้านข้าง (บน→ล่าง)'}` : level === 3 ? `${currentName} · ผังพื้นที่` : level === 4 ? `${currentName} · ตาราง Realtime (ทุกค่า)` : 'เรียงมาก→น้อย'}
+                                C={C}
+                                right={level === 2 && (
+                                    <div style={{ display: 'flex', border: `1px solid ${C.line}` }}>
+                                        {([['side', LayoutGrid], ['sld', Network]] as [string, any][]).map(([k, Ic]) => (
                                             <button key={k} onClick={() => setBldgView(k)} style={{
-                                                display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '6px 12px',
-                                                borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer',
-                                                background: bldgView === k ? 'var(--surface)' : 'transparent',
-                                                color: bldgView === k ? 'var(--primary-600)' : 'var(--text-secondary)',
-                                                fontWeight: bldgView === k ? 700 : 500,
-                                                boxShadow: bldgView === k ? 'var(--shadow-sm)' : 'none',
-                                                transition: 'var(--transition)'
-                                            }}>
-                                                <Ic size={13} /> {lb}
-                                            </button>
+                                                display: 'grid', placeItems: 'center', width: 30, height: 24, border: 'none', cursor: 'pointer',
+                                                background: bldgView === k ? C.accent : C.panel, color: bldgView === k ? '#fff' : C.sub
+                                            }}><Ic size={13} /></button>
                                         ))}
                                     </div>
-                                )}
-                            </div>
+                                )} />
 
-                            {/* Warning alert ribbon */}
                             {(counts.over > 0 || counts.offline > 0) && (
                                 <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 10,
-                                    background: 'var(--rose-50)', border: '1px solid rgba(244, 63, 94, 0.2)',
-                                    borderRadius: 'var(--radius-lg)', padding: '10px 16px', marginBottom: 12
+                                    display: 'flex', alignItems: 'center', gap: 9, background: C.panel,
+                                    borderLeft: `3px solid ${C.red}`, border: `1px solid ${C.line}`, padding: '9px 12px', marginBottom: 12
                                 }}>
-                                    <Bell size={15} color="var(--rose-500)" style={{ animation: 'bounce 1.5s infinite' }} />
-                                    <span style={{ fontSize: 13, color: 'var(--rose-700)', fontWeight: 600 }}>
-                                        ระบบตรวจพบเหตุการณ์แจ้งเตือน: <b>{counts.over}</b> จุดใช้ไฟเกินขีดจำกัด และ <b>{counts.offline}</b> จุดออฟไลน์/ปิดใช้งาน
+                                    <Bell size={14} color={C.red} />
+                                    <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.ink, letterSpacing: 0.3 }}>
+                                        ALERT · <b style={{ color: C.red }}>{counts.over}</b> เกินเกณฑ์ · <b>{counts.offline}</b> ไม่มีสัญญาณ/ปิด
                                     </span>
                                 </div>
                             )}
 
                             {level === 2 ? (
                                 bldgView === 'sld' ? (
-                                    <SingleLine main={{ name: currentName || '', kwh: totalKwh, status: aggStatus(scope, now) }}
-                                        feeders={[...items].sort((a, b) => fnum(a.node.name) - fnum(b.node.name))} onPick={go} />
+                                    <SingleLine main={{ name: currentName, kwh: totalKwh, status: aggStatus(scope, now) }}
+                                        feeders={[...items].sort((a, b) => fnum(a.node.name) - fnum(b.node.name))} onPick={go} C={C} />
                                 ) : (
-                                    <div style={{
-                                        border: '1px solid var(--border-light)',
-                                        borderRadius: 'var(--radius-xl)',
-                                        overflow: 'hidden',
-                                        background: 'var(--surface)',
-                                        boxShadow: 'var(--shadow-sm)'
-                                    }}>
-                                        {/* Roof visual component */}
-                                        <div style={{ height: 12, background: 'linear-gradient(90deg, var(--gray-900), var(--gray-800))' }} />
-                                        
+                                    <div style={{ border: `2px solid ${C.ink}`, background: C.panel }}>
+                                        <div style={{ height: 16, background: `repeating-linear-gradient(135deg, ${C.ink}, ${C.ink} 6px, ${C.panel2} 6px, ${C.panel2} 12px)` }} />
                                         {floorItems.map((it, idx) => {
-                                            const info = STATUS[it.status];
+                                            const st = getStatusInfo(it.status, C);
                                             return (
-                                                <button key={it.node.id} onClick={() => openItem(it)} style={{
-                                                    display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
-                                                    background: 'var(--surface)', border: 'none',
-                                                    borderTop: idx === 0 ? 'none' : '1px solid var(--border-light)',
-                                                    borderLeft: `5px solid ${info.color}`, padding: '16px 20px', cursor: 'pointer',
-                                                    transition: 'var(--transition)'
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = 'var(--gray-50)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.background = 'var(--surface)';
-                                                }}
-                                                >
-                                                    <div style={{ width: 64, fontWeight: 700, fontSize: 13.5, color: 'var(--text)' }}>{it.node.name}</div>
-                                                    
-                                                    {/* Graphical representation bar */}
-                                                    <div style={{ flex: 1, height: 26, background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', position: 'relative', border: '1px solid var(--border-light)' }}>
-                                                        <div style={{
-                                                            width: `${(it.kwh / maxFloorKwh) * 100}%`, height: '100%',
-                                                            background: info.color, opacity: 0.18, transition: 'width 0.4s ease'
-                                                        }} />
-                                                        <span style={{ position: 'absolute', left: 10, top: 0, lineHeight: '24px', fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                                            {it.count} Meter ติดตั้งแล้ว
-                                                        </span>
+                                                <button key={it.node.id} className="ec-row" onClick={() => openItem(it)} style={{
+                                                    display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+                                                    background: 'transparent', border: 'none', borderTop: idx === 0 ? 'none' : `1px solid ${C.line}`,
+                                                    borderLeft: `4px solid ${st.color}`, padding: '12px 14px'
+                                                }}>
+                                                    <div style={{ width: 52, fontFamily: MONO, fontWeight: 700, fontSize: 13, color: C.ink }}>{it.node.name}</div>
+                                                    <div style={{ flex: 1, height: 22, background: C.panel2, position: 'relative', border: `1px solid ${C.line}` }}>
+                                                        <div style={{ width: `${(it.kwh / maxFloorKwh) * 100}%`, height: '100%', background: st.color, opacity: 0.3 }} />
+                                                        <span style={{ position: 'absolute', left: 8, top: 0, lineHeight: '22px', fontFamily: MONO, fontSize: 10, color: C.sub }}>{it.count} MTR</span>
                                                     </div>
-                                                    
-                                                    <div style={{ textAlign: 'right', minWidth: 100 }}>
-                                                        <span style={{ fontFamily: 'ui-monospace, monospace', fontVariantNumeric: 'tabular-nums', fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{fmt(it.kwh)}</span>
-                                                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}> kWh</span>
+                                                    <div style={{ textAlign: 'right', minWidth: 92, fontFamily: MONO, color: C.ink }}>
+                                                        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 15, fontWeight: 700 }}>{fmt(it.kwh)}</span>
+                                                        <span style={{ fontSize: 10, color: C.sub }}> kWh</span>
                                                     </div>
-                                                    
-                                                    <StatusTag s={it.status} />
+                                                    <StatusDot s={it.status} pulse C={C} />
                                                 </button>
                                             );
                                         })}
-                                        {/* Foundation visual component */}
-                                        <div style={{ height: 10, background: 'var(--gray-200)' }} />
+                                        <div style={{ height: 10, background: C.ink }} />
                                     </div>
                                 )
                             ) : level === 3 ? (
-                                <ZonePlan items={zoneItems} onPick={openItem} />
+                                <ZonePlan items={zoneItems} onPick={openItem} C={C} />
                             ) : level === 4 ? (
-                                <LoopGrid groups={loopGroups} onPick={(m) => setSelected(m)} />
+                                <MeterTable groups={loopGroups} now={now} onPick={(m) => setSelected(m)} C={C} />
                             ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 12 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
                                     {sorted.map(renderCard)}
                                 </div>
                             )}
                         </div>
 
-                        {/* Right Panel: Sleek Live Data Feed List */}
-                        <div style={{
-                            background: 'var(--surface)', border: '1px solid var(--border-light)',
-                            borderRadius: 'var(--radius-xl)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
-                            display: 'flex', flexDirection: 'column'
-                        }}>
-                            <div style={{
-                                padding: '14px 18px', borderBottom: '1px solid var(--border-light)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                background: 'linear-gradient(to right, var(--gray-50), var(--surface))'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <Activity size={15} color="var(--primary-600)" />
-                                    <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>ฟีดข้อมูลตามเวลาจริง</span>
+                        {/* Realtime table (ซ่อนที่ระดับห้อง เพราะใช้ตารางเต็มแทน) */}
+                        {level !== 4 && (
+                            <div style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                                <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 8, background: C.panel2 }}>
+                                    <Activity size={14} color={C.accent} />
+                                    <span style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: 1, fontWeight: 700 }}>REALTIME</span>
+                                    <button onClick={() => setSortDesc((v) => !v)} style={{
+                                        marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5,
+                                        color: C.accent, background: 'transparent', border: `1px solid ${C.line}`, padding: '4px 8px', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: 4
+                                    }}>
+                                        <ArrowUpDown size={11} /> kWh {sortDesc ? '↓' : '↑'}
+                                    </button>
                                 </div>
-                                <button onClick={() => setSortDesc((v) => !v)} style={{
-                                    fontSize: 11.5, fontWeight: 600,
-                                    color: 'var(--primary-700)', background: 'var(--primary-50)', border: '1px solid var(--primary-100)',
-                                    borderRadius: 'var(--radius-sm)', padding: '5px 10px', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', gap: 4, transition: 'var(--transition)'
-                                }}>
-                                    <ArrowUpDown size={12} /> {sortDesc ? 'เรียง: มาก → น้อย' : 'เรียง: น้อย → มาก'}
-                                </button>
+                                <div style={{ maxHeight: 430, overflow: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                        <thead>
+                                            <tr style={{ position: 'sticky', top: 0, background: C.panel2, color: C.sub, textAlign: 'left', fontFamily: MONO }}>
+                                                <th style={th()}>#</th>
+                                                <th style={th()}>{level === 4 ? 'METER' : LEVEL_EN[level]}</th>
+                                                <th style={{ ...th(), textAlign: 'right' }}>kWh</th>
+                                                <th style={{ ...th(), textAlign: 'center' }}>STS</th>
+                                                <th style={{ ...th(), textAlign: 'right' }}>AGE</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sorted.map((it, i) => {
+                                                const ago = it.m ? Math.round((now - it.m.received_at) / 1000) : null;
+                                                return (
+                                                    <tr key={it.node.id} className="ec-row" onClick={() => openItem(it)} style={{ borderTop: `1px solid ${C.line}` }}>
+                                                        <td style={{ ...td(), color: C.sub, fontFamily: MONO }}>{String(i + 1).padStart(2, '0')}</td>
+                                                        <td style={{ ...td(), color: C.ink }}>{it.node.name}{it.node.level === 'room' && <span style={{ color: C.sub, fontFamily: MONO, fontSize: 10.5 }}> {it.m!.channel}</span>}</td>
+                                                        <td style={{ ...td(), textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</td>
+                                                        <td style={{ ...td(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
+                                                        <td style={{ ...td(), textAlign: 'right', color: C.sub, fontFamily: MONO, fontSize: 10.5 }}>{ago === null ? '—' : ago > 30 ? `${ago}s!` : `${ago}s`}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                            
-                            <div style={{ maxHeight: 550, overflowY: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                        <tr style={{ position: 'sticky', top: 0, background: 'var(--gray-50)', zIndex: 10 }}>
-                                            <th style={th()}>ลำดับ</th>
-                                            <th style={th()}>{level === 4 ? 'Meter / รหัสอุปกรณ์' : LEVEL_LABEL[level]}</th>
-                                            <th style={{ ...th(), textAlign: 'right' }}>ปริมาณไฟฟ้า</th>
-                                            <th style={{ ...th(), textAlign: 'center' }}>สถานะ</th>
-                                            <th style={{ ...th(), textAlign: 'right' }}>ฟีดเวลา</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sorted.map((it, i) => {
-                                            const ago = it.m ? Math.round((now - it.m.received_at) / 1000) : null;
-                                            return (
-                                                <tr key={it.node.id} onClick={() => openItem(it)}
-                                                    style={{
-                                                        borderTop: '1px solid var(--border-light)', cursor: 'pointer',
-                                                        transition: 'var(--transition)'
-                                                    }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-50)'}
-                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                                >
-                                                    <td style={{ ...td(), color: 'var(--text-secondary)', fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>{i + 1}</td>
-                                                    <td style={{ ...td(), fontWeight: 700 }}>
-                                                        {it.node.name}
-                                                        {it.node.level === 'room' && (
-                                                            <span style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                                                                {it.m!.channel}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td style={{
-                                                        ...td(), textAlign: 'right', fontFamily: 'ui-monospace, monospace',
-                                                        fontVariantNumeric: 'tabular-nums', fontWeight: 800
-                                                    }}>{fmt(it.kwh)} <span style={{ fontSize: 10.5, color: 'var(--text-secondary)', fontWeight: 500 }}>kWh</span></td>
-                                                    
-                                                    <td style={{ ...td(), textAlign: 'center' }}>
-                                                        <span style={{ display: 'inline-flex' }}><StatusDot s={it.status} size={8} pulse={it.status === 'over'} /></span>
-                                                    </td>
-                                                    
-                                                    <td style={{ ...td(), textAlign: 'right', color: ago && ago > 30 ? 'var(--rose-500)' : 'var(--text-secondary)', fontSize: 11.5, fontWeight: 500 }}>
-                                                        {ago === null ? '—' : ago > 30 ? `${ago}s ⚠` : `${ago}s`}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        )}
+                    </div>
+
+                    {/* Realtime trend (kW line) — bottom */}
+                    <div style={{ padding: '0 16px 16px' }}>
+                        {(() => {
+                            const buf = histRef.current;
+                            const curKw = buf.length ? buf[buf.length - 1].kw : 0;
+                            const peak = buf.reduce((mx, p) => Math.max(mx, p.kw), 0);
+                            const tdata = buf.map((p, idx) => ({ idx, kw: p.kw, t: new Date(p.t).toLocaleTimeString('th-TH') }));
+                            return (
+                                <div style={{ background: C.panel, border: `1px solid ${C.line}`, margin: '0 16px' }}>
+                                    <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 10, background: C.panel2, flexWrap: 'wrap' }}>
+                                        <Activity size={14} color={C.accent} />
+                                        <span style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: 1, fontWeight: 700 }}>REALTIME TREND</span>
+                                        <span style={{ fontSize: 12, color: C.sub }}>กำลังไฟรวม (kW) · {level === 0 ? 'ทุกสาขา' : currentName}</span>
+                                        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                                            <StatusDot s="normal" size={8} pulse C={C} />
+                                            <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 700, color: C.accent }}>{fmt(curKw, 1)}</span>
+                                            <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kW</span>
+                                            <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub, marginLeft: 8 }}>PEAK {fmt(peak, 1)}</span>
+                                        </span>
+                                    </div>
+                                    <div style={{ height: 150, padding: '8px 8px 0' }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={tdata} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="2 3" stroke={C.line} vertical={false} />
+                                                <XAxis dataKey="t" tick={{ fontSize: 9.5, fill: C.sub, fontFamily: MONO }} minTickGap={60} tickLine={false} axisLine={{ stroke: C.line }} />
+                                                <YAxis tick={{ fontSize: 10, fill: C.sub, fontFamily: MONO }} width={44} tickLine={false} axisLine={{ stroke: C.line }} domain={[0, 'auto']} />
+                                                <Tooltip contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }} formatter={(v) => [`${fmt(Number(v), 1)} kW`, 'kW']} />
+                                                <Line type="monotone" dataKey="kw" stroke={C.accent} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div style={{ padding: '3px 14px 8px', fontFamily: MONO, fontSize: 9.5, color: C.sub, letterSpacing: 0.5 }}>
+                                        ← ย้อนหลัง ~1 ชั่วโมง · อัปเดตทุก 1 นาที · รีเซ็ตเมื่อเปลี่ยนขอบเขต
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </React.Fragment>
             ) : (
-                <Compare meters={meters} tree={tree} now={now} />
+                <Compare meters={meters} tree={tree} now={now} C={C} />
             )}
 
-            {/* Meter detail popup dialog */}
-            {selected && <MeterDetail m={selected} now={now} onClose={() => setSelected(null)} />}
+            {selected && <MeterDetail m={selected} now={now} onClose={() => setSelected(null)} C={C} />}
         </div>
     );
 };
