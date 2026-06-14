@@ -702,7 +702,9 @@ const ZoneDashboard: React.FC = () => {
     const [, setTick] = useState(0);
     const [clock, setClock] = useState(Date.now());
     const [mode, setMode] = useState('monitor');
-    const [theme, setTheme] = useState<'light' | 'dark'>('light'); // light = Engineering Paper, dark = Control Room
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        return (localStorage.getItem('ec-theme') as 'light' | 'dark') || 'light';
+    }); // light = Engineering Paper, dark = Control Room
     const C = THEMES[theme];
 
     const crumb = (active: boolean): React.CSSProperties => ({
@@ -876,7 +878,11 @@ const ZoneDashboard: React.FC = () => {
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
-                    <button onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+                    <button onClick={() => {
+                        const next = theme === 'light' ? 'dark' : 'light';
+                        setTheme(next);
+                        localStorage.setItem('ec-theme', next);
+                    }}
                         title={theme === 'light' ? 'สลับเป็นโหมดมืด (Control Room)' : 'สลับเป็นโหมดสว่าง (Engineering Paper)'}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',
