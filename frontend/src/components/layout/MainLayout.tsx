@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const MainLayout: React.FC = () => {
     const { isAuthenticated, isLoading } = useAuth();
@@ -17,10 +18,12 @@ const MainLayout: React.FC = () => {
         );
     }
 
+    const { theme } = useTheme();
+
     if (!isAuthenticated) return <Navigate to="/login" replace />;
 
     return (
-        <div className="app">
+        <div className={`app ec-theme-${theme}`}>
             <Sidebar />
             <div className="app__main">
                 <Header />

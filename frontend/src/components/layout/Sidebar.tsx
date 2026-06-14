@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface NavGroup {
     title: string;
@@ -74,6 +75,7 @@ const navGroups: NavGroup[] = [
 
 const Sidebar: React.FC = () => {
     const location = useLocation();
+    const { theme } = useTheme();
     const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(navGroups.map(g => g.title)));
     const [collapsed, setCollapsed] = useState(false);
 

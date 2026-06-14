@@ -1749,7 +1749,311 @@ body {
     padding: 0 18px;
   }
 
-  .topbar__datetime {
-    display: none;
-  }
+}
+
+/* =========================================
+   ENERGY CONSOLE: GLOBAL SIDEBAR & TOPBAR OVERRIDES
+   ========================================= */
+
+/* --- Light Theme: Engineering Paper --- */
+.app.ec-theme-light {
+  background-color: #EAE7DA;
+}
+
+.ec-theme-light .sidebar {
+  background: #F1EFE3;
+  border-right: 1px solid #D4D1C0;
+}
+
+.ec-theme-light .sidebar-brand {
+  border-bottom: 1px solid #D4D1C0;
+}
+
+.ec-theme-light .sidebar-brand__name {
+  color: #23261E;
+}
+
+.ec-theme-light .sidebar-brand__name span {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  color: #2B4C7E;
+}
+
+.ec-theme-light .sidebar-brand__sub {
+  color: #6E705F;
+}
+
+.ec-theme-light .sidebar-toggle {
+  background: #FBFAF4;
+  border: 1px solid #D4D1C0;
+  color: #23261E;
+  border-radius: 0;
+}
+
+.ec-theme-light .sidebar-toggle:hover {
+  background: #EAE7DA;
+  color: #2B4C7E;
+  border-color: #2B4C7E;
+}
+
+.ec-theme-light .sidebar-section__title {
+  color: #6E705F;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .sidebar-section__title:hover {
+  color: #2B4C7E;
+}
+
+.ec-theme-light .sidebar-link {
+  color: #6E705F;
+  font-family: ui-monospace, monospace;
+  border-radius: 0;
+}
+
+.ec-theme-light .sidebar-link:hover {
+  color: #23261E;
+  background: #FBFAF4;
+}
+
+.ec-theme-light .sidebar-link--active {
+  color: #FFFFFF !important;
+  background: #2B4C7E;
+  border-left-color: #23261E;
+}
+
+.ec-theme-light .sidebar-footer {
+  border-top: 1px solid #D4D1C0;
+  color: #6E705F;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .topbar {
+  background: #F1EFE3;
+  border-bottom: 1px solid #D4D1C0;
+}
+
+.ec-theme-light .topbar__breadcrumb {
+  color: #23261E;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .topbar__breadcrumb svg {
+  color: #2B4C7E;
+}
+
+.ec-theme-light .topbar__datetime {
+  color: #6E705F;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .topbar__icon-btn {
+  color: #23261E;
+  border: 1px solid #D4D1C0;
+  background: #FBFAF4;
+  border-radius: 0;
+}
+
+.ec-theme-light .topbar__icon-btn:hover {
+  background: #EAE7DA;
+  color: #2B4C7E;
+}
+
+.ec-theme-light .topbar__avatar {
+  background: #2B4C7E;
+  color: #FFFFFF;
+  border-radius: 0;
+  border: 1px solid #D4D1C0;
+}
+
+.ec-theme-light .topbar__user-btn {
+  border-radius: 0;
+}
+
+.ec-theme-light .topbar__user-btn:hover {
+  background: #FBFAF4;
+}
+
+.ec-theme-light .topbar__user-name {
+  color: #23261E;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .topbar__user-role {
+  color: #6E705F;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .topbar__dropdown {
+  background: #FBFAF4;
+  border: 1px solid #D4D1C0;
+  border-radius: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.ec-theme-light .topbar__dropdown-item {
+  color: #23261E;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .topbar__dropdown-item:hover {
+  background: #F1EFE3;
+}
+
+.ec-theme-light .topbar__dropdown-divider {
+  border-top: 1px solid #D4D1C0;
+}
+
+
+/* --- Dark Theme: Control Room --- */
+.app.ec-theme-dark {
+  background-color: #0E1116;
+}
+
+.ec-theme-dark .sidebar {
+  background: #161B22;
+  border-right: 1px solid #2A313C;
+}
+
+.ec-theme-dark .sidebar-brand {
+  border-bottom: 1px solid #2A313C;
+}
+
+.ec-theme-dark .sidebar-brand__name {
+  color: #E6EDF3;
+}
+
+.ec-theme-dark .sidebar-brand__name span {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  color: #36C2CE;
+}
+
+.ec-theme-dark .sidebar-brand__sub {
+  color: #8B98A6;
+}
+
+.ec-theme-dark .sidebar-toggle {
+  background: #1C232E;
+  border: 1px solid #2A313C;
+  color: #E6EDF3;
+  border-radius: 0;
+}
+
+.ec-theme-dark .sidebar-toggle:hover {
+  background: #0E1116;
+  color: #36C2CE;
+  border-color: #36C2CE;
+}
+
+.ec-theme-dark .sidebar-section__title {
+  color: #8B98A6;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .sidebar-section__title:hover {
+  color: #36C2CE;
+}
+
+.ec-theme-dark .sidebar-link {
+  color: #8B98A6;
+  font-family: ui-monospace, monospace;
+  border-radius: 0;
+}
+
+.ec-theme-dark .sidebar-link:hover {
+  color: #E6EDF3;
+  background: #1C232E;
+}
+
+.ec-theme-dark .sidebar-link--active {
+  color: #0E1116 !important;
+  background: #36C2CE;
+  border-left-color: #E6EDF3;
+}
+
+.ec-theme-dark .sidebar-footer {
+  border-top: 1px solid #2A313C;
+  color: #8B98A6;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .topbar {
+  background: #161B22;
+  border-bottom: 1px solid #2A313C;
+}
+
+.ec-theme-dark .topbar__breadcrumb {
+  color: #E6EDF3;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .topbar__breadcrumb svg {
+  color: #36C2CE;
+}
+
+.ec-theme-dark .topbar__datetime {
+  color: #8B98A6;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .topbar__icon-btn {
+  color: #E6EDF3;
+  border: 1px solid #2A313C;
+  background: #1C232E;
+  border-radius: 0;
+}
+
+.ec-theme-dark .topbar__icon-btn:hover {
+  background: #0E1116;
+  color: #36C2CE;
+}
+
+.ec-theme-dark .topbar__avatar {
+  background: #36C2CE;
+  color: #0E1116;
+  border-radius: 0;
+  border: 1px solid #2A313C;
+}
+
+.ec-theme-dark .topbar__user-btn {
+  border-radius: 0;
+}
+
+.ec-theme-dark .topbar__user-btn:hover {
+  background: #1C232E;
+}
+
+.ec-theme-dark .topbar__user-name {
+  color: #E6EDF3;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .topbar__user-role {
+  color: #8B98A6;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .topbar__dropdown {
+  background: #161B22;
+  border: 1px solid #2A313C;
+  border-radius: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.24);
+}
+
+.ec-theme-dark .topbar__dropdown-item {
+  color: #E6EDF3;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .topbar__dropdown-item:hover {
+  background: #1C232E;
+}
+
+.ec-theme-dark .topbar__dropdown-divider {
+  border-top: 1px solid #2A313C;
 }

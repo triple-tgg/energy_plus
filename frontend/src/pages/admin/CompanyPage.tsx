@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { companyApi } from '../../api/client';
 import { LayoutGrid, Moon, Sun, Shield, Lock, Save, X, Pencil } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -36,9 +37,7 @@ const CompanyPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({ companyName: '', address: '', contactName: '', contactPhone: '', domain: '' });
-    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-        return (localStorage.getItem('ec-theme') as 'light' | 'dark') || 'light';
-    });
+    const { theme, toggleTheme } = useTheme();
     const C = THEMES[theme];
 
     useEffect(() => {
@@ -148,11 +147,7 @@ const CompanyPage: React.FC = () => {
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
-                    <button onClick={() => {
-                        const next = theme === 'light' ? 'dark' : 'light';
-                        setTheme(next);
-                        localStorage.setItem('ec-theme', next);
-                    }}
+                    <button onClick={toggleTheme}
                         title={theme === 'light' ? 'สลับเป็นโหมดมืด (Control Room)' : 'สลับเป็นโหมดสว่าง (Engineering Paper)'}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',

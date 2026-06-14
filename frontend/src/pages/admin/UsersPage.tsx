@@ -3,6 +3,7 @@ import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { usersApi } from '../../api/client';
 import { LayoutGrid, Moon, Sun, Users, Save, X, Plus, Pencil, Trash2 } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -55,9 +56,7 @@ const UsersPage: React.FC = () => {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
 
-    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-        return (localStorage.getItem('ec-theme') as 'light' | 'dark') || 'light';
-    });
+    const { theme, toggleTheme } = useTheme();
     const C = THEMES[theme];
 
     // Groups list for dropdown
@@ -325,11 +324,7 @@ const UsersPage: React.FC = () => {
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
-                    <button onClick={() => {
-                        const next = theme === 'light' ? 'dark' : 'light';
-                        setTheme(next);
-                        localStorage.setItem('ec-theme', next);
-                    }}
+                    <button onClick={toggleTheme}
                         title={theme === 'light' ? 'สลับเป็นโหมดมืด (Control Room)' : 'สลับเป็นโหมดสว่าง (Engineering Paper)'}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',

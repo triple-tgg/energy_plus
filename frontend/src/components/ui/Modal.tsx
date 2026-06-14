@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -25,7 +26,8 @@ const THEMES = {
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, size = 'md', theme }) => {
     const overlayRef = useRef<HTMLDivElement>(null);
-    const activeTheme = theme || (localStorage.getItem('ec-theme') as 'light' | 'dark') || 'light';
+    const { theme: globalTheme } = useTheme();
+    const activeTheme = theme || globalTheme;
     const C = THEMES[activeTheme];
 
     useEffect(() => {

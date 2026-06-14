@@ -3,6 +3,7 @@ import {
     Zap, Droplet, Flame, Sun, Home, Activity, ArrowUpDown, X, Gauge, Search,
     Wifi, WifiOff, AlertTriangle, Network, Pencil, Bell, PowerOff, LayoutGrid, BarChart3, Moon,
 } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, LineChart, Line,
@@ -702,9 +703,7 @@ const ZoneDashboard: React.FC = () => {
     const [, setTick] = useState(0);
     const [clock, setClock] = useState(Date.now());
     const [mode, setMode] = useState('monitor');
-    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-        return (localStorage.getItem('ec-theme') as 'light' | 'dark') || 'light';
-    }); // light = Engineering Paper, dark = Control Room
+    const { theme, toggleTheme } = useTheme(); // light = Engineering Paper, dark = Control Room
     const C = THEMES[theme];
 
     const crumb = (active: boolean): React.CSSProperties => ({
@@ -878,11 +877,7 @@ const ZoneDashboard: React.FC = () => {
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
-                    <button onClick={() => {
-                        const next = theme === 'light' ? 'dark' : 'light';
-                        setTheme(next);
-                        localStorage.setItem('ec-theme', next);
-                    }}
+                    <button onClick={toggleTheme}
                         title={theme === 'light' ? 'สลับเป็นโหมดมืด (Control Room)' : 'สลับเป็นโหมดสว่าง (Engineering Paper)'}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',
