@@ -87,4 +87,29 @@ export class UsersController {
             res.json(successResponse(null, 'Group deleted'));
         } catch (error) { next(error); }
     }
+
+    async getGroupPermissions(req: Request, res: Response, next: NextFunction) {
+        try {
+            const permissions = await usersService.getGroupPermissions(parseInt(req.params.id));
+            res.json(successResponse(permissions));
+        } catch (error) { next(error); }
+    }
+
+    async updateGroupPermissions(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await usersService.updateGroupPermissions(parseInt(req.params.id), req.body.permissions);
+            res.json(successResponse(result, 'Permissions updated'));
+        } catch (error) { next(error); }
+    }
+
+    async resetPassword(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { password } = req.body;
+            if (!password || password.length < 6) {
+                throw new AppError(400, 'VALIDATION_ERROR', 'Password must be at least 6 characters');
+            }
+            const result = await usersService.resetPassword(parseInt(req.params.id), password);
+            res.json(successResponse(result, 'Password reset successful'));
+        } catch (error) { next(error); }
+    }
 }

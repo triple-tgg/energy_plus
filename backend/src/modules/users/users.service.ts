@@ -1,4 +1,5 @@
-import { query } from '../../config/database';
+import bcrypt from 'bcryptjs';
+import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 
@@ -114,6 +115,53 @@ export class UsersService {
     async deleteGroup(groupId: number) {
         const result = await query(`DELETE FROM group_user WHERE group_id = $1 RETURNING group_id`, [groupId]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Group not found');
+        return result.rows[0];
+    }
+
+    async getGroupPermissions(groupId: number) {
+        const result = await query(
+            `SELECT * FROM user_permission WHERE group_id = $1`,
+            [groupId]
+        );
+        return result.rows;
+    }
+
+    async updateGroupPermissions(groupId: number, permissions: any[]) {
+        const client = await getClient();
+        try {
+            await client.query('BEGIN');
+            await client.query(`DELETE FROM user_permission WHERE group_id = $1`, [groupId]);
+            for (const perm of permissions) {
+                await client.query(
+                    `INSERT INTO user_permission (group_id, permission_key, can_view, can_create, can_edit, can_delete)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [
+                        groupId,
+                        perm.permission_key || perm.permissionKey,
+                        perm.can_view ?? perm.canView ?? false,
+                        perm.can_create ?? perm.canCreate ?? false,
+                        perm.can_edit ?? perm.canEdit ?? false,
+                        perm.can_delete ?? perm.canDelete ?? false
+                    ]
+                );
+            }
+            await client.query('COMMIT');
+            return { message: 'Permissions updated successfully' };
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    async resetPassword(userId: number, password: string) {
+        const passwordHash = await bcrypt.hash(password, 12);
+        const result = await query(
+            `UPDATE app_user SET password_hash = $1, last_modified_on = NOW() WHERE user_id = $2 RETURNING user_id`,
+            [passwordHash, userId]
+        );
+        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'User not found');
         return result.rows[0];
     }
 }

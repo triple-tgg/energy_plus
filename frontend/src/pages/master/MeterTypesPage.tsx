@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { metersApi } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface TypeForm {
     meterTypeName: string;
@@ -12,6 +13,7 @@ interface TypeForm {
 const emptyForm: TypeForm = { meterTypeName: '', iconName: '', isActive: true };
 
 const MeterTypesPage: React.FC = () => {
+    const { t } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -47,8 +49,8 @@ const MeterTypesPage: React.FC = () => {
 
     useEffect(() => {
         if (successMsg) {
-            const t = setTimeout(() => setSuccessMsg(''), 3000);
-            return () => clearTimeout(t);
+            const timer = setTimeout(() => setSuccessMsg(''), 3000);
+            return () => clearTimeout(timer);
         }
     }, [successMsg]);
 
@@ -72,7 +74,7 @@ const MeterTypesPage: React.FC = () => {
 
     const handleSave = async () => {
         if (!form.meterTypeName.trim()) {
-            setFormError('Meter Type Name is required');
+            setFormError(t('กรุณากรอกชื่อประเภทมิเตอร์', 'Meter Type Name is required'));
             return;
         }
         setSaving(true);
@@ -80,15 +82,15 @@ const MeterTypesPage: React.FC = () => {
         try {
             if (editId) {
                 await metersApi.updateType(editId, form);
-                setSuccessMsg('Meter type updated successfully!');
+                setSuccessMsg(t('อัปเดตประเภทมิเตอร์สำเร็จ!', 'Meter type updated successfully!'));
             } else {
                 await metersApi.createType(form);
-                setSuccessMsg('Meter type created successfully!');
+                setSuccessMsg(t('สร้างประเภทมิเตอร์สำเร็จ!', 'Meter type created successfully!'));
             }
             setShowModal(false);
             fetchData();
         } catch (err: any) {
-            setFormError(err.response?.data?.message || 'Failed to save meter type');
+            setFormError(err.response?.data?.message || t('บันทึกประเภทมิเตอร์ล้มเหลว', 'Failed to save meter type'));
         }
         setSaving(false);
     };
@@ -103,33 +105,33 @@ const MeterTypesPage: React.FC = () => {
         setDeleting(true);
         try {
             await metersApi.deleteType(deleteTarget.meter_type_id);
-            setSuccessMsg('Meter type deleted successfully!');
+            setSuccessMsg(t('ลบประเภทมิเตอร์สำเร็จ!', 'Meter type deleted successfully!'));
             setShowDelete(false);
             setDeleteTarget(null);
             fetchData();
         } catch (err: any) {
-            alert(err.response?.data?.message || 'Failed to delete meter type');
+            alert(err.response?.data?.message || t('ลบประเภทมิเตอร์ล้มเหลว', 'Failed to delete meter type'));
         }
         setDeleting(false);
     };
 
     const columns = [
-        { key: 'meter_type_name', title: 'Type Name' },
-        { key: 'icon_name', title: 'Icon' },
+        { key: 'meter_type_name', title: t('ชื่อประเภท', 'Type Name') },
+        { key: 'icon_name', title: t('ไอคอน', 'Icon') },
         {
-            key: 'is_active', title: 'Status',
+            key: 'is_active', title: t('สถานะ', 'Status'),
             render: (v: boolean) => (
                 <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>
-                    {v ? 'Active' : 'Inactive'}
+                    {v ? t('ใช้งาน', 'Active') : t('ไม่ใช้งาน', 'Inactive')}
                 </span>
             ),
         },
         {
-            key: 'actions', title: 'Actions',
+            key: 'actions', title: t('จัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 <div className="table-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ Edit</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ Delete</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ {t('แก้ไข', 'Edit')}</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ {t('ลบ', 'Delete')}</button>
                 </div>
             ),
         },
@@ -140,7 +142,7 @@ const MeterTypesPage: React.FC = () => {
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
 
             <DataTable
-                title="ประเภทมิเตอร์"
+                title={t('ประเภทมิเตอร์', 'Meter Types')}
                 columns={columns}
                 data={data}
                 total={total}
@@ -150,19 +152,19 @@ const MeterTypesPage: React.FC = () => {
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
                 onCreate={handleCreate}
-                createLabel="เพิ่มประเภท"
+                createLabel={t('เพิ่มประเภท', 'Add Type')}
             />
 
             <Modal
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
-                title={editId ? 'แก้ไขประเภทมิเตอร์' : 'เพิ่มประเภทมิเตอร์'}
+                title={editId ? t('แก้ไขประเภทมิเตอร์', 'Edit Meter Type') : t('เพิ่มประเภทมิเตอร์ใหม่', 'Add New Meter Type')}
                 size="md"
                 footer={
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                        <button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>Cancel</button>
+                        <button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button>
                         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                            {saving ? 'Saving...' : editId ? 'Update' : 'Create'}
+                            {saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}
                         </button>
                     </div>
                 }
@@ -170,11 +172,11 @@ const MeterTypesPage: React.FC = () => {
                 {formError && <div className="form-error-banner">{formError}</div>}
 
                 <div className="form-group">
-                    <label className="form-label">Type Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <label className="form-label">{t('ชื่อประเภท', 'Type Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
                     <input
                         type="text"
                         className="form-control"
-                        placeholder="e.g. Electricity, Water, Gas"
+                        placeholder={t('เช่น ไฟฟ้า, น้ำ, แก๊ส', 'e.g. Electricity, Water, Gas')}
                         value={form.meterTypeName}
                         onChange={(e) => setForm({ ...form, meterTypeName: e.target.value })}
                         autoFocus
@@ -182,11 +184,11 @@ const MeterTypesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">Icon Name</label>
+                    <label className="form-label">{t('ชื่อไอคอน', 'Icon Name')}</label>
                     <input
                         type="text"
                         className="form-control"
-                        placeholder="e.g. ⚡ or icon class name"
+                        placeholder={t('เช่น ⚡ หรือชื่อคลาสไอคอน', 'e.g. ⚡ or icon class name')}
                         value={form.iconName}
                         onChange={(e) => setForm({ ...form, iconName: e.target.value })}
                     />
@@ -200,7 +202,7 @@ const MeterTypesPage: React.FC = () => {
                             onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                             style={{ width: 18, height: 18, accentColor: 'var(--success)' }}
                         />
-                        Active
+                        {t('ใช้งาน', 'Active')}
                     </label>
                 </div>
             </Modal>
@@ -208,25 +210,25 @@ const MeterTypesPage: React.FC = () => {
             <Modal
                 isOpen={showDelete}
                 onClose={() => setShowDelete(false)}
-                title="ยืนยันการลบ"
+                title={t('ยืนยันการลบ', 'Confirm Delete')}
                 size="sm"
                 footer={
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                        <button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>Cancel</button>
+                        <button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>{t('ยกเลิก', 'Cancel')}</button>
                         <button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>
-                            {deleting ? 'Deleting...' : 'Delete'}
+                            {deleting ? t('กำลังลบ...', 'Deleting...') : t('ลบ', 'Delete')}
                         </button>
                     </div>
                 }
             >
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-                    <p style={{ fontSize: 16, marginBottom: 8 }}>Delete meter type</p>
+                    <p style={{ fontSize: 16, marginBottom: 8 }}>{t('ลบประเภทมิเตอร์', 'Delete meter type')}</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>
                         "{deleteTarget?.meter_type_name}"
                     </p>
                     <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
-                        Meters using this type may be affected.
+                        {t('มิเตอร์ที่ใช้ประเภทนี้อาจได้รับผลกระทบ', 'Meters using this type may be affected.')}
                     </p>
                 </div>
             </Modal>

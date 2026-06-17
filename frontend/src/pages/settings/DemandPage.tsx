@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { billingApi } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface DemandForm {
     displayName: string;
@@ -20,6 +21,7 @@ const emptyForm: DemandForm = {
 };
 
 const DemandPage: React.FC = () => {
+    const { t } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -69,7 +71,7 @@ const DemandPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.displayName.trim()) { setFormError('กรุณาระบุชื่อ'); return; }
+        if (!form.displayName.trim()) { setFormError(t('กรุณาระบุชื่อ', 'Please specify a name')); return; }
         setSaving(true); setFormError('');
         try {
             const payload = {
@@ -83,13 +85,13 @@ const DemandPage: React.FC = () => {
             };
             if (editId) {
                 await billingApi.updateDemandConfig(editId, payload);
-                setSuccessMsg('อัพเดตค่าดีมานด์สำเร็จ!');
+                setSuccessMsg(t('อัปเดตการตั้งค่าดีมานด์สำเร็จ!', 'Updated demand configuration successfully!'));
             } else {
                 await billingApi.createDemandConfig(payload);
-                setSuccessMsg('สร้างค่าดีมานด์สำเร็จ!');
+                setSuccessMsg(t('สร้างการตั้งค่าดีมานด์สำเร็จ!', 'Created demand configuration successfully!'));
             }
             setShowModal(false); fetchData();
-        } catch (err: any) { setFormError(err.response?.data?.message || 'บันทึกไม่สำเร็จ'); }
+        } catch (err: any) { setFormError(err.response?.data?.message || t('บันทึกไม่สำเร็จ', 'Save failed')); }
         setSaving(false);
     };
 
@@ -100,40 +102,44 @@ const DemandPage: React.FC = () => {
         setDeleting(true);
         try {
             await billingApi.deleteDemandConfig(deleteTarget.config_id);
-            setSuccessMsg('ลบค่าดีมานด์สำเร็จ!');
+            setSuccessMsg(t('ลบการตั้งค่าดีมานด์สำเร็จ!', 'Deleted demand configuration successfully!'));
             setShowDelete(false); setDeleteTarget(null); fetchData();
-        } catch (err: any) { alert(err.response?.data?.message || 'ลบไม่สำเร็จ'); }
+        } catch (err: any) { alert(err.response?.data?.message || t('ลบไม่สำเร็จ', 'Delete failed')); }
         setDeleting(false);
     };
 
     const columns = [
-        { key: 'display_name', title: 'ชื่อ' },
+        { key: 'display_name', title: t('ชื่อ', 'Name') },
         {
-            key: 'warning_setpoint', title: 'เตือน (kW)',
+            key: 'warning_setpoint', title: t('เตือน (kW)', 'Warning (kW)'),
             render: (v: number) => v != null ? `${Number(v).toLocaleString()} kW` : '—',
         },
         {
-            key: 'peak_setpoint', title: 'พีค (kW)',
+            key: 'peak_setpoint', title: t('พีค (kW)', 'Peak (kW)'),
             render: (v: number) => v != null ? `${Number(v).toLocaleString()} kW` : '—',
         },
         {
-            key: 'saving_rate', title: 'อัตราประหยัด',
+            key: 'saving_rate', title: t('อัตราการประหยัด', 'Saving Rate'),
             render: (v: number) => v != null ? v : '—',
         },
         {
-            key: 'flat_rate', title: 'Flat Rate',
+            key: 'flat_rate', title: t('อัตราคงที่', 'Flat Rate'),
             render: (v: number) => v != null ? v : '—',
         },
         {
-            key: 'is_active', title: 'สถานะ',
-            render: (v: boolean) => <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>{v ? 'ใช้งาน' : 'ปิด'}</span>,
+            key: 'is_active', title: t('สถานะ', 'Status'),
+            render: (v: boolean) => (
+                <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>
+                    {v ? t('ใช้งาน', 'Active') : t('ปิดใช้งาน', 'Inactive')}
+                </span>
+            ),
         },
         {
-            key: 'actions', title: 'จัดการ',
+            key: 'actions', title: t('การจัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 <div className="table-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ แก้ไข</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ ลบ</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>{t('✏️ แก้ไข', '✏️ Edit')}</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>{t('🗑️ ลบ', '🗑️ Delete')}</button>
                 </div>
             ),
         },
@@ -142,60 +148,60 @@ const DemandPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title="ดีมานด์ / ประหยัด" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel="เพิ่มค่าดีมานด์" />
+            <DataTable title={t('ตั้งค่าดีมานด์ / การประหยัดพลังงาน', 'Demand / Saving Settings')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มการตั้งค่าดีมานด์', 'Add Demand Configuration')} />
 
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? 'แก้ไขค่าดีมานด์' : 'เพิ่มค่าดีมานด์'} size="md"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>ยกเลิก</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'กำลังบันทึก...' : editId ? 'อัพเดต' : 'สร้าง'}</button></div>}
+            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขการตั้งค่าดีมานด์', 'Edit Demand Configuration') : t('เพิ่มการตั้งค่าดีมานด์', 'Add Demand Configuration')} size="md"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
                 <div className="form-group">
-                    <label className="form-label">ชื่อ <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" placeholder="เช่น อาคารสำนักงาน" value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} autoFocus />
+                    <label className="form-label">{t('ชื่อ', 'Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="text" className="form-control" placeholder={t('เช่น อาคารสำนักงาน', 'e.g. Office Building')} value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} autoFocus />
                 </div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">ค่าเตือน (kW)</label>
+                        <label className="form-label">{t('ระดับเตือนภัย (kW)', 'Warning Level (kW)')}</label>
                         <input type="number" className="form-control" placeholder="0" value={form.warningSetpoint} onChange={e => setForm({ ...form, warningSetpoint: e.target.value })} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">ค่าพีค (kW)</label>
+                        <label className="form-label">{t('ระดับพีค (kW)', 'Peak Level (kW)')}</label>
                         <input type="number" className="form-control" placeholder="0" value={form.peakSetpoint} onChange={e => setForm({ ...form, peakSetpoint: e.target.value })} />
                     </div>
                 </div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">อัตราประหยัด</label>
+                        <label className="form-label">{t('อัตราการประหยัด', 'Saving Rate')}</label>
                         <input type="number" className="form-control" step="0.01" placeholder="0" value={form.savingRate} onChange={e => setForm({ ...form, savingRate: e.target.value })} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Flat Rate</label>
+                        <label className="form-label">{t('อัตราคงที่', 'Flat Rate')}</label>
                         <input type="number" className="form-control" step="0.01" placeholder="0" value={form.flatRate} onChange={e => setForm({ ...form, flatRate: e.target.value })} />
                     </div>
                 </div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">TOU</label>
+                        <label className="form-label">{t('TOU', 'TOU')}</label>
                         <input type="number" className="form-control" step="0.01" placeholder="0" value={form.tou} onChange={e => setForm({ ...form, tou: e.target.value })} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">เป้าประหยัด</label>
+                        <label className="form-label">{t('เป้าหมายการประหยัด', 'Saving Target')}</label>
                         <input type="number" className="form-control" step="0.01" placeholder="0" value={form.savingTarget} onChange={e => setForm({ ...form, savingTarget: e.target.value })} />
                     </div>
                 </div>
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: 18, height: 18, accentColor: 'var(--success)' }} />
-                        ใช้งาน
+                        {t('เปิดใช้งาน', 'Active')}
                     </label>
                 </div>
             </Modal>
 
-            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title="ยืนยันการลบ" size="sm"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>ยกเลิก</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? 'กำลังลบ...' : 'ลบ'}</button></div>}
+            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title={t('ยืนยันการลบ', 'Confirm Delete')} size="sm"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? t('กำลังลบ...', 'Deleting...') : t('ลบ', 'Delete')}</button></div>}
             >
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-                    <p style={{ fontSize: 16, marginBottom: 8 }}>ลบค่าดีมานด์</p>
+                    <p style={{ fontSize: 16, marginBottom: 8 }}>{t('ต้องการลบการตั้งค่าดีมานด์', 'Delete demand configuration')}</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>"{deleteTarget?.display_name}"</p>
                 </div>
             </Modal>

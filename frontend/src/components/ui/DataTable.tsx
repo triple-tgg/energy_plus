@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -38,13 +39,16 @@ const THEMES = {
 
 const DataTable: React.FC<DataTableProps> = ({
     title, columns, data, total = 0, page = 1, limit = 10,
-    onPageChange, onLimitChange, onSearch, onCreate, createLabel = 'Create New',
+    onPageChange, onLimitChange, onSearch, onCreate, createLabel,
     loading = false, theme
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const { theme: globalTheme } = useTheme();
+    const { language, t } = useLanguage();
     const activeTheme = theme || globalTheme;
     const C = THEMES[activeTheme];
+
+    const displayCreateLabel = createLabel || t('สร้างใหม่', 'Create New');
 
     const totalPages = Math.ceil(total / limit) || 1;
     const from = data.length > 0 ? (page - 1) * limit + 1 : 0;
@@ -89,7 +93,7 @@ const DataTable: React.FC<DataTableProps> = ({
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.line}`, background: C.panel2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                     <h2 style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', color: C.ink, margin: 0, textTransform: 'uppercase' }}>{title}</h2>
-                    <span style={{ fontFamily: MONO, fontSize: '10.5px', color: C.sub }}>[{total} RECORDS]</span>
+                    <span style={{ fontFamily: MONO, fontSize: '10.5px', color: C.sub }}>[{total} {t('รายการ', 'RECORDS')}]</span>
                 </div>
                 <div>
                     {onCreate && (
@@ -98,7 +102,7 @@ const DataTable: React.FC<DataTableProps> = ({
                                 <line x1="12" y1="5" x2="12" y2="19" />
                                 <line x1="5" y1="12" x2="19" y2="12" />
                             </svg>
-                            {createLabel}
+                            {displayCreateLabel}
                         </button>
                     )}
                 </div>
@@ -107,16 +111,16 @@ const DataTable: React.FC<DataTableProps> = ({
             {/* Toolbar */}
             <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: '11.5px', color: C.sub }}>
-                    <span>SHOW</span>
+                    <span>{t('แสดง', 'SHOW')}</span>
                     <select value={limit} onChange={e => onLimitChange?.(parseInt(e.target.value))} style={{ ...inputStyle, padding: '3px 6px' }}>
                         {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
-                    <span>ENTRIES</span>
+                    <span>{t('รายการ', 'ENTRIES')}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
                     <input
                         type="text"
-                        placeholder="Search..."
+                        placeholder={t('ค้นหา...', 'Search...')}
                         value={searchTerm}
                         onChange={handleSearch}
                         style={{ ...inputStyle, paddingLeft: '28px' }}
@@ -131,7 +135,7 @@ const DataTable: React.FC<DataTableProps> = ({
             {/* Table */}
             {loading ? (
                 <div style={{ padding: '40px 0', textAlign: 'center', fontFamily: MONO, fontSize: '13px', color: C.sub }}>
-                    LOADING CONSOLE DATA...
+                    {t('กำลังโหลดข้อมูล...', 'LOADING CONSOLE DATA...')}
                 </div>
             ) : (
                 <div style={{ overflowX: 'auto', width: '100%' }}>
@@ -153,7 +157,7 @@ const DataTable: React.FC<DataTableProps> = ({
                                                 <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
                                                 <polyline points="13 2 13 9 20 9" />
                                             </svg>
-                                            <span style={{ fontFamily: MONO, fontSize: '11px', letterSpacing: '0.5px' }}>NO RECORDS AVAILABLE</span>
+                                            <span style={{ fontFamily: MONO, fontSize: '11px', letterSpacing: '0.5px' }}>{t('ไม่มีข้อมูล', 'NO RECORDS AVAILABLE')}</span>
                                         </div>
                                     </td>
                                 </tr>
@@ -178,8 +182,12 @@ const DataTable: React.FC<DataTableProps> = ({
             <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.line}`, background: C.panel2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                 <div style={{ fontFamily: MONO, fontSize: '11px', color: C.sub }}>
                     {data.length > 0 ? (
-                        <>SHOWING <b>{from}</b> TO <b>{to}</b> OF <b>{total}</b> ENTRIES</>
-                    ) : 'NO ENTRIES TO SHOW'}
+                        language === 'th' ? (
+                            <>แสดง <b>{from}</b> ถึง <b>{to}</b> จากทั้งหมด <b>{total}</b> รายการ</>
+                        ) : (
+                            <>SHOWING <b>{from}</b> TO <b>{to}</b> OF <b>{total}</b> ENTRIES</>
+                        )
+                    ) : t('ไม่มีรายการที่จะแสดง', 'NO ENTRIES TO SHOW')}
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
                     <button
@@ -187,7 +195,7 @@ const DataTable: React.FC<DataTableProps> = ({
                         disabled={page <= 1}
                         onClick={() => onPageChange?.(page - 1)}
                     >
-                        PREV
+                        {t('ก่อนหน้า', 'PREV')}
                     </button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1)
                         .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
@@ -214,7 +222,7 @@ const DataTable: React.FC<DataTableProps> = ({
                         disabled={page >= totalPages}
                         onClick={() => onPageChange?.(page + 1)}
                     >
-                        NEXT
+                        {t('ถัดไป', 'NEXT')}
                     </button>
                 </div>
             </div>

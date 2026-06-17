@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { layoutsApi, meterDataApi } from '../../api/client';
 import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -16,11 +17,11 @@ const THEMES = {
     },
 };
 
-const POINT_TYPES: Record<string, { icon: string; color: string; label: string }> = {
-    meter: { icon: '⚡', color: '#F59E0B', label: 'Meter' },
-    sensor: { icon: '📡', color: '#3B82F6', label: 'Sensor' },
-    gen: { icon: '🔋', color: '#10B981', label: 'Generator' },
-    ups: { icon: '🔌', color: '#EF4444', label: 'UPS' },
+const POINT_TYPES: Record<string, { icon: string; color: string; labelTh: string; labelEn: string }> = {
+    meter: { icon: '⚡', color: '#F59E0B', labelTh: 'มิเตอร์', labelEn: 'Meter' },
+    sensor: { icon: '📡', color: '#3B82F6', labelTh: 'เซนเซอร์', labelEn: 'Sensor' },
+    gen: { icon: '🔋', color: '#10B981', labelTh: 'เครื่องกำเนิดไฟฟ้า', labelEn: 'Generator' },
+    ups: { icon: '🔌', color: '#EF4444', labelTh: 'เครื่องสำรองไฟ (UPS)', labelEn: 'UPS' },
 };
 
 const ZOOM_MIN = 0.3;
@@ -28,21 +29,21 @@ const ZOOM_MAX = 5;
 const ZOOM_STEP = 0.25;
 
 /** Meter data fields to display in popup */
-const METER_FIELDS: { key: string; label: string; unit?: string }[] = [
-    { key: 'energy_kva', label: 'Kva' },
-    { key: 'energy_kw', label: 'Kw' },
-    { key: 'energy_kvar', label: 'Kvar' },
-    { key: 'energy_frequency', label: 'Frequency', unit: 'Hz' },
-    { key: 'energy_kwh', label: 'KWh' },
-    { key: 'energy_volt_p1', label: 'VoltP1', unit: 'V' },
-    { key: 'energy_volt_p2', label: 'VoltP2', unit: 'V' },
-    { key: 'energy_volt_p3', label: 'VoltP3', unit: 'V' },
-    { key: 'energy_amp1', label: 'Amp1', unit: 'A' },
-    { key: 'energy_amp2', label: 'Amp2', unit: 'A' },
-    { key: 'energy_amp3', label: 'Amp3', unit: 'A' },
-    { key: 'energy_pf1', label: 'Pf1' },
-    { key: 'energy_pf2', label: 'Pf2' },
-    { key: 'energy_pf3', label: 'Pf3' },
+const METER_FIELDS: { key: string; labelTh: string; labelEn: string; unit?: string }[] = [
+    { key: 'energy_kva', labelTh: 'กำลังไฟฟ้าปรากฏ (Kva)', labelEn: 'Kva' },
+    { key: 'energy_kw', labelTh: 'กำลังไฟฟ้าจริง (Kw)', labelEn: 'Kw' },
+    { key: 'energy_kvar', labelTh: 'กำลังไฟฟ้ารีแอคทีฟ (Kvar)', labelEn: 'Kvar' },
+    { key: 'energy_frequency', labelTh: 'ความถี่ (Frequency)', labelEn: 'Frequency', unit: 'Hz' },
+    { key: 'energy_kwh', labelTh: 'พลังงานไฟฟ้ารวม (KWh)', labelEn: 'KWh' },
+    { key: 'energy_volt_p1', labelTh: 'แรงดันไฟฟ้า L1 (VoltP1)', labelEn: 'VoltP1', unit: 'V' },
+    { key: 'energy_volt_p2', labelTh: 'แรงดันไฟฟ้า L2 (VoltP2)', labelEn: 'VoltP2', unit: 'V' },
+    { key: 'energy_volt_p3', labelTh: 'แรงดันไฟฟ้า L3 (VoltP3)', labelEn: 'VoltP3', unit: 'V' },
+    { key: 'energy_amp1', labelTh: 'กระแสไฟฟ้า L1 (Amp1)', labelEn: 'Amp1', unit: 'A' },
+    { key: 'energy_amp2', labelTh: 'กระแสไฟฟ้า L2 (Amp2)', labelEn: 'Amp2', unit: 'A' },
+    { key: 'energy_amp3', labelTh: 'กระแสไฟฟ้า L3 (Amp3)', labelEn: 'Amp3', unit: 'A' },
+    { key: 'energy_pf1', labelTh: 'ตัวประกอบกำลัง L1 (Pf1)', labelEn: 'Pf1' },
+    { key: 'energy_pf2', labelTh: 'ตัวประกอบกำลัง L2 (Pf2)', labelEn: 'Pf2' },
+    { key: 'energy_pf3', labelTh: 'ตัวประกอบกำลัง L3 (Pf3)', labelEn: 'Pf3' },
 ];
 
 interface LayoutPoint {
@@ -59,6 +60,7 @@ interface LayoutPoint {
 
 const LayoutViewPage: React.FC = () => {
     const { theme } = useTheme();
+    const { t, language } = useLanguage();
     const C = THEMES[theme];
 
     const [layouts, setLayouts] = useState<any[]>([]);
@@ -164,14 +166,14 @@ const LayoutViewPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                        แผนผังสถานที่
+                        {t('แผนผังตำแหน่งพื้นที่', 'Site Layout Plan')}
                     </span>
                     <span style={{ fontFamily: MONO, fontSize: 11, color: C.barSub || C.sub }}>
-                        Single Line Diagram / Layout View
+                        {t('แผนภาพเส้นเดี่ยว / มุมมองแผนผัง', 'Single Line Diagram / Layout View')}
                     </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <label style={{ fontFamily: MONO, fontSize: 11, color: C.barSub || C.sub }}>เลือกแผนผัง:</label>
+                    <label style={{ fontFamily: MONO, fontSize: 11, color: C.barSub || C.sub }}>{t('เลือกแผนผัง:', 'Select Layout:')}</label>
                     <select value={selectedId || ''} onChange={e => setSelectedId(parseInt(e.target.value, 10))}
                         style={{ padding: '5px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none', minWidth: 200 }}>
                         {layouts.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
@@ -182,13 +184,13 @@ const LayoutViewPage: React.FC = () => {
             {loading ? (
                 <div style={{ textAlign: 'center', padding: 60, fontFamily: MONO, color: C.sub }}>
                     <div style={{ fontSize: 24, marginBottom: 12 }}>⏳</div>
-                    กำลังโหลด...
+                    {t('กำลังโหลด...', 'Loading...')}
                 </div>
             ) : layouts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '80px 24px', fontFamily: MONO, color: C.sub }}>
                     <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>🗺️</div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>ยังไม่มีแผนผัง</div>
-                    <div style={{ fontSize: 11, marginTop: 6 }}>ไปที่ Settings → ตั้งค่าแผนผัง เพื่อสร้างแผนผังใหม่</div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{t('ไม่มีแผนผังที่สามารถแสดงได้', 'No Layouts Available')}</div>
+                    <div style={{ fontSize: 11, marginTop: 6 }}>{t('ไปที่การตั้งค่า → แผนผัง เพื่อสร้างแผนผังใหม่', 'Go to Settings → Layouts to create a new layout')}</div>
                 </div>
             ) : selectedLayout ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '12px 16px 16px' }}>
@@ -200,16 +202,16 @@ const LayoutViewPage: React.FC = () => {
                             background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, alignItems: 'center',
                             flexWrap: 'wrap', minWidth: 0,
                         }}>
-                            <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '1px' }}>อุปกรณ์:</span>
+                            <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('อุปกรณ์:', 'Devices:')}</span>
                             {Object.entries(POINT_TYPES).map(([key, info]) => (
                                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                     <span style={{ width: 22, height: 22, borderRadius: '50%', background: info.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{info.icon}</span>
-                                    <span style={{ fontFamily: MONO, fontSize: 11, color: C.ink }}>{info.label}</span>
+                                    <span style={{ fontFamily: MONO, fontSize: 11, color: C.ink }}>{t(info.labelTh, info.labelEn)}</span>
                                     <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, background: C.panel2, padding: '1px 6px', borderRadius: 8, border: `1px solid ${C.line}` }}>{typeCounts[key] || 0}</span>
                                 </div>
                             ))}
                             <div style={{ flex: 1 }} />
-                            <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>รวม {points.length} จุด</span>
+                            <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>{t('จุดทั้งหมด', 'Total')} {points.length} {t('จุด', 'points')}</span>
                         </div>
 
                         {/* Zoom Controls */}
@@ -217,7 +219,7 @@ const LayoutViewPage: React.FC = () => {
                             display: 'flex', alignItems: 'center', gap: 4,
                             background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, padding: '4px 8px',
                         }}>
-                            <button onClick={handleZoomOut} title="ซูมออก (−)"
+                            <button onClick={handleZoomOut} title={t('ซูมออก (−)', 'Zoom Out (−)')}
                                 style={{ background: 'transparent', border: `1px solid ${C.line}`, borderRadius: 4, width: 30, height: 30, display: 'grid', placeItems: 'center', cursor: 'pointer', color: C.ink, transition: 'all 0.15s' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = C.panel2; e.currentTarget.style.borderColor = C.accent; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.line; }}>
@@ -229,14 +231,14 @@ const LayoutViewPage: React.FC = () => {
                                 background: C.panel2, borderRadius: 4, lineHeight: '28px',
                                 border: `1px solid ${C.line}`,
                             }}>{zoomPercent}%</div>
-                            <button onClick={handleZoomIn} title="ซูมเข้า (+)"
+                            <button onClick={handleZoomIn} title={t('ซูมเข้า (+)', 'Zoom In (+)')}
                                 style={{ background: 'transparent', border: `1px solid ${C.line}`, borderRadius: 4, width: 30, height: 30, display: 'grid', placeItems: 'center', cursor: 'pointer', color: C.ink, transition: 'all 0.15s' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = C.panel2; e.currentTarget.style.borderColor = C.accent; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.line; }}>
                                 <ZoomIn size={16} />
                             </button>
                             <div style={{ width: 1, height: 20, background: C.line, margin: '0 4px' }} />
-                            <button onClick={handleZoomReset} title="รีเซ็ตซูม (100%)"
+                            <button onClick={handleZoomReset} title={t('รีเซ็ตซูม (100%)', 'Reset Zoom (100%)')}
                                 style={{ background: 'transparent', border: `1px solid ${C.line}`, borderRadius: 4, width: 30, height: 30, display: 'grid', placeItems: 'center', cursor: 'pointer', color: C.ink, transition: 'all 0.15s' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = C.panel2; e.currentTarget.style.borderColor = C.accent; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.line; }}>
@@ -374,7 +376,7 @@ const LayoutViewPage: React.FC = () => {
                                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                     }}>
                                         <div>
-                                            <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 2 }}>มิเตอร์</div>
+                                            <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 2 }}>{t('มิเตอร์', 'Meter')}</div>
                                             <div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: C.ink }}>
                                                 [{meterData.meter_code}] {meterData.meter_name}
                                             </div>
@@ -387,7 +389,7 @@ const LayoutViewPage: React.FC = () => {
                                             border: `1px solid ${meterData.status === 'online' ? '#10B981' : '#EF4444'}40`,
                                             fontWeight: 600, textTransform: 'uppercase',
                                         }}>
-                                            {meterData.status === 'online' ? '🟢' : '🔴'} {meterData.status}
+                                            {meterData.status === 'online' ? '🟢' : '🔴'} {meterData.status === 'online' ? t('ออนไลน์', 'online') : t('ออฟไลน์', 'offline')}
                                         </div>
                                     </div>
 
@@ -409,7 +411,7 @@ const LayoutViewPage: React.FC = () => {
                                         )}
                                         {meterData.date_keep && (
                                             <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
-                                                🕐 {new Date(meterData.date_keep).toLocaleString('th-TH')}
+                                                🕐 {new Date(meterData.date_keep).toLocaleString(language === 'th' ? 'th-TH' : 'en-US')}
                                             </div>
                                         )}
                                     </div>
@@ -430,12 +432,12 @@ const LayoutViewPage: React.FC = () => {
                                                             <td style={{
                                                                 padding: '8px 18px', fontWeight: 600, color: C.ink,
                                                                 width: '45%',
-                                                            }}>{field.label}</td>
+                                                            }}>{t(field.labelTh, field.labelEn)}</td>
                                                             <td style={{
                                                                 padding: '8px 18px', textAlign: 'right',
                                                                 color: C.ink, fontWeight: 500,
                                                             }}>
-                                                                {isNaN(numVal) ? val : numVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                {isNaN(numVal) ? val : numVal.toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                 {field.unit && <span style={{ color: C.sub, fontSize: 10, marginLeft: 4 }}>{field.unit}</span>}
                                                             </td>
                                                         </tr>
@@ -448,7 +450,7 @@ const LayoutViewPage: React.FC = () => {
                             ) : popupPoint.meter_id && meterLoading ? (
                                 <div style={{ textAlign: 'center', padding: '40px 20px', fontFamily: MONO, color: C.sub }}>
                                     <div style={{ fontSize: 24, marginBottom: 8, animation: 'pulse-ring 1s ease-out infinite' }}>⏳</div>
-                                    กำลังโหลดข้อมูลมิเตอร์...
+                                    {t('กำลังโหลดข้อมูลมิเตอร์...', 'Loading meter data...')}
                                 </div>
                             ) : (
                                 <div style={{ padding: '30px 20px', textAlign: 'center', fontFamily: MONO }}>
@@ -457,13 +459,13 @@ const LayoutViewPage: React.FC = () => {
                                         {popupPoint.label}
                                     </div>
                                     <div style={{ fontSize: 11, color: C.sub }}>
-                                        {(POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).label}
+                                        {t((POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).labelTh, (POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).labelEn)}
                                     </div>
                                     {!popupPoint.meter_id && (
                                         <div style={{ fontSize: 11, color: C.sub, marginTop: 12, padding: '8px 16px', background: C.panel2, borderRadius: 6, border: `1px solid ${C.line}`, display: 'inline-block' }}>
-                                            ⚠️ ยังไม่ได้เชื่อมต่อมิเตอร์
+                                            {t('⚠️ ไม่ได้เชื่อมต่อมิเตอร์', '⚠️ Meter not linked')}
                                             <br />
-                                            <span style={{ fontSize: 10 }}>ไปที่ Settings → แผนผัง → 📌 จุด เพื่อ Link Meter</span>
+                                            <span style={{ fontSize: 10 }}>{t('ไปที่ ตั้งค่า → แผนผัง → 📌 จุดแผนผัง เพื่อเชื่อมต่อมิเตอร์', 'Go to Settings → Layouts → 📌 Points to link a meter')}</span>
                                         </div>
                                     )}
                                 </div>

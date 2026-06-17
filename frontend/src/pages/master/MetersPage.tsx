@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { metersApi, sitesApi } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface MeterForm {
     meterCode: string;
@@ -29,6 +30,7 @@ const emptyForm: MeterForm = {
 };
 
 const MetersPage: React.FC = () => {
+    const { t } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -87,7 +89,12 @@ const MetersPage: React.FC = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
     useEffect(() => { fetchLookups(); }, [fetchLookups]);
-    useEffect(() => { if (successMsg) { const t = setTimeout(() => setSuccessMsg(''), 3000); return () => clearTimeout(t); } }, [successMsg]);
+    useEffect(() => {
+        if (successMsg) {
+            const timer = setTimeout(() => setSuccessMsg(''), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [successMsg]);
 
     // Filter buildings by selected site
     const filteredBuildings = form.siteId
@@ -121,8 +128,8 @@ const MetersPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.meterCode.trim()) { setFormError('Meter Code is required'); return; }
-        if (!form.meterName.trim()) { setFormError('Meter Name is required'); return; }
+        if (!form.meterCode.trim()) { setFormError(t('กรุณากรอกรหัสมิเตอร์', 'Meter Code is required')); return; }
+        if (!form.meterName.trim()) { setFormError(t('กรุณากรอกชื่อมิเตอร์', 'Meter Name is required')); return; }
         setSaving(true); setFormError('');
         try {
             const payload = {
@@ -140,13 +147,13 @@ const MetersPage: React.FC = () => {
             };
             if (editId) {
                 await metersApi.update(editId, payload);
-                setSuccessMsg('Meter updated successfully!');
+                setSuccessMsg(t('อัปเดตมิเตอร์สำเร็จ!', 'Meter updated successfully!'));
             } else {
                 await metersApi.create(payload);
-                setSuccessMsg('Meter created successfully!');
+                setSuccessMsg(t('สร้างมิเตอร์สำเร็จ!', 'Meter created successfully!'));
             }
             setShowModal(false); fetchData();
-        } catch (err: any) { setFormError(err.response?.data?.message || 'Failed to save meter'); }
+        } catch (err: any) { setFormError(err.response?.data?.message || t('บันทึกมิเตอร์ล้มเหลว', 'Failed to save meter')); }
         setSaving(false);
     };
 
@@ -157,32 +164,32 @@ const MetersPage: React.FC = () => {
         setDeleting(true);
         try {
             await metersApi.delete(deleteTarget.meter_id);
-            setSuccessMsg('Meter deleted successfully!');
+            setSuccessMsg(t('ลบมิเตอร์สำเร็จ!', 'Meter deleted successfully!'));
             setShowDelete(false); setDeleteTarget(null); fetchData();
-        } catch (err: any) { alert(err.response?.data?.message || 'Failed to delete meter'); }
+        } catch (err: any) { alert(err.response?.data?.message || t('ลบมิเตอร์ล้มเหลว', 'Failed to delete meter')); }
         setDeleting(false);
     };
 
     const columns = [
-        { key: 'meter_code', title: 'Code' },
-        { key: 'meter_name', title: 'Meter Name' },
-        { key: 'site_name', title: 'Site' },
-        { key: 'building_name', title: 'Building' },
-        { key: 'zone_name', title: 'Zone' },
+        { key: 'meter_code', title: t('รหัส', 'Code') },
+        { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
+        { key: 'site_name', title: t('ไซต์', 'Site') },
+        { key: 'building_name', title: t('อาคาร', 'Building') },
+        { key: 'zone_name', title: t('โซน', 'Zone') },
         {
-            key: 'brand_name', title: 'Brand',
+            key: 'brand_name', title: t('แบรนด์', 'Brand'),
             render: (v: string) => v ? <span className="badge badge-info">{v}</span> : '—',
         },
         {
-            key: 'is_active', title: 'Status',
-            render: (v: boolean) => <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>{v ? 'Active' : 'Inactive'}</span>,
+            key: 'is_active', title: t('สถานะ', 'Status'),
+            render: (v: boolean) => <span className={`badge ${v ? t('ใช้งาน', 'Active') : t('ไม่ใช้งาน', 'Inactive')}`}>{v ? t('ใช้งาน', 'Active') : t('ไม่ใช้งาน', 'Inactive')}</span>,
         },
         {
-            key: 'actions', title: 'Actions',
+            key: 'actions', title: t('จัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 <div className="table-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ Edit</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ Delete</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ {t('แก้ไข', 'Edit')}</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ {t('ลบ', 'Delete')}</button>
                 </div>
             ),
         },
@@ -191,140 +198,140 @@ const MetersPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title="มิเตอร์" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel="เพิ่มมิเตอร์" />
+            <DataTable title={t('มิเตอร์', 'Meters')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มมิเตอร์', 'Add Meter')} />
 
             {/* Create/Edit Modal — larger size */}
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? 'แก้ไขมิเตอร์' : 'เพิ่มมิเตอร์'} size="lg"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>Cancel</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : editId ? 'Update' : 'Create'}</button></div>}
+            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขมิเตอร์', 'Edit Meter') : t('เพิ่มมิเตอร์ใหม่', 'Add New Meter')} size="lg"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
 
                 {/* Basic Info */}
-                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Basic Information</div>
+                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ข้อมูลพื้นฐาน', 'Basic Information')}</div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Meter Code <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <input type="text" className="form-control" placeholder="e.g. MTR-001" value={form.meterCode} onChange={e => setForm({ ...form, meterCode: e.target.value })} autoFocus />
+                        <label className="form-label">{t('รหัสมิเตอร์', 'Meter Code')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                        <input type="text" className="form-control" placeholder={t('เช่น MTR-001', 'e.g. MTR-001')} value={form.meterCode} onChange={e => setForm({ ...form, meterCode: e.target.value })} autoFocus />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Meter Name <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <input type="text" className="form-control" placeholder="e.g. Main Electricity Meter" value={form.meterName} onChange={e => setForm({ ...form, meterName: e.target.value })} />
+                        <label className="form-label">{t('ชื่อมิเตอร์', 'Meter Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                        <input type="text" className="form-control" placeholder={t('เช่น มิเตอร์ไฟฟ้าหลัก', 'e.g. Main Electricity Meter')} value={form.meterName} onChange={e => setForm({ ...form, meterName: e.target.value })} />
                     </div>
                 </div>
 
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Meter Type</label>
+                        <label className="form-label">{t('ประเภทมิเตอร์', 'Meter Type')}</label>
                         <select className="form-control" value={form.meterTypeId} onChange={e => setForm({ ...form, meterTypeId: e.target.value })}>
-                            <option value="">— Select —</option>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
                             {types.map(t => <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Brand</label>
+                        <label className="form-label">{t('แบรนด์', 'Brand')}</label>
                         <select className="form-control" value={form.meterBrandId} onChange={e => setForm({ ...form, meterBrandId: e.target.value })}>
-                            <option value="">— Select —</option>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
                             {brands.map(b => <option key={b.meter_brand_id} value={b.meter_brand_id}>{b.meter_brand_name}{b.model_name ? ` — ${b.model_name}` : ''}</option>)}
                         </select>
                     </div>
                 </div>
 
                 {/* Location */}
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Location</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานที่', 'Location')}</div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Site</label>
+                        <label className="form-label">{t('ไซต์', 'Site')}</label>
                         <select className="form-control" value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value, buildingId: '' })}>
-                            <option value="">— Select —</option>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
                             {sites.map(s => <option key={s.site_id} value={s.site_id}>{s.site_name}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Building</label>
+                        <label className="form-label">{t('อาคาร', 'Building')}</label>
                         <select className="form-control" value={form.buildingId} onChange={e => setForm({ ...form, buildingId: e.target.value })}>
-                            <option value="">— Select —</option>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
                             {filteredBuildings.map(b => <option key={b.building_id} value={b.building_id}>{b.building_name}</option>)}
                         </select>
                     </div>
                 </div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Zone</label>
+                        <label className="form-label">{t('โซน', 'Zone')}</label>
                         <select className="form-control" value={form.zoneId} onChange={e => setForm({ ...form, zoneId: e.target.value })}>
-                            <option value="">— Select —</option>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
                             {zones.map(z => <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Room Code</label>
-                        <input type="text" className="form-control" placeholder="Room code" value={form.roomCode} onChange={e => setForm({ ...form, roomCode: e.target.value })} />
+                        <label className="form-label">{t('รหัสห้อง', 'Room Code')}</label>
+                        <input type="text" className="form-control" placeholder={t('รหัสห้อง', 'Room code')} value={form.roomCode} onChange={e => setForm({ ...form, roomCode: e.target.value })} />
                     </div>
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Room Name</label>
-                    <input type="text" className="form-control" placeholder="Room name" value={form.roomName} onChange={e => setForm({ ...form, roomName: e.target.value })} />
+                    <label className="form-label">{t('ชื่อห้อง', 'Room Name')}</label>
+                    <input type="text" className="form-control" placeholder={t('ชื่อห้อง', 'Room name')} value={form.roomName} onChange={e => setForm({ ...form, roomName: e.target.value })} />
                 </div>
 
                 {/* Communication */}
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Communication</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('การสื่อสาร', 'Communication')}</div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Loop</label>
+                        <label className="form-label">{t('ลูป', 'Loop')}</label>
                         <select className="form-control" value={form.loopId} onChange={e => setForm({ ...form, loopId: e.target.value })}>
-                            <option value="">— Select —</option>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
                             {loops.map(l => <option key={l.loop_id} value={l.loop_id}>{l.port_no} ({l.baudrate})</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Modbus Address</label>
-                        <input type="number" className="form-control" placeholder="e.g. 1" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+                        <label className="form-label">{t('ที่อยู่ Modbus', 'Modbus Address')}</label>
+                        <input type="number" className="form-control" placeholder={t('เช่น 1', 'e.g. 1')} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
                     </div>
                 </div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">IP Address</label>
-                        <input type="text" className="form-control" placeholder="e.g. 192.168.1.100" value={form.ipAddress} onChange={e => setForm({ ...form, ipAddress: e.target.value })} />
+                        <label className="form-label">{t('ที่อยู่ IP', 'IP Address')}</label>
+                        <input type="text" className="form-control" placeholder={t('เช่น 192.168.1.100', 'e.g. 192.168.1.100')} value={form.ipAddress} onChange={e => setForm({ ...form, ipAddress: e.target.value })} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Port Number</label>
-                        <input type="number" className="form-control" placeholder="e.g. 502" value={form.portNumber} onChange={e => setForm({ ...form, portNumber: e.target.value })} />
+                        <label className="form-label">{t('หมายเลขพอร์ต', 'Port Number')}</label>
+                        <input type="number" className="form-control" placeholder={t('เช่น 502', 'e.g. 502')} value={form.portNumber} onChange={e => setForm({ ...form, portNumber: e.target.value })} />
                     </div>
                 </div>
 
                 {/* Electrical */}
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Electrical</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ระบบไฟฟ้า', 'Electrical')}</div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Phase</label>
+                        <label className="form-label">{t('เฟส', 'Phase')}</label>
                         <select className="form-control" value={form.phase} onChange={e => setForm({ ...form, phase: e.target.value })}>
-                            <option value="">— Select —</option>
-                            <option value="1">1 Phase</option>
-                            <option value="3">3 Phase</option>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
+                            <option value="1">{t('1 เฟส', '1 Phase')}</option>
+                            <option value="3">{t('3 เฟส', '3 Phase')}</option>
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Circuit</label>
-                        <input type="number" className="form-control" placeholder="Circuit number" value={form.circuit} onChange={e => setForm({ ...form, circuit: e.target.value })} />
+                        <label className="form-label">{t('วงจร (Circuit)', 'Circuit')}</label>
+                        <input type="number" className="form-control" placeholder={t('หมายเลขวงจร', 'Circuit number')} value={form.circuit} onChange={e => setForm({ ...form, circuit: e.target.value })} />
                     </div>
                 </div>
 
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: 18, height: 18, accentColor: 'var(--success)' }} />
-                        Active
+                        {t('ใช้งาน', 'Active')}
                     </label>
                 </div>
             </Modal>
 
             {/* Delete */}
-            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title="ยืนยันการลบ" size="sm"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>Cancel</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete'}</button></div>}
+            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title={t('ยืนยันการลบ', 'Confirm Delete')} size="sm"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? t('กำลังลบ...', 'Deleting...') : t('ลบ', 'Delete')}</button></div>}
             >
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-                    <p style={{ fontSize: 16, marginBottom: 8 }}>Delete meter</p>
+                    <p style={{ fontSize: 16, marginBottom: 8 }}>{t('ลบมิเตอร์', 'Delete meter')}</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>"{deleteTarget?.meter_code} — {deleteTarget?.meter_name}"</p>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>All historical data for this meter will remain but may become orphaned.</p>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{t('ข้อมูลประวัติทั้งหมดของมิเตอร์นี้จะยังคงอยู่ แต่อาจขาดการเชื่อมโยง', 'All historical data for this meter will remain but may become orphaned.')}</p>
                 </div>
             </Modal>
         </div>

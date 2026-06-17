@@ -5,6 +5,7 @@ import DataTable from '../../components/ui/DataTable';
 import { reportsApi } from '../../api/client';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -23,6 +24,7 @@ const THEMES = {
 
 const AlarmReportPage: React.FC = () => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -48,46 +50,46 @@ const AlarmReportPage: React.FC = () => {
     const handleAcknowledge = async (row: any) => {
         try {
             await reportsApi.acknowledgeAlarm(row.id);
-            setSuccessMsg('Acknowledge สำเร็จ!');
+            setSuccessMsg(t('ยืนยัน (Acknowledge) สำเร็จ!', 'Acknowledged successfully!'));
             // Refresh current data
             setData(prev => prev.map(d => d.id === row.id ? { ...d, acknowledged: true, acknowledged_at: new Date().toISOString() } : d));
             setTimeout(() => setSuccessMsg(''), 3000);
         } catch (err) {
-            alert('Acknowledge failed');
+            alert(t('การยืนยัน (Acknowledge) ล้มเหลว', 'Acknowledgement failed'));
         }
     };
 
     const columns = [
         {
-            key: 'alarm_date', title: 'วันที่',
-            render: (v: string) => v ? new Date(v).toLocaleDateString('th-TH') : '—',
+            key: 'alarm_date', title: t('วันที่', 'Date'),
+            render: (v: string) => v ? new Date(v).toLocaleDateString(t('th-TH', 'en-US')) : '—',
         },
         {
-            key: 'message', title: 'ข้อความแจ้งเตือน',
+            key: 'message', title: t('ข้อความแจ้งเตือน', 'Alarm Message'),
             render: (v: string) => <span style={{ fontSize: 13, maxWidth: 400, display: 'inline-block' }}>{v || '—'}</span>,
         },
         {
-            key: 'occurred_at', title: 'วันเวลาที่เกิด',
-            render: (v: string) => v ? new Date(v).toLocaleString('th-TH') : '—',
+            key: 'occurred_at', title: t('วันเวลาที่เกิด', 'Occurred At'),
+            render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-US')) : '—',
         },
-        { key: 'alarm_type', title: 'ประเภท' },
+        { key: 'alarm_type', title: t('ประเภท', 'Type') },
         {
-            key: 'resolved_at', title: 'วันเวลาที่แก้ไข',
-            render: (v: string) => v ? new Date(v).toLocaleString('th-TH') : '—',
+            key: 'resolved_at', title: t('วันเวลาที่แก้ไข', 'Resolved At'),
+            render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-US')) : '—',
         },
-        { key: 'resolved_by', title: 'ผู้แก้ไข' },
+        { key: 'resolved_by', title: t('ผู้แก้ไข', 'Resolved By') },
         {
-            key: 'actions', title: 'จัดการ',
+            key: 'actions', title: t('จัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 row.acknowledged ? (
-                    <span className="badge badge-success" style={{ fontFamily: MONO, borderRadius: 0 }}>Acknowledged</span>
+                    <span className="badge badge-success" style={{ fontFamily: MONO, borderRadius: 0 }}>{t('รับทราบแล้ว', 'Acknowledged')}</span>
                 ) : (
                     <button
                         className="btn btn-sm"
                         style={{ background: C.yellow, color: '#fff', border: 'none', fontWeight: 700, fontFamily: MONO, borderRadius: 0 }}
                         onClick={() => handleAcknowledge(row)}
                     >
-                        Acknowledge
+                        {t('รับทราบ', 'Acknowledge')}
                     </button>
                 )
             ),
@@ -103,7 +105,7 @@ const AlarmReportPage: React.FC = () => {
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
                         <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>REPORTS // ALARMS</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>ประวัติรายการตรวจสอบและการรายงานสัญญาณเตือน (Alarm Notifications)</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ประวัติรายการตรวจสอบและการรายงานสัญญาณเตือน (Alarm Notifications)', 'History of inspections and alarm reports (Alarm Notifications)')}</div>
                     </div>
                 </div>
             </div>
@@ -115,7 +117,7 @@ const AlarmReportPage: React.FC = () => {
                 showBuilding={false}
                 showZone={false}
             />
-            <DataTable title="ข้อมูลการแจ้งเตือน" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('ข้อมูลการแจ้งเตือน', 'Alarm Logs')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
         </div>
     );
 };

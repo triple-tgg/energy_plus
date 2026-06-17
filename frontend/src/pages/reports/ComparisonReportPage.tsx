@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import { reportsApi } from '../../api/client';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -24,6 +25,7 @@ const THEMES = {
 
 const ComparisonReportPage: React.FC = () => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -53,35 +55,35 @@ const ComparisonReportPage: React.FC = () => {
             document.body.appendChild(link);
             link.click();
             link.remove();
-        } catch (err) { alert('Export failed'); }
+        } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
     };
 
     const columns = [
-        { key: 'meter_code', title: 'รหัสมิเตอร์' },
-        { key: 'customer_name', title: 'ชื่อลูกค้า' },
-        { key: 'building_name', title: 'อาคาร' },
-        { key: 'floor', title: 'ชั้น' },
-        { key: 'zone_name', title: 'โซน' },
-        { key: 'room_code', title: 'รหัสห้อง' },
-        { key: 'room_name', title: 'ชื่อห้อง' },
+        { key: 'meter_code', title: t('รหัสมิเตอร์', 'Meter Code') },
+        { key: 'customer_name', title: t('ชื่อลูกค้า', 'Customer Name') },
+        { key: 'building_name', title: t('อาคาร', 'Building') },
+        { key: 'floor', title: t('ชั้น', 'Floor') },
+        { key: 'zone_name', title: t('โซน', 'Zone') },
+        { key: 'room_code', title: t('รหัสห้อง', 'Room Code') },
+        { key: 'room_name', title: t('ชื่อห้อง', 'Room Name') },
         {
-            key: 'prev_month', title: 'เดือนก่อนหน้า(1)',
+            key: 'prev_month', title: t('เดือนก่อนหน้า (1)', 'Previous Month (1)'),
             render: (v: string) => v || '—',
         },
         {
-            key: 'prev_units', title: 'หน่วยที่ใช้(1)',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            key: 'prev_units', title: t('หน่วยที่ใช้ (1)', 'Units Used (1)'),
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
-            key: 'current_month', title: 'เดือนปัจจุบัน(2)',
+            key: 'current_month', title: t('เดือนปัจจุบัน (2)', 'Current Month (2)'),
             render: (v: string) => v || '—',
         },
         {
-            key: 'current_units', title: 'หน่วยที่ใช้(2)',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            key: 'current_units', title: t('หน่วยที่ใช้ (2)', 'Units Used (2)'),
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
-            key: 'diff_percent', title: '% เปรียบเทียบ',
+            key: 'diff_percent', title: t('% เปรียบเทียบ', '% Change'),
             render: (v: number) => {
                 if (v == null) return '—';
                 const color = v > 0 ? C.red : v < 0 ? C.green : C.ink;
@@ -103,7 +105,7 @@ const ComparisonReportPage: React.FC = () => {
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
                         <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>REPORTS // COMPARISON</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>รายงานเปรียบเทียบสถิติการใช้งานไฟฟ้าเทียบกับเดือนก่อนหน้า</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('รายงานเปรียบเทียบสถิติการใช้งานไฟฟ้าเทียบกับเดือนก่อนหน้า', 'Report comparing energy consumption statistics with the previous month')}</div>
                     </div>
                 </div>
             </div>
@@ -114,7 +116,7 @@ const ComparisonReportPage: React.FC = () => {
                 showMonthYear
                 actions={<ExportButtons onExportExcel={handleExport} />}
             />
-            <DataTable title="เปรียบเทียบการใช้พลังงาน" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('เปรียบเทียบการใช้พลังงาน', 'Energy Consumption Comparison')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
         </div>
     );
 };

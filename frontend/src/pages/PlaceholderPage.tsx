@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { LayoutGrid, Cpu } from 'lucide-react';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
@@ -19,6 +20,7 @@ const THEMES = {
 
 const PlaceholderPage: React.FC<{ title: string; icon?: string }> = ({ title, icon = '🔌' }) => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme] || THEMES.dark;
 
     // Grid CSS for the blueprint aesthetic
@@ -52,8 +54,8 @@ const PlaceholderPage: React.FC<{ title: string; icon?: string }> = ({ title, ic
                         <Cpu size={16} />
                     </div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>MONITORING // SINGLE LINE DIAGRAM</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>ผังระบบไฟฟ้าและเส้นทางการจ่ายพลังงาน (Single Line Diagram)</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('การเฝ้าระวัง // แผนผังระบบไฟฟ้า', 'MONITORING // SINGLE LINE DIAGRAM')}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ผังระบบไฟฟ้าและเส้นทางการจ่ายพลังงาน (Single Line Diagram)', 'Electrical single line diagram and energy distribution paths')}</div>
                     </div>
                 </div>
             </div>
@@ -73,7 +75,7 @@ const PlaceholderPage: React.FC<{ title: string; icon?: string }> = ({ title, ic
                 }}>
                     <div style={{ fontSize: 48, marginBottom: 16, animation: 'pulse 2s infinite' }}>{icon}</div>
                     <h2 style={{ fontSize: 18, fontFamily: MONO, fontWeight: 700, marginBottom: 8, color: C.accent }}>
-                        [ SCHEMA DRAWING IN PROGRESS ]
+                        {t('[ อยู่ระหว่างการวาดผังระบบ ]', '[ SCHEMA DRAWING IN PROGRESS ]')}
                     </h2>
                     <div style={{ 
                         fontFamily: MONO, 
@@ -85,15 +87,15 @@ const PlaceholderPage: React.FC<{ title: string; icon?: string }> = ({ title, ic
                         background: C.panel,
                         textAlign: 'left'
                     }}>
-                        <div style={{ color: C.accent, fontWeight: 'bold' }}>// SYSTEM SPECIFICATIONS:</div>
+                        <div style={{ color: C.accent, fontWeight: 'bold' }}>{t('// ข้อมูลระบบ:', '// SYSTEM SPECIFICATIONS:')}</div>
                         <div>PATH: /monitoring/layout</div>
-                        <div>COMPONENT: Single Line Diagram Visualizer</div>
-                        <div>STATUS: DRAFTING / LAYOUT INTEGRATION</div>
-                        <div>VERSION: 2.0.0-BETA</div>
+                        <div>{t('ส่วนประกอบ: เครื่องมือแสดงผังทางเดินไฟฟ้า', 'COMPONENT: Single Line Diagram Visualizer')}</div>
+                        <div>{t('สถานะ: กำลังออกแบบ / เชื่อมโยงแผนผัง', 'STATUS: DRAFTING / LAYOUT INTEGRATION')}</div>
+                        <div>{t('เวอร์ชัน: 2.0.0-BETA', 'VERSION: 2.0.0-BETA')}</div>
                     </div>
 
                     <p style={{ color: C.ink, fontSize: 14, marginBottom: 0 }}>
-                        หน้าจอแสดงผังทางเดินไฟฟ้าและอุปกรณ์จ่ายไฟของอาคาร อยู่ระหว่างการพัฒนาระบบเชื่อมต่อแผนผังแบบเรียลไทม์
+                        {t('หน้าจอแสดงผังทางเดินไฟฟ้าและอุปกรณ์จ่ายไฟของอาคาร อยู่ระหว่างการพัฒนาระบบเชื่อมต่อแผนผังแบบเรียลไทม์', 'The electrical schematic and building power distribution layout page is currently under development for real-time monitoring integration.')}
                     </p>
                 </div>
 
@@ -109,7 +111,7 @@ const PlaceholderPage: React.FC<{ title: string; icon?: string }> = ({ title, ic
                     textAlign: 'right'
                 }}>
                     ENERGY PLUS INDUSTRIES © 2026<br />
-                    GRID RESOLUTION: 20px // ACCENT: {C.accent}
+                    {t('ความละเอียดกริด: 20px', 'GRID RESOLUTION: 20px')} // ACCENT: {C.accent}
                 </div>
             </div>
         </div>

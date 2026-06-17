@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { sitesApi } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface BuildingForm {
     buildingName: string;
@@ -12,6 +13,7 @@ interface BuildingForm {
 const emptyForm: BuildingForm = { buildingName: '', siteId: '', isActive: true };
 
 const BuildingsPage: React.FC = () => {
+    const { t } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -58,8 +60,8 @@ const BuildingsPage: React.FC = () => {
 
     useEffect(() => {
         if (successMsg) {
-            const t = setTimeout(() => setSuccessMsg(''), 3000);
-            return () => clearTimeout(t);
+            const timer = setTimeout(() => setSuccessMsg(''), 3000);
+            return () => clearTimeout(timer);
         }
     }, [successMsg]);
 
@@ -83,11 +85,11 @@ const BuildingsPage: React.FC = () => {
 
     const handleSave = async () => {
         if (!form.buildingName.trim()) {
-            setFormError('Building Name is required');
+            setFormError(t('กรุณากรอกชื่ออาคาร', 'Building Name is required'));
             return;
         }
         if (!form.siteId) {
-            setFormError('Site is required');
+            setFormError(t('กรุณาเลือกไซต์', 'Site is required'));
             return;
         }
         setSaving(true);
@@ -100,15 +102,15 @@ const BuildingsPage: React.FC = () => {
             };
             if (editId) {
                 await sitesApi.updateBuilding(editId, payload);
-                setSuccessMsg('Building updated successfully!');
+                setSuccessMsg(t('อัปเดตอาคารสำเร็จ!', 'Building updated successfully!'));
             } else {
                 await sitesApi.createBuilding(payload);
-                setSuccessMsg('Building created successfully!');
+                setSuccessMsg(t('สร้างอาคารสำเร็จ!', 'Building created successfully!'));
             }
             setShowModal(false);
             fetchData();
         } catch (err: any) {
-            setFormError(err.response?.data?.message || 'Failed to save building');
+            setFormError(err.response?.data?.message || t('บันทึกอาคารล้มเหลว', 'Failed to save building'));
         }
         setSaving(false);
     };
@@ -123,38 +125,38 @@ const BuildingsPage: React.FC = () => {
         setDeleting(true);
         try {
             await sitesApi.deleteBuilding(deleteTarget.building_id);
-            setSuccessMsg('Building deleted successfully!');
+            setSuccessMsg(t('ลบอาคารสำเร็จ!', 'Building deleted successfully!'));
             setShowDelete(false);
             setDeleteTarget(null);
             fetchData();
         } catch (err: any) {
-            alert(err.response?.data?.message || 'Failed to delete building');
+            alert(err.response?.data?.message || t('ลบอาคารล้มเหลว', 'Failed to delete building'));
         }
         setDeleting(false);
     };
 
     const columns = [
-        { key: 'building_name', title: 'Building Name' },
-        { key: 'site_name', title: 'Site Name' },
+        { key: 'building_name', title: t('ชื่ออาคาร', 'Building Name') },
+        { key: 'site_name', title: t('ชื่อไซต์', 'Site Name') },
         {
             key: 'is_active',
-            title: 'Status',
+            title: t('สถานะ', 'Status'),
             render: (v: boolean) => (
                 <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>
-                    {v ? 'Active' : 'Inactive'}
+                    {v ? t('ใช้งาน', 'Active') : t('ไม่ใช้งาน', 'Inactive')}
                 </span>
             ),
         },
         {
             key: 'actions',
-            title: 'Actions',
+            title: t('จัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 <div className="table-actions">
                     <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>
-                        ✏️ Edit
+                        ✏️ {t('แก้ไข', 'Edit')}
                     </button>
                     <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>
-                        🗑️ Delete
+                        🗑️ {t('ลบ', 'Delete')}
                     </button>
                 </div>
             ),
@@ -166,7 +168,7 @@ const BuildingsPage: React.FC = () => {
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
 
             <DataTable
-                title="ตึกอาคาร (Buildings)"
+                title={t('อาคาร', 'Buildings')}
                 columns={columns}
                 data={data}
                 total={total}
@@ -176,22 +178,22 @@ const BuildingsPage: React.FC = () => {
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
                 onCreate={handleCreate}
-                createLabel="เพิ่มอาคาร"
+                createLabel={t('เพิ่มอาคาร', 'Add Building')}
             />
 
             {/* Create / Edit Modal */}
             <Modal
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
-                title={editId ? 'แก้ไขอาคาร' : 'เพิ่มอาคารใหม่'}
+                title={editId ? t('แก้ไขอาคาร', 'Edit Building') : t('เพิ่มอาคารใหม่', 'Add New Building')}
                 size="md"
                 footer={
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                         <button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>
-                            Cancel
+                            {t('ยกเลิก', 'Cancel')}
                         </button>
                         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                            {saving ? 'Saving...' : editId ? 'Update' : 'Create'}
+                            {saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}
                         </button>
                     </div>
                 }
@@ -200,12 +202,12 @@ const BuildingsPage: React.FC = () => {
 
                 <div className="form-group">
                     <label className="form-label">
-                        Building Name <span style={{ color: 'var(--danger)' }}>*</span>
+                        {t('ชื่ออาคาร', 'Building Name')} <span style={{ color: 'var(--danger)' }}>*</span>
                     </label>
                     <input
                         type="text"
                         className="form-control"
-                        placeholder="Enter building name"
+                        placeholder={t('กรอกชื่ออาคาร', 'Enter building name')}
                         value={form.buildingName}
                         onChange={(e) => setForm({ ...form, buildingName: e.target.value })}
                         autoFocus
@@ -214,14 +216,14 @@ const BuildingsPage: React.FC = () => {
 
                 <div className="form-group">
                     <label className="form-label">
-                        Site <span style={{ color: 'var(--danger)' }}>*</span>
+                        {t('ไซต์', 'Site')} <span style={{ color: 'var(--danger)' }}>*</span>
                     </label>
                     <select
                         className="form-control"
                         value={form.siteId}
                         onChange={(e) => setForm({ ...form, siteId: e.target.value })}
                     >
-                        <option value="">— Select Site —</option>
+                        <option value="">— {t('เลือกไซต์', 'Select Site')} —</option>
                         {sites.map((s: any) => (
                             <option key={s.site_id} value={s.site_id}>{s.site_name}</option>
                         ))}
@@ -236,7 +238,7 @@ const BuildingsPage: React.FC = () => {
                             onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                             style={{ width: 18, height: 18, accentColor: 'var(--success)' }}
                         />
-                        Active
+                        {t('ใช้งาน', 'Active')}
                     </label>
                 </div>
             </Modal>
@@ -245,15 +247,15 @@ const BuildingsPage: React.FC = () => {
             <Modal
                 isOpen={showDelete}
                 onClose={() => setShowDelete(false)}
-                title="ยืนยันการลบ"
+                title={t('ยืนยันการลบ', 'Confirm Delete')}
                 size="sm"
                 footer={
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                         <button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>
-                            Cancel
+                            {t('ยกเลิก', 'Cancel')}
                         </button>
                         <button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>
-                            {deleting ? 'Deleting...' : 'Delete'}
+                            {deleting ? t('กำลังลบ...', 'Deleting...') : t('ลบ', 'Delete')}
                         </button>
                     </div>
                 }
@@ -261,7 +263,7 @@ const BuildingsPage: React.FC = () => {
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
                     <p style={{ fontSize: 16, marginBottom: 8 }}>
-                        Delete building
+                        {t('ลบอาคาร', 'Delete building')}
                     </p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>
                         "{deleteTarget?.building_name}"

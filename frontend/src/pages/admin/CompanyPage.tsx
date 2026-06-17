@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { companyApi } from '../../api/client';
 import { Shield, Save, X, Pencil } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const CompanyPage: React.FC = () => {
+    const { t } = useLanguage();
     const [company, setCompany] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
@@ -32,19 +34,19 @@ const CompanyPage: React.FC = () => {
         try {
             await companyApi.update(form);
             setEditing(false);
-            alert('บันทึกข้อมูลบริษัทเรียบร้อย');
+            alert(t('บันทึกข้อมูลบริษัทสำเร็จ', 'Company information saved successfully'));
         } catch (e) { console.error(e); }
     };
 
-    if (loading) return <div className="text-center" style={{ padding: '40px' }}>Loading...</div>;
+    if (loading) return <div className="text-center" style={{ padding: '40px' }}>{t('กำลังโหลด...', 'Loading...')}</div>;
 
     return (
         <div>
             {/* Title / Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div>
-                    <h1 style={{ fontSize: '24px', fontWeight: 700 }}>ข้อมูลบริษัท</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>ตั้งค่าข้อมูลและรายละเอียดผู้ใช้งานระดับบริษัท</p>
+                    <h1 style={{ fontSize: '24px', fontWeight: 700 }}>{t('ข้อมูลบริษัท', 'Company Information')}</h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>{t('จัดการข้อมูลและผู้ติดต่อของบริษัท', 'Manage company details and contact information')}</p>
                 </div>
             </div>
 
@@ -54,20 +56,20 @@ const CompanyPage: React.FC = () => {
                 <div className="card-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Shield size={18} color="var(--accent)" />
-                        <span style={{ fontSize: '15px', fontWeight: 700 }}>ข้อมูลทั่วไปของบริษัท</span>
+                        <span style={{ fontSize: '15px', fontWeight: 700 }}>{t('ข้อมูลทั่วไป', 'General Information')}</span>
                     </div>
                     <div>
                         {!editing ? (
                             <button className="btn btn-primary" onClick={() => setEditing(true)}>
-                                <Pencil size={14} /> แก้ไขข้อมูล
+                                <Pencil size={14} /> {t('แก้ไข', 'Edit')}
                             </button>
                         ) : (
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <button className="btn btn-success" onClick={handleSave}>
-                                    <Save size={14} /> บันทึก
+                                    <Save size={14} /> {t('บันทึก', 'Save')}
                                 </button>
                                 <button className="btn btn-outline" onClick={() => setEditing(false)}>
-                                    <X size={14} /> ยกเลิก
+                                    <X size={14} /> {t('ยกเลิก', 'Cancel')}
                                 </button>
                             </div>
                         )}
@@ -78,25 +80,25 @@ const CompanyPage: React.FC = () => {
                 <div className="card-body">
                     <div className="form-row" style={{ marginBottom: '20px' }}>
                         <div className="form-group">
-                            <label className="form-label">ชื่อบริษัท</label>
+                            <label className="form-label">{t('ชื่อบริษัท', 'Company Name')}</label>
                             <input className="form-control" value={form.companyName} disabled={!editing} onChange={e => setForm({ ...form, companyName: e.target.value })} />
                         </div>
                         <div className="form-group">
-                            <label className="form-label">โดเมน</label>
+                            <label className="form-label">{t('โดเมน', 'Domain')}</label>
                             <input className="form-control" value={form.domain} disabled={!editing} onChange={e => setForm({ ...form, domain: e.target.value })} />
                         </div>
                     </div>
                     <div className="form-group" style={{ marginBottom: '20px' }}>
-                        <label className="form-label">ที่อยู่</label>
+                        <label className="form-label">{t('ที่อยู่', 'Address')}</label>
                         <input className="form-control" value={form.address} disabled={!editing} onChange={e => setForm({ ...form, address: e.target.value })} />
                     </div>
                     <div className="form-row">
                         <div className="form-group">
-                            <label className="form-label">ผู้ติดต่อ</label>
+                            <label className="form-label">{t('ผู้ติดต่อ', 'Contact Person')}</label>
                             <input className="form-control" value={form.contactName} disabled={!editing} onChange={e => setForm({ ...form, contactName: e.target.value })} />
                         </div>
                         <div className="form-group">
-                            <label className="form-label">เบอร์โทรศัพท์ผู้ติดต่อ</label>
+                            <label className="form-label">{t('เบอร์โทรศัพท์ผู้ติดต่อ', 'Contact Phone')}</label>
                             <input className="form-control" value={form.contactPhone} disabled={!editing} onChange={e => setForm({ ...form, contactPhone: e.target.value })} />
                         </div>
                     </div>

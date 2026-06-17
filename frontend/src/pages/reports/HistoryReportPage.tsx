@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import { reportsApi } from '../../api/client';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -22,6 +23,7 @@ const THEMES = {
 
 const HistoryReportPage: React.FC = () => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -51,18 +53,18 @@ const HistoryReportPage: React.FC = () => {
             document.body.appendChild(link);
             link.click();
             link.remove();
-        } catch (err) { alert('Export failed'); }
+        } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
     };
 
     const numCol = (key: string, title: string, digits = 2) => ({
         key, title,
-        render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: digits }) : '—',
+        render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: digits }) : '—',
     });
 
     const columns = [
         {
-            key: 'timestamp', title: 'วันที่',
-            render: (v: string) => v ? new Date(v).toLocaleString('th-TH') : '—',
+            key: 'timestamp', title: t('วันเวลา', 'Date/Time'),
+            render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-US')) : '—',
         },
         numCol('kwh', 'KWh'),
         numCol('kva', 'Kva'),
@@ -96,7 +98,7 @@ const HistoryReportPage: React.FC = () => {
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
                         <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>REPORTS // HISTORY</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>ประวัติการบันทึกพารามิเตอร์พลังงานไฟฟ้าเชิงลึกย้อนหลังรายมิเตอร์</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ประวัติการบันทึกพารามิเตอร์พลังงานไฟฟ้าเชิงลึกย้อนหลังรายมิเตอร์', 'In-depth historical power parameters log by meter')}</div>
                     </div>
                 </div>
             </div>
@@ -106,7 +108,7 @@ const HistoryReportPage: React.FC = () => {
                 showSearchMeter
                 actions={<ExportButtons onExportExcel={handleExport} />}
             />
-            <DataTable title="ข้อมูลพลังงานย้อนหลัง" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('ข้อมูลพลังงานย้อนหลัง', 'Historical Energy Data')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
         </div>
     );
 };

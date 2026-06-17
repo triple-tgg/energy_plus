@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import {
     Settings, Building2, Users, User, MapPin, Construction,
     Package, Plug, Tag, RefreshCw, Zap,
@@ -12,78 +14,87 @@ import {
 } from 'lucide-react';
 
 interface NavItem {
-    label: string;
+    labelEn: string;
+    labelTh: string;
     path: string;
     icon: LucideIcon;
+    permissionKey: string;
 }
 
 interface NavGroup {
-    title: string;
+    titleEn: string;
+    titleTh: string;
     icon: LucideIcon;
     items: NavItem[];
 }
 
 const navGroups: NavGroup[] = [
     {
-        title: 'ผู้ดูแลระบบ',
+        titleEn: 'Administration',
+        titleTh: 'การจัดการระบบ',
         icon: Settings,
         items: [
-            { label: 'ข้อมูลบริษัท', path: '/admin/company', icon: Building2 },
-            { label: 'กลุ่มผู้ใช้', path: '/admin/groups', icon: Users },
-            { label: 'ผู้ใช้งาน', path: '/admin/users', icon: User },
-            { label: 'สถานที่', path: '/admin/sites', icon: MapPin },
-            { label: 'อาคาร', path: '/admin/buildings', icon: Construction },
+            { labelEn: 'Company Info', labelTh: 'ข้อมูลบริษัท', path: '/admin/company', icon: Building2, permissionKey: 'company' },
+            { labelEn: 'User Groups', labelTh: 'กลุ่มผู้ใช้งาน', path: '/admin/groups', icon: Users, permissionKey: 'users' },
+            { labelEn: 'Users', labelTh: 'ผู้ใช้งาน', path: '/admin/users', icon: User, permissionKey: 'users' },
+            { labelEn: 'Sites', labelTh: 'สถานที่ / สาขา', path: '/admin/sites', icon: MapPin, permissionKey: 'sites' },
+            { labelEn: 'Buildings', labelTh: 'อาคาร', path: '/admin/buildings', icon: Construction, permissionKey: 'sites' },
         ],
     },
     {
-        title: 'ข้อมูลหลัก',
+        titleEn: 'Master Data',
+        titleTh: 'ข้อมูลหลัก',
         icon: Package,
         items: [
-            { label: 'ประเภทมิเตอร์', path: '/master/types', icon: Plug },
-            { label: 'ยี่ห้อ', path: '/master/brands', icon: Tag },
-            { label: 'ลูป', path: '/master/loops', icon: RefreshCw },
-            { label: 'มิเตอร์', path: '/master/meters', icon: Zap },
+            { labelEn: 'Meter Types', labelTh: 'ประเภทมิเตอร์', path: '/master/types', icon: Plug, permissionKey: 'meters' },
+            { labelEn: 'Brands', labelTh: 'แบรนด์ / ยี่ห้อ', path: '/master/brands', icon: Tag, permissionKey: 'meters' },
+            { labelEn: 'Loops', labelTh: 'วงจรการจ่ายไฟ', path: '/master/loops', icon: RefreshCw, permissionKey: 'meters' },
+            { labelEn: 'Meters', labelTh: 'มิเตอร์', path: '/master/meters', icon: Zap, permissionKey: 'meters' },
         ],
     },
     {
-        title: 'ตั้งค่า',
+        titleEn: 'Settings',
+        titleTh: 'การตั้งค่า',
         icon: Wrench,
         items: [
-            { label: 'กลุ่มแจ้งเตือน', path: '/settings/alarm-groups', icon: Bell },
-            { label: 'ตั้งค่าแจ้งเตือน', path: '/settings/alarm-configs', icon: AlertTriangle },
-            { label: 'อัตราค่าไฟ', path: '/settings/billing', icon: Coins },
-            { label: 'ดีมานด์ / ประหยัด', path: '/settings/demand', icon: TrendingDown },
-            { label: 'ตั้งค่าภาพแผนผัง', path: '/settings/layouts', icon: Map },
-            { label: 'ตั้งค่าการ Export', path: '/settings/export', icon: Upload },
+            { labelEn: 'Alarm Groups', labelTh: 'กลุ่มแจ้งเตือน', path: '/settings/alarm-groups', icon: Bell, permissionKey: 'alarms' },
+            { labelEn: 'Alarm Settings', labelTh: 'ตั้งค่าแจ้งเตือน', path: '/settings/alarm-configs', icon: AlertTriangle, permissionKey: 'alarms' },
+            { labelEn: 'Billing Tariffs', labelTh: 'อัตราค่าไฟฟ้า', path: '/settings/billing', icon: Coins, permissionKey: 'billing' },
+            { labelEn: 'Demand & Savings', labelTh: 'ดีมานด์ & ประหยัด', path: '/settings/demand', icon: TrendingDown, permissionKey: 'settings' },
+            { labelEn: 'Layout Settings', labelTh: 'ตั้งค่าแผนผัง', path: '/settings/layouts', icon: Map, permissionKey: 'settings' },
+            { labelEn: 'Export Settings', labelTh: 'ตั้งค่าการ Export', path: '/settings/export', icon: Upload, permissionKey: 'settings' },
         ],
     },
     {
-        title: 'ตรวจสอบ',
+        titleEn: 'Monitoring',
+        titleTh: 'การตรวจสอบระบบ',
         icon: Radio,
         items: [
-            { label: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: Activity },
-            { label: 'Single Line Diagram', path: '/monitoring/layout', icon: Network },
-            { label: 'พยากรณ์ Demand Peak', path: '/monitoring/demand-peak', icon: Zap },
+            { labelEn: 'Realtime Data', labelTh: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: Activity, permissionKey: 'monitoring' },
+            { labelEn: 'Single Line Diagram', labelTh: 'แผนผังระบบไฟฟ้า', path: '/monitoring/layout', icon: Network, permissionKey: 'monitoring' },
+            { labelEn: 'Demand Peak Forecast', labelTh: 'คาดการณ์ดีมานด์สูงสุด', path: '/monitoring/demand-peak', icon: Zap, permissionKey: 'monitoring' },
         ],
     },
     {
-        title: 'รายงาน',
+        titleEn: 'Reports',
+        titleTh: 'รายงาน',
         icon: FileText,
         items: [
-            { label: 'พลังงานตามช่วงเวลา', path: '/reports/energy', icon: BarChartBig },
-            { label: 'ข้อมูลพลังงานย้อนหลัง', path: '/reports/history', icon: History },
-            { label: 'เปรียบเทียบเดือนก่อน', path: '/reports/comparison', icon: GitCompare },
-            { label: 'ข้อมูลการแจ้งเตือน', path: '/reports/alarms', icon: Clock },
+            { labelEn: 'Energy Report', labelTh: 'รายงานการใช้พลังงาน', path: '/reports/energy', icon: BarChartBig, permissionKey: 'reports' },
+            { labelEn: 'Historical Report', labelTh: 'รายงานข้อมูลย้อนหลัง', path: '/reports/history', icon: History, permissionKey: 'reports' },
+            { labelEn: 'Monthly Comparison', labelTh: 'รายงานเปรียบเทียบรายเดือน', path: '/reports/comparison', icon: GitCompare, permissionKey: 'reports' },
+            { labelEn: 'Alarm Reports', labelTh: 'รายงานการแจ้งเตือน', path: '/reports/alarms', icon: Clock, permissionKey: 'reports' },
         ],
     },
     {
-        title: 'แดชบอร์ด',
+        titleEn: 'Dashboards',
+        titleTh: 'แดชบอร์ด',
         icon: LayoutDashboard,
         items: [
-            { label: 'การใช้พลังงานตามโซน', path: '/dashboard/zone', icon: MapPinned },
-            { label: 'การใช้พลังงาน MDB', path: '/dashboard/mdb', icon: Gauge },
-            { label: 'ดีมานด์', path: '/dashboard/demand', icon: TrendingDown },
-            { label: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: Table },
+            { labelEn: 'Zone Consumption', labelTh: 'ปริมาณการใช้ไฟรายโซน', path: '/dashboard/zone', icon: MapPinned, permissionKey: 'dashboard' },
+            { labelEn: 'MDB Consumption', labelTh: 'ปริมาณการใช้ไฟรายตู้ MDB', path: '/dashboard/mdb', icon: Gauge, permissionKey: 'dashboard' },
+            { labelEn: 'Demand Dashboard', labelTh: 'แดชบอร์ดดีมานด์พีค', path: '/dashboard/demand', icon: TrendingDown, permissionKey: 'dashboard' },
+            { labelEn: 'Consumption Table', labelTh: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: Table, permissionKey: 'dashboard' },
         ],
     },
 ];
@@ -91,14 +102,27 @@ const navGroups: NavGroup[] = [
 const Sidebar: React.FC = () => {
     const location = useLocation();
     const { theme } = useTheme();
-    const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(navGroups.map(g => g.title)));
+    const { user } = useAuth();
+    const { t } = useLanguage();
+    const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(navGroups.map(g => g.titleEn)));
+
+    // Filter nav groups and items based on user permissions
+    const filteredNavGroups = useMemo(() => {
+        const perms = user?.permissions || [];
+        return navGroups
+            .map(group => ({
+                ...group,
+                items: group.items.filter(item => perms.includes(item.permissionKey)),
+            }))
+            .filter(group => group.items.length > 0);
+    }, [user?.permissions]);
     const [collapsed, setCollapsed] = useState(false);
 
-    const toggleGroup = (title: string) => {
+    const toggleGroup = (titleEn: string) => {
         setOpenGroups(prev => {
             const next = new Set(prev);
-            if (next.has(title)) next.delete(title);
-            else next.add(title);
+            if (next.has(titleEn)) next.delete(titleEn);
+            else next.add(titleEn);
             return next;
         });
     };
@@ -119,7 +143,7 @@ const Sidebar: React.FC = () => {
                 <button
                     className="sidebar-toggle"
                     onClick={() => setCollapsed(!collapsed)}
-                    title={collapsed ? 'Expand' : 'Collapse'}
+                    title={collapsed ? t('ขยาย', 'Expand') : t('ยุบ', 'Collapse')}
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }}>
                         <polyline points="15 18 9 12 15 6" />
@@ -129,44 +153,48 @@ const Sidebar: React.FC = () => {
 
             {/* Nav */}
             <nav className="sidebar-nav">
-                {navGroups.map(group => (
-                    <div key={group.title} className="sidebar-section">
-                        <button
-                            className="sidebar-section__title"
-                            onClick={() => toggleGroup(group.title)}
-                        >
-                            {!collapsed && <span>{group.title}</span>}
-                            {!collapsed && (
-                                <svg
-                                    width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                                    style={{ transition: 'transform 0.25s', transform: openGroups.has(group.title) ? 'rotate(180deg)' : 'rotate(0)' }}
-                                >
-                                    <polyline points="6 9 12 15 18 9" />
-                                </svg>
-                            )}
-                        </button>
-                        <div className={`sidebar-section__items ${openGroups.has(group.title) ? 'sidebar-section__items--open' : ''}`}>
-                            {group.items.map(item => {
-                                const IconComp = item.icon;
-                                return (
-                                    <NavLink
-                                        key={item.path}
-                                        to={item.path}
-                                        className={({ isActive }) =>
-                                            `sidebar-link ${isActive ? 'sidebar-link--active' : ''}`
-                                        }
-                                        title={item.label}
+                {filteredNavGroups.map(group => {
+                    const groupTitle = t(group.titleTh, group.titleEn);
+                    return (
+                        <div key={group.titleEn} className="sidebar-section">
+                            <button
+                                className="sidebar-section__title"
+                                onClick={() => toggleGroup(group.titleEn)}
+                            >
+                                {!collapsed && <span>{groupTitle}</span>}
+                                {!collapsed && (
+                                    <svg
+                                        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                        style={{ transition: 'transform 0.25s', transform: openGroups.has(group.titleEn) ? 'rotate(180deg)' : 'rotate(0)' }}
                                     >
-                                        <span className="sidebar-link__icon">
-                                            <IconComp size={18} strokeWidth={1.8} />
-                                        </span>
-                                        {!collapsed && <span className="sidebar-link__label">{item.label}</span>}
-                                    </NavLink>
-                                );
-                            })}
+                                        <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                )}
+                            </button>
+                            <div className={`sidebar-section__items ${openGroups.has(group.titleEn) ? 'sidebar-section__items--open' : ''}`}>
+                                {group.items.map(item => {
+                                    const IconComp = item.icon;
+                                    const itemLabel = t(item.labelTh, item.labelEn);
+                                    return (
+                                        <NavLink
+                                            key={item.path}
+                                            to={item.path}
+                                            className={({ isActive }) =>
+                                                `sidebar-link ${isActive ? 'sidebar-link--active' : ''}`
+                                            }
+                                            title={itemLabel}
+                                        >
+                                            <span className="sidebar-link__icon">
+                                                <IconComp size={18} strokeWidth={1.8} />
+                                            </span>
+                                            {!collapsed && <span className="sidebar-link__label">{itemLabel}</span>}
+                                        </NavLink>
+                                    );
+                                })}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </nav>
 
             {/* Footer */}

@@ -5,6 +5,7 @@ import DataTable from '../../components/ui/DataTable';
 import { demandPeakApi } from '../../api/client';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -23,6 +24,7 @@ const THEMES = {
 
 const DemandPeakPage: React.FC = () => {
     const { theme } = useTheme();
+    const { t, language } = useLanguage();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -50,23 +52,23 @@ const DemandPeakPage: React.FC = () => {
 
     const columns = [
         {
-            key: 'timestamp', title: 'วันที่/เวลา',
-            render: (v: string) => v ? new Date(v).toLocaleString('th-TH') : '—',
+            key: 'timestamp', title: t('วัน/เวลา', 'Date/Time'),
+            render: (v: string) => v ? new Date(v).toLocaleString(language === 'th' ? 'th-TH' : 'en-US') : '—',
         },
-        { key: 'meter_code', title: 'รหัสมิเตอร์' },
-        { key: 'meter_name', title: 'ชื่อมิเตอร์' },
-        { key: 'building_name', title: 'อาคาร' },
-        { key: 'zone_name', title: 'โซน' },
+        { key: 'meter_code', title: t('รหัสมิเตอร์', 'Meter Code') },
+        { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
+        { key: 'building_name', title: t('อาคาร', 'Building') },
+        { key: 'zone_name', title: t('โซน', 'Zone') },
         {
-            key: 'demand_kw', title: 'Demand (kW)',
-            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 })}</strong> : '—',
-        },
-        {
-            key: 'setpoint', title: 'Setpoint (kW)',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            key: 'demand_kw', title: t('ดีมานด์ (kW)', 'Demand (kW)'),
+            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { maximumFractionDigits: 2 })}</strong> : '—',
         },
         {
-            key: 'peak_percent', title: '% of Peak',
+            key: 'setpoint', title: t('เซ็ตพอยต์ (kW)', 'Setpoint (kW)'),
+            render: (v: number) => v != null ? Number(v).toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { maximumFractionDigits: 2 }) : '—',
+        },
+        {
+            key: 'peak_percent', title: t('% ของค่าพีค', '% of Peak'),
             render: (v: number) => {
                 if (v == null) return '—';
                 const color = v > 90 ? C.red : v > 75 ? C.yellow : C.green;
@@ -82,8 +84,8 @@ const DemandPeakPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>MONITORING // DEMAND PEAK</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>พยากรณ์และเฝ้าระวังความต้องการพลังงานไฟฟ้าสูงสุดระดับพื้นที่</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('การติดตามข้อมูล // ดีมานด์พีค', 'MONITORING // DEMAND PEAK')}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('การคาดการณ์และติดตามค่าความต้องการไฟฟ้าสูงสุด (Peak Demand)', 'Forecasting and monitoring of maximum electricity demand (Peak Demand)')}</div>
                     </div>
                 </div>
             </div>
@@ -92,7 +94,7 @@ const DemandPeakPage: React.FC = () => {
                 loading={loading}
                 showSearchMeter
             />
-            <DataTable title="ข้อมูล Demand Peak" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('ประวัติการเกิดดีมานด์พีค', 'Demand Peak Logs')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
         </div>
     );
 };

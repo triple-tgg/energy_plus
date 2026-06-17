@@ -3,6 +3,7 @@ import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { exportApi } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ExportForm {
     name: string;
@@ -14,6 +15,7 @@ interface ExportForm {
 const emptyForm: ExportForm = { name: '', exportPath: '', scheduleEvery: '', isActive: true };
 
 const ExportSettingsPage: React.FC = () => {
+    const { t, language } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -59,19 +61,19 @@ const ExportSettingsPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.name) { setFormError('กรุณาระบุชื่อ'); return; }
-        if (!form.exportPath) { setFormError('กรุณาระบุ Export Path'); return; }
+        if (!form.name) { setFormError(t('กรุณาระบุชื่อ', 'Please specify a name')); return; }
+        if (!form.exportPath) { setFormError(t('กรุณาระบุเส้นทางการส่งออก', 'Please specify an Export Path')); return; }
         setSaving(true); setFormError('');
         try {
             if (editId) {
                 await exportApi.update(editId, form);
-                setSuccessMsg('อัพเดตเรียบร้อย!');
+                setSuccessMsg(t('อัปเดตสำเร็จ!', 'Updated successfully!'));
             } else {
                 await exportApi.create(form);
-                setSuccessMsg('สร้างเรียบร้อย!');
+                setSuccessMsg(t('สร้างสำเร็จ!', 'Created successfully!'));
             }
             setShowModal(false); fetchData();
-        } catch (err: any) { setFormError(err.response?.data?.message || 'บันทึกไม่สำเร็จ'); }
+        } catch (err: any) { setFormError(err.response?.data?.message || t('บันทึกไม่สำเร็จ', 'Save failed')); }
         setSaving(false);
     };
 
@@ -82,36 +84,36 @@ const ExportSettingsPage: React.FC = () => {
         setDeleting(true);
         try {
             await exportApi.delete(deleteTarget.id);
-            setSuccessMsg('ลบเรียบร้อย!');
+            setSuccessMsg(t('ลบสำเร็จ!', 'Deleted successfully!'));
             setShowDelete(false); setDeleteTarget(null); fetchData();
-        } catch (err: any) { alert(err.response?.data?.message || 'ลบไม่สำเร็จ'); }
+        } catch (err: any) { alert(err.response?.data?.message || t('ลบไม่สำเร็จ', 'Delete failed')); }
         setDeleting(false);
     };
 
     const columns = [
-        { key: 'name', title: 'Name' },
-        { key: 'export_path', title: 'ExportPath' },
-        { key: 'schedule_every', title: 'ScheduleEvery' },
+        { key: 'name', title: t('ชื่อ', 'Name') },
+        { key: 'export_path', title: t('เส้นทางการส่งออก', 'ExportPath') },
+        { key: 'schedule_every', title: t('เวลาตั้งตารางเวลา', 'ScheduleEvery') },
         {
-            key: 'is_active', title: 'ใช้งาน',
+            key: 'is_active', title: t('สถานะ', 'Status'),
             render: (v: boolean) => <StatusBadge status={v ? 'active' : 'inactive'} />,
         },
-        { key: 'created_by', title: 'ผู้สร้าง' },
+        { key: 'created_by', title: t('สร้างโดย', 'Created By') },
         {
-            key: 'created_at', title: 'วันที่สร้าง',
-            render: (v: string) => v ? new Date(v).toLocaleString('th-TH') : '—',
+            key: 'created_at', title: t('สร้างเมื่อ', 'Created At'),
+            render: (v: string) => v ? new Date(v).toLocaleString(language === 'th' ? 'th-TH' : 'en-US') : '—',
         },
-        { key: 'updated_by', title: 'ผู้แก้ไข' },
+        { key: 'updated_by', title: t('อัปเดตโดย', 'Updated By') },
         {
-            key: 'updated_at', title: 'วันที่แก้ไข',
-            render: (v: string) => v ? new Date(v).toLocaleString('th-TH') : '—',
+            key: 'updated_at', title: t('อัปเดตเมื่อ', 'Updated At'),
+            render: (v: string) => v ? new Date(v).toLocaleString(language === 'th' ? 'th-TH' : 'en-US') : '—',
         },
         {
-            key: 'actions', title: 'จัดการ',
+            key: 'actions', title: t('การจัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 <div className="table-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ แก้ไข</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ ลบ</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>{t('✏️ แก้ไข', '✏️ Edit')}</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>{t('🗑️ ลบ', '🗑️ Delete')}</button>
                 </div>
             ),
         },
@@ -120,38 +122,38 @@ const ExportSettingsPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title="ตั้งค่าการ Export" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel="สร้าง Export ใหม่" />
+            <DataTable title={t('ตั้งค่าการส่งออกข้อมูล', 'Export Settings')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('สร้างรายการส่งออกใหม่', 'Create New Export')} />
 
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? 'แก้ไข Export' : 'สร้าง Export ใหม่'} size="md"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>ยกเลิก</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'กำลังบันทึก...' : editId ? 'อัพเดต' : 'สร้าง'}</button></div>}
+            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขรายการส่งออก', 'Edit Export') : t('สร้างรายการส่งออกใหม่', 'Create New Export')} size="md"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
                 <div className="form-group">
-                    <label className="form-label">ชื่อ <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="เช่น AutoExport" />
+                    <label className="form-label">{t('ชื่อ', 'Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="text" className="form-control" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('เช่น ส่งออกอัตโนมัติ', 'e.g. AutoExport')} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Export Path <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" value={form.exportPath} onChange={e => setForm({ ...form, exportPath: e.target.value })} placeholder="เช่น D:\EnergyExports" />
+                    <label className="form-label">{t('เส้นทางการส่งออก', 'Export Path')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="text" className="form-control" value={form.exportPath} onChange={e => setForm({ ...form, exportPath: e.target.value })} placeholder={t('เช่น D:\\EnergyExports', 'e.g. D:\\EnergyExports')} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Schedule Every</label>
+                    <label className="form-label">{t('เวลาตั้งตารางเวลา', 'Schedule Every')}</label>
                     <input type="datetime-local" className="form-control" value={form.scheduleEvery} onChange={e => setForm({ ...form, scheduleEvery: e.target.value })} />
                 </div>
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: 18, height: 18, accentColor: 'var(--success)' }} />
-                        ใช้งาน
+                        {t('เปิดใช้งาน', 'Active')}
                     </label>
                 </div>
             </Modal>
 
-            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title="ยืนยันการลบ" size="sm"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>ยกเลิก</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? 'กำลังลบ...' : 'ลบ'}</button></div>}
+            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title={t('ยืนยันการลบ', 'Confirm Delete')} size="sm"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? t('กำลังลบ...', 'Deleting...') : t('ลบ', 'Delete')}</button></div>}
             >
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-                    <p>ลบ Export <strong style={{ color: 'var(--danger)' }}>{deleteTarget?.name}</strong></p>
+                    <p>{t('ต้องการลบการตั้งค่าการส่งออก', 'Delete export configuration')} <strong style={{ color: 'var(--danger)' }}>{deleteTarget?.name}</strong>?</p>
                 </div>
             </Modal>
         </div>

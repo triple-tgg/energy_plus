@@ -4,6 +4,7 @@ import Modal from '../../components/ui/Modal';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { layoutsApi, metersApi } from '../../api/client';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 /* ═══════════════════════════════════════════════════════════════
    Types & Constants
@@ -31,10 +32,10 @@ interface LayoutPoint {
 const emptyForm: LayoutForm = { name: '', imageName: '', position: '', imageFile: null };
 
 const POINT_TYPES = [
-    { key: 'meter', label: 'Meter', icon: '⚡', color: '#F59E0B' },
-    { key: 'sensor', label: 'Sensor', icon: '📡', color: '#3B82F6' },
-    { key: 'gen', label: 'Generator', icon: '🔋', color: '#10B981' },
-    { key: 'ups', label: 'UPS', icon: '🔌', color: '#EF4444' },
+    { key: 'meter', labelTh: 'มิเตอร์', labelEn: 'Meter', icon: '⚡', color: '#F59E0B' },
+    { key: 'sensor', labelTh: 'เซนเซอร์', labelEn: 'Sensor', icon: '📡', color: '#3B82F6' },
+    { key: 'gen', labelTh: 'เครื่องกำเนิดไฟฟ้า', labelEn: 'Generator', icon: '🔋', color: '#10B981' },
+    { key: 'ups', labelTh: 'เครื่องสำรองไฟ (UPS)', labelEn: 'UPS', icon: '🔌', color: '#EF4444' },
 ];
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
@@ -63,6 +64,7 @@ const parsePoint = (pt: any): LayoutPoint => ({
    ═══════════════════════════════════════════════════════════════ */
 const LayoutSettingsPage: React.FC = () => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme];
 
     // --- Layout CRUD state ---
@@ -124,7 +126,7 @@ const LayoutSettingsPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.name) { setFormError('กรุณาระบุชื่อ'); return; }
+        if (!form.name) { setFormError(t('กรุณาระบุชื่อ', 'Please specify a name')); return; }
         setSaving(true); setFormError('');
         try {
             const formData = new FormData();
@@ -133,13 +135,13 @@ const LayoutSettingsPage: React.FC = () => {
             if (form.imageFile) formData.append('image', form.imageFile);
             if (editId) {
                 await layoutsApi.update(editId, formData);
-                setSuccessMsg('อัพเดตเรียบร้อย!');
+                setSuccessMsg(t('อัปเดตสำเร็จ!', 'Updated successfully!'));
             } else {
                 await layoutsApi.create(formData);
-                setSuccessMsg('สร้างเรียบร้อย!');
+                setSuccessMsg(t('สร้างสำเร็จ!', 'Created successfully!'));
             }
             setShowModal(false); fetchData();
-        } catch (err: any) { setFormError(err.response?.data?.message || 'บันทึกไม่สำเร็จ'); }
+        } catch (err: any) { setFormError(err.response?.data?.message || t('บันทึกไม่สำเร็จ', 'Save failed')); }
         setSaving(false);
     };
 
@@ -150,9 +152,9 @@ const LayoutSettingsPage: React.FC = () => {
         setDeleting(true);
         try {
             await layoutsApi.delete(deleteTarget.id);
-            setSuccessMsg('ลบเรียบร้อย!');
+            setSuccessMsg(t('ลบสำเร็จ!', 'Deleted successfully!'));
             setShowDelete(false); setDeleteTarget(null); fetchData();
-        } catch (err: any) { alert(err.response?.data?.message || 'ลบไม่สำเร็จ'); }
+        } catch (err: any) { alert(err.response?.data?.message || t('ลบไม่สำเร็จ', 'Delete failed')); }
         setDeleting(false);
     };
 
@@ -187,7 +189,7 @@ const LayoutSettingsPage: React.FC = () => {
         const typeInfo = POINT_TYPES.find(t => t.key === activeType)!;
         const newPoint: LayoutPoint = {
             point_type: activeType,
-            label: `${typeInfo.label} ${points.length + 1}`,
+            label: `${t(typeInfo.labelTh, typeInfo.labelEn)} ${points.length + 1}`,
             x_percent: Math.round(x * 100) / 100,
             y_percent: Math.round(y * 100) / 100,
             meter_id: null,
@@ -237,11 +239,11 @@ const LayoutSettingsPage: React.FC = () => {
                 meter_id: p.meter_id,
                 config: p.config || {},
             })));
-            setSuccessMsg('บันทึกจุดเรียบร้อย!');
+            setSuccessMsg(t('บันทึกจุดสำเร็จ!', 'Points saved successfully!'));
             const ptRes = await layoutsApi.getPoints(editorLayout.id);
             setPoints((ptRes.data.data || []).map(parsePoint));
         } catch (err: any) {
-            alert(err.response?.data?.message || 'บันทึกจุดไม่สำเร็จ');
+            alert(err.response?.data?.message || t('บันทึกจุดไม่สำเร็จ', 'Save points failed'));
         }
         setPointSaving(false);
     };
@@ -250,19 +252,19 @@ const LayoutSettingsPage: React.FC = () => {
        Table Columns (memoized to avoid re-render loops with base64 images)
        ─────────────────────────────────────── */
     const columns = useMemo(() => [
-        { key: 'name', title: 'Name' },
-        { key: 'image_name', title: 'Image Name' },
+        { key: 'name', title: t('ชื่อแผนผัง', 'Name') },
+        { key: 'image_name', title: t('ชื่อไฟล์รูปภาพ', 'Image Name') },
         {
-            key: 'image_url', title: 'Image',
+            key: 'image_url', title: t('รูปภาพ', 'Image'),
             render: (v: string) => v ? (
                 <img src={v} alt="layout" style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setPreviewImage(v)} />
             ) : <span style={{ color: 'var(--text-muted)' }}>—</span>,
         },
         {
-            key: 'point_labels', title: 'จุดบนแผนผัง',
+            key: 'point_labels', title: t('จุดบนแผนผัง', 'Plan Points'),
             render: (v: any) => {
                 const pts = Array.isArray(v) ? v : [];
-                if (pts.length === 0) return <span style={{ color: 'var(--text-muted)', fontFamily: MONO, fontSize: 11 }}>— ยังไม่มีจุด —</span>;
+                if (pts.length === 0) return <span style={{ color: 'var(--text-muted)', fontFamily: MONO, fontSize: 11 }}>— {t('ไม่มีจุด', 'No points')} —</span>;
                 return (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {pts.map((p: any, i: number) => {
@@ -281,16 +283,16 @@ const LayoutSettingsPage: React.FC = () => {
             },
         },
         {
-            key: 'actions', title: 'จัดการ',
+            key: 'actions', title: t('การจัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-sm" style={{ background: '#2B4C7E', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.5px' }} onClick={() => openEditor(row)} title="จัดการจุดบนแผนผัง">📌 จุด</button>
-                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ แก้ไข</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ ลบ</button>
+                    <button className="btn btn-sm" style={{ background: '#2B4C7E', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.5px' }} onClick={() => openEditor(row)} title={t('จัดการจุดบนแผนผัง', 'Manage points on plan')}>{t('📌 จุดแผนผัง', '📌 Points')}</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>{t('✏️ แก้ไข', '✏️ Edit')}</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>{t('🗑️ ลบ', '🗑️ Delete')}</button>
                 </div>
             ),
         },
-    ], []); // eslint-disable-line react-hooks/exhaustive-deps
+    ], [t]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ═══════════════════════════════════════════════════════
        Render
@@ -298,23 +300,23 @@ const LayoutSettingsPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title="ตั้งค่าภาพแผนผังสถานที่" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel="สร้างแผนผังใหม่" />
+            <DataTable title={t('ตั้งค่าแผนผังตำแหน่งมิเตอร์', 'Location Map Layout Settings')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('สร้างแผนผังใหม่', 'Create New Layout')} />
 
             {/* Create/Edit Layout Modal */}
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? 'แก้ไขแผนผัง' : 'สร้างแผนผังใหม่'} size="md"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>ยกเลิก</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'กำลังบันทึก...' : editId ? 'อัพเดต' : 'สร้าง'}</button></div>}
+            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขแผนผัง', 'Edit Layout') : t('สร้างแผนผังใหม่', 'Create New Layout')} size="md"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
                 <div className="form-group">
-                    <label className="form-label">ชื่อ <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="เช่น 111PMT_Building_A" />
+                    <label className="form-label">{t('ชื่อแผนผัง', 'Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="text" className="form-control" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('เช่น 111PMT_อาคาร_A', 'e.g. 111PMT_Building_A')} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Description</label>
-                    <input type="text" className="form-control" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} placeholder="เช่น แผนผังไฟฟ้าอาคาร A" />
+                    <label className="form-label">{t('คำอธิบาย', 'Description')}</label>
+                    <input type="text" className="form-control" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} placeholder={t('เช่น แผนผังระบบไฟฟ้าอาคาร A', 'e.g. Building A Electrical Diagram')} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">รูปแผนผัง</label>
+                    <label className="form-label">{t('รูปภาพแผนผัง', 'Layout Image')}</label>
                     <input type="file" className="form-control" accept="image/*" onChange={e => {
                         const file = e.target.files?.[0] || null;
                         setForm({ ...form, imageFile: file, imageName: file?.name || form.imageName });
@@ -323,18 +325,18 @@ const LayoutSettingsPage: React.FC = () => {
             </Modal>
 
             {/* Delete Confirmation Modal */}
-            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title="ยืนยันการลบ" size="sm"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>ยกเลิก</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? 'กำลังลบ...' : 'ลบ'}</button></div>}
+            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title={t('ยืนยันการลบ', 'Confirm Delete')} size="sm"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? t('กำลังลบ...', 'Deleting...') : t('ลบ', 'Delete')}</button></div>}
             >
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-                    <p>ลบแผนผัง <strong style={{ color: 'var(--danger)' }}>{deleteTarget?.name}</strong></p>
+                    <p>{t('ต้องการลบแผนผัง', 'Delete layout')} <strong style={{ color: 'var(--danger)' }}>{deleteTarget?.name}</strong>?</p>
                 </div>
             </Modal>
 
             {/* Image Preview Modal */}
-            <Modal isOpen={!!previewImage} onClose={() => setPreviewImage(null)} title="ดูรูปแผนผัง" size="xl"
-                footer={<div style={{ display: 'flex', justifyContent: 'flex-end' }}><button className="btn btn-primary" onClick={() => setPreviewImage(null)}>ปิด</button></div>}
+            <Modal isOpen={!!previewImage} onClose={() => setPreviewImage(null)} title={t('แสดงรูปภาพแผนผัง', 'View Layout Image')} size="xl"
+                footer={<div style={{ display: 'flex', justifyContent: 'flex-end' }}><button className="btn btn-primary" onClick={() => setPreviewImage(null)}>{t('ปิด', 'Close')}</button></div>}
             >
                 {previewImage && (
                     <div style={{ textAlign: 'center', padding: '8px 0' }}>
@@ -356,20 +358,20 @@ const LayoutSettingsPage: React.FC = () => {
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                             <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                                📌 Layout Editor — {editorLayout.name}
+                                {t('📌 ตัวแก้ไขแผนผัง —', '📌 Layout Editor —')} {editorLayout.name}
                             </span>
                             <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>
-                                {points.length} จุด
+                                {points.length} {t('จุด', 'points')}
                             </span>
                         </div>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                             <button onClick={handleSavePoints} disabled={pointSaving}
                                 style={{ background: '#10B981', color: '#fff', border: 'none', padding: '6px 18px', borderRadius: 4, cursor: 'pointer', fontFamily: MONO, fontSize: 12, fontWeight: 700, opacity: pointSaving ? 0.6 : 1 }}>
-                                {pointSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกจุด'}
+                                {pointSaving ? t('⏳ กำลังบันทึก...', '⏳ Saving...') : t('💾 บันทึกจุด', '💾 Save Points')}
                             </button>
                             <button onClick={() => { setEditorOpen(false); setEditorLayout(null); setEditingPoint(null); }}
                                 style={{ background: 'transparent', border: `1px solid ${C.sub}`, color: '#fff', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontFamily: MONO, fontSize: 12 }}>
-                                ✕ ปิด
+                                {t('✕ ปิด', '✕ Close')}
                             </button>
                         </div>
                     </div>
@@ -380,7 +382,7 @@ const LayoutSettingsPage: React.FC = () => {
                         display: 'flex', alignItems: 'center', gap: 8,
                         borderBottom: `1px solid ${C.line}`,
                     }}>
-                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub, marginRight: 8 }}>เลือกประเภท:</span>
+                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub, marginRight: 8 }}>{t('เลือกประเภท:', 'Select Type:')}</span>
                         {POINT_TYPES.map(pt => (
                             <button key={pt.key} onClick={() => setActiveType(pt.key)}
                                 style={{
@@ -391,12 +393,12 @@ const LayoutSettingsPage: React.FC = () => {
                                     border: `1.5px solid ${activeType === pt.key ? pt.color : C.line}`,
                                     transition: 'all 0.15s ease',
                                 }}>
-                                {pt.icon} {pt.label}
+                                {pt.icon} {t(pt.labelTh, pt.labelEn)}
                             </button>
                         ))}
                         <div style={{ flex: 1 }} />
                         <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>
-                            คลิกบนรูปเพื่อวางจุด • ลากเพื่อย้าย • คลิกจุดเพื่อแก้ไข
+                            {t('คลิกบนรูปภาพเพื่อวางจุด • ลากเพื่อย้าย • คลิกที่จุดเพื่อแก้ไข', 'Click on image to place point • Drag to move • Click point to edit')}
                         </span>
                     </div>
 
@@ -446,12 +448,12 @@ const LayoutSettingsPage: React.FC = () => {
                                 padding: '10px 14px', background: C.panel2, borderBottom: `1px solid ${C.line}`,
                                 fontFamily: MONO, fontSize: 12, fontWeight: 700, color: C.ink, textTransform: 'uppercase', letterSpacing: '1px',
                             }}>
-                                {editingPoint !== null ? '✏️ แก้ไขจุด' : '📋 รายการจุด'}
+                                {editingPoint !== null ? t('✏️ แก้ไขจุด', '✏️ Edit Point') : t('📋 รายการจุดทั้งหมด', '📋 Points List')}
                             </div>
                             <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
                                 {editingPoint !== null && points[editingPoint] ? (
                                     <PointEditor
-                                        point={points[editingPoint]} meters={meters} theme={theme} C={C}
+                                        point={points[editingPoint]} meters={meters} theme={theme} C={C} t={t}
                                         onChange={(updates) => handlePointUpdate(editingPoint, updates)}
                                         onDelete={() => handlePointDelete(editingPoint)}
                                         onClose={() => setEditingPoint(null)}
@@ -459,8 +461,8 @@ const LayoutSettingsPage: React.FC = () => {
                                 ) : points.length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '40px 12px', color: C.sub, fontFamily: MONO, fontSize: 11 }}>
                                         <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>📌</div>
-                                        <div>ยังไม่มีจุด</div>
-                                        <div style={{ marginTop: 4 }}>คลิกบนรูปเพื่อวางจุดใหม่</div>
+                                        <div>{t('ไม่มีจุด', 'No points')}</div>
+                                        <div style={{ marginTop: 4 }}>{t('คลิกบนรูปภาพเพื่อเพิ่มจุดใหม่', 'Click on the image to place a new point')}</div>
                                     </div>
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -480,12 +482,12 @@ const LayoutSettingsPage: React.FC = () => {
                                                     <div style={{ flex: 1, minWidth: 0 }}>
                                                         <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pt.label}</div>
                                                         <div style={{ fontFamily: MONO, fontSize: 9, color: C.sub }}>
-                                                            {typeInfo.label} • ({Number(pt.x_percent).toFixed(1)}%, {Number(pt.y_percent).toFixed(1)}%)
+                                                            {t(typeInfo.labelTh, typeInfo.labelEn)} • ({Number(pt.x_percent).toFixed(1)}%, {Number(pt.y_percent).toFixed(1)}%)
                                                         </div>
                                                     </div>
                                                     <button onClick={(e) => { e.stopPropagation(); handlePointDelete(idx); }}
                                                         style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 14, padding: 2 }}
-                                                        title="ลบจุด">✕</button>
+                                                        title={t('ลบจุด', 'Delete point')}>✕</button>
                                                 </div>
                                             );
                                         })}
@@ -504,43 +506,43 @@ const LayoutSettingsPage: React.FC = () => {
    PointEditor — Sidebar form
    ═══════════════════════════════════════════════════════════════ */
 const PointEditor: React.FC<{
-    point: LayoutPoint; meters: any[]; theme: string; C: any;
+    point: LayoutPoint; meters: any[]; theme: string; C: any; t: any;
     onChange: (updates: Partial<LayoutPoint>) => void;
     onDelete: () => void; onClose: () => void;
-}> = ({ point, meters, theme, C, onChange, onDelete, onClose }) => {
+}> = ({ point, meters, theme, C, t, onChange, onDelete, onClose }) => {
     const typeInfo = POINT_TYPES.find(t => t.key === point.point_type) || POINT_TYPES[0];
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: typeInfo.color + '18', borderRadius: 6, border: `1px solid ${typeInfo.color}40` }}>
                 <span style={{ fontSize: 20 }}>{typeInfo.icon}</span>
-                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: typeInfo.color }}>{typeInfo.label}</span>
+                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: typeInfo.color }}>{t(typeInfo.labelTh, typeInfo.labelEn)}</span>
                 <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
                     ({Number(point.x_percent).toFixed(1)}%, {Number(point.y_percent).toFixed(1)}%)
                 </span>
             </div>
             <div>
-                <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Label</label>
+                <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{t('ป้ายชื่อ', 'Label')}</label>
                 <input type="text" value={point.label} onChange={e => onChange({ label: e.target.value })}
                     style={{ width: '100%', padding: '6px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none' }} />
             </div>
             <div>
-                <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Type</label>
+                <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{t('ประเภท', 'Type')}</label>
                 <select value={point.point_type} onChange={e => onChange({ point_type: e.target.value })}
                     style={{ width: '100%', padding: '6px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none' }}>
-                    {POINT_TYPES.map(pt => (<option key={pt.key} value={pt.key}>{pt.icon} {pt.label}</option>))}
+                    {POINT_TYPES.map(pt => (<option key={pt.key} value={pt.key}>{pt.icon} {t(pt.labelTh, pt.labelEn)}</option>))}
                 </select>
             </div>
             <div>
-                <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Link Meter</label>
+                <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{t('เชื่อมต่อมิเตอร์', 'Link Meter')}</label>
                 <select value={point.meter_id || ''} onChange={e => onChange({ meter_id: e.target.value ? parseInt(e.target.value, 10) : null })}
                     style={{ width: '100%', padding: '6px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none' }}>
-                    <option value="">— ไม่เชื่อมต่อ —</option>
+                    <option value="">{t('— ไม่ได้เชื่อมต่อ —', '— Not Connected —')}</option>
                     {meters.map((m: any) => (<option key={m.meter_id} value={m.meter_id}>[{m.meter_code}] {m.meter_name}</option>))}
                 </select>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={onClose} style={{ flex: 1, padding: '7px 0', fontFamily: MONO, fontSize: 11, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, cursor: 'pointer' }}>← กลับ</button>
-                <button onClick={onDelete} style={{ flex: 1, padding: '7px 0', fontFamily: MONO, fontSize: 11, background: '#EF4444', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>🗑️ ลบจุดนี้</button>
+                <button onClick={onClose} style={{ flex: 1, padding: '7px 0', fontFamily: MONO, fontSize: 11, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, cursor: 'pointer' }}>{t('← ย้อนกลับ', '← Back')}</button>
+                <button onClick={onDelete} style={{ flex: 1, padding: '7px 0', fontFamily: MONO, fontSize: 11, background: '#EF4444', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>{t('🗑️ ลบจุด', '🗑️ Delete Point')}</button>
             </div>
         </div>
     );

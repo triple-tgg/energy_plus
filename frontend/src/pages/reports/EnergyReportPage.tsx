@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import { reportsApi } from '../../api/client';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -22,6 +23,7 @@ const THEMES = {
 
 const EnergyReportPage: React.FC = () => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -56,43 +58,43 @@ const EnergyReportPage: React.FC = () => {
             document.body.appendChild(link);
             link.click();
             link.remove();
-        } catch (err) { alert('Export failed'); }
+        } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
     };
 
     const columns = [
-        { key: 'meter_code', title: 'รหัสมิเตอร์' },
-        { key: 'customer_name', title: 'ชื่อลูกค้า' },
-        { key: 'building_name', title: 'อาคาร' },
-        { key: 'floor', title: 'ชั้น' },
-        { key: 'site_code', title: 'รหัสสถานที่' },
-        { key: 'site_name', title: 'ชื่อสถานที่' },
+        { key: 'meter_code', title: t('รหัสมิเตอร์', 'Meter Code') },
+        { key: 'customer_name', title: t('ชื่อลูกค้า', 'Customer Name') },
+        { key: 'building_name', title: t('อาคาร', 'Building') },
+        { key: 'floor', title: t('ชั้น', 'Floor') },
+        { key: 'site_code', title: t('รหัสสถานที่', 'Site Code') },
+        { key: 'site_name', title: t('ชื่อสถานที่', 'Site Name') },
         {
-            key: 'start_date', title: 'วันที่เริ่มจด',
-            render: (v: string) => v ? new Date(v).toLocaleDateString('th-TH') : '—',
+            key: 'start_date', title: t('วันที่เริ่มจด', 'Start Date'),
+            render: (v: string) => v ? new Date(v).toLocaleDateString(t('th-TH', 'en-US')) : '—',
         },
         {
-            key: 'start_reading', title: 'จำนวนเริ่มจด',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            key: 'start_reading', title: t('จำนวนเริ่มจด', 'Start Reading'),
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
-            key: 'end_date', title: 'วันที่ล่าสุด',
-            render: (v: string) => v ? new Date(v).toLocaleDateString('th-TH') : '—',
+            key: 'end_date', title: t('วันที่ล่าสุด', 'End Date'),
+            render: (v: string) => v ? new Date(v).toLocaleDateString(t('th-TH', 'en-US')) : '—',
         },
         {
-            key: 'end_reading', title: 'จำนวนล่าสุด',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            key: 'end_reading', title: t('จำนวนล่าสุด', 'End Reading'),
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
-            key: 'units_used', title: 'จำนวนหน่วยที่ใช้',
-            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 })}</strong> : '—',
+            key: 'units_used', title: t('จำนวนหน่วยที่ใช้', 'Units Used'),
+            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong> : '—',
         },
         {
-            key: 'unit_price', title: 'ราคาต่อหน่วย',
+            key: 'unit_price', title: t('ราคาต่อหน่วย', 'Unit Price'),
             render: (v: number) => v != null ? `฿${Number(v).toFixed(4)}` : '—',
         },
         {
-            key: 'total_amount', title: 'จำนวนเงิน',
-            render: (v: number) => v != null ? <strong style={{ color: C.accent }}>฿{Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 })}</strong> : '—',
+            key: 'total_amount', title: t('จำนวนเงิน', 'Amount'),
+            render: (v: number) => v != null ? <strong style={{ color: C.accent }}>฿{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong> : '—',
         },
     ];
 
@@ -104,7 +106,7 @@ const EnergyReportPage: React.FC = () => {
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
                         <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>REPORTS // ENERGY</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>รายงานสรุปปริมาณการใช้พลังงานและคิดเงินตามกิโลวัตต์-ชั่วโมง</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('รายงานสรุปปริมาณการใช้พลังงานและคิดเงินตามกิโลวัตต์-ชั่วโมง', 'Summary report of energy consumption and billing based on kWh')}</div>
                     </div>
                 </div>
             </div>
@@ -118,7 +120,7 @@ const EnergyReportPage: React.FC = () => {
                     />
                 }
             />
-            <DataTable title="รายงานการใช้พลังงาน" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('รายงานการใช้พลังงาน', 'Energy Consumption Report')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
         </div>
     );
 };

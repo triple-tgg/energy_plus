@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import { dashboardApi, reportsApi } from '../../api/client';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -22,6 +23,7 @@ const THEMES = {
 
 const ConsumptionTable: React.FC = () => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -63,27 +65,27 @@ const ConsumptionTable: React.FC = () => {
             link.remove();
         } catch (err) {
             console.error(err);
-            alert('Export failed');
+            alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
         }
     };
 
     const columns = [
-        { key: 'meter_code', title: 'รหัสมิเตอร์' },
-        { key: 'meter_name', title: 'ชื่อมิเตอร์' },
-        { key: 'building_name', title: 'อาคาร' },
-        { key: 'zone_name', title: 'โซน' },
-        { key: 'room_name', title: 'ห้อง' },
+        { key: 'meter_code', title: t('รหัสมิเตอร์', 'Meter Code') },
+        { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
+        { key: 'building_name', title: t('อาคาร', 'Building') },
+        { key: 'zone_name', title: t('โซน', 'Zone') },
+        { key: 'room_name', title: t('ห้อง', 'Room') },
         {
             key: 'kwh', title: 'KWh',
-            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 })}</strong> : '—',
+            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong> : '—',
         },
         {
             key: 'kw', title: 'KW',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'kva', title: 'KVA',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'frequency', title: 'Frequency',
@@ -98,8 +100,8 @@ const ConsumptionTable: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>DASHBOARD // CONSUMPTION</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>ตารางแสดงการใช้พลังงานจำแนกตามมิเตอร์และช่วงเวลา</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('แดชบอร์ด // การใช้ไฟ', 'DASHBOARD // CONSUMPTION')}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ตารางแสดงการใช้พลังงานจำแนกตามมิเตอร์และช่วงเวลา', 'Table displaying energy consumption classified by meter and time period')}</div>
                     </div>
                 </div>
             </div>
@@ -114,7 +116,7 @@ const ConsumptionTable: React.FC = () => {
             />
 
             <DataTable
-                title="ข้อมูลการใช้ไฟรายมิเตอร์"
+                title={t('ข้อมูลการใช้ไฟรายมิเตอร์', 'Meter Energy Consumption')}
                 columns={columns}
                 data={data}
                 total={total}

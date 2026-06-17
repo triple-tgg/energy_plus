@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { sitesApi, metersApi } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export interface FilterValues {
     startDate?: string;
@@ -40,6 +41,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     loading = false,
     actions,
 }) => {
+    const { language, t } = useLanguage();
     const [filters, setFilters] = useState<FilterValues>({
         startDate: today,
         endDate: today,
@@ -101,9 +103,12 @@ const FilterBar: React.FC<FilterBarProps> = ({
         onSubmit(filters);
     };
 
-    const months = [
+    const months = language === 'th' ? [
         'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ] : [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December',
     ];
 
     return (
@@ -150,7 +155,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 {showMeterType && (
                     <div className="filter-bar__item">
                         <select className="form-control form-control-sm" value={filters.meterTypeId} onChange={e => update('meterTypeId', e.target.value)}>
-                            <option value="">ทุกประเภท</option>
+                            <option value="">{t('ประเภททั้งหมด', 'All Types')}</option>
                             {meterTypes.map((t: any) => (
                                 <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>
                             ))}
@@ -161,7 +166,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 {showSite && (
                     <div className="filter-bar__item">
                         <select className="form-control form-control-sm" value={filters.siteId} onChange={e => { update('siteId', e.target.value); update('buildingId', ''); update('zoneId', ''); }}>
-                            <option value="">ทุก Site</option>
+                            <option value="">{t('ไซต์ทั้งหมด', 'All Sites')}</option>
                             {sites.map((s: any) => (
                                 <option key={s.site_id} value={s.site_id}>{s.site_name}</option>
                             ))}
@@ -172,7 +177,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 {showBuilding && (
                     <div className="filter-bar__item">
                         <select className="form-control form-control-sm" value={filters.buildingId} onChange={e => { update('buildingId', e.target.value); update('zoneId', ''); }}>
-                            <option value="">ทุกอาคาร</option>
+                            <option value="">{t('อาคารทั้งหมด', 'All Buildings')}</option>
                             {buildings.map((b: any) => (
                                 <option key={b.building_id} value={b.building_id}>{b.building_name}</option>
                             ))}
@@ -183,7 +188,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 {showZone && (
                     <div className="filter-bar__item">
                         <select className="form-control form-control-sm" value={filters.zoneId} onChange={e => update('zoneId', e.target.value)}>
-                            <option value="">ทุกโซน</option>
+                            <option value="">{t('โซนทั้งหมด', 'All Zones')}</option>
                             {zones.map((z: any) => (
                                 <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>
                             ))}
@@ -196,7 +201,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                         <input
                             type="text"
                             className="form-control form-control-sm"
-                            placeholder="Search Meter..."
+                            placeholder={t('ค้นหามิเตอร์...', 'Search Meter...')}
                             value={filters.searchMeter}
                             onChange={e => update('searchMeter', e.target.value)}
                         />
@@ -204,7 +209,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 )}
 
                 <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={loading}>
-                    {loading ? '⏳ กำลังโหลด...' : '🔍 Show Data'}
+                    {loading ? t('⏳ กำลังโหลด...', '⏳ Loading...') : t('🔍 แสดงข้อมูล', '🔍 Show Data')}
                 </button>
 
                 {actions}

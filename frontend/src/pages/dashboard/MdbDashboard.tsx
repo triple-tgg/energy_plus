@@ -6,6 +6,7 @@ import { dashboardApi } from '../../api/client';
 import { Bar } from 'react-chartjs-2';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
@@ -25,6 +26,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const MdbDashboard: React.FC = () => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -71,20 +73,20 @@ const MdbDashboard: React.FC = () => {
 
     const columns = [
         { key: 'mdb_name', title: 'MDB' },
-        { key: 'meter_code', title: 'รหัสมิเตอร์' },
-        { key: 'building_name', title: 'อาคาร' },
-        { key: 'zone_name', title: 'โซน' },
+        { key: 'meter_code', title: t('รหัสมิเตอร์', 'Meter Code') },
+        { key: 'building_name', title: t('อาคาร', 'Building') },
+        { key: 'zone_name', title: t('โซน', 'Zone') },
         {
             key: 'kwh', title: 'KWh',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'kw', title: 'KW',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'kva', title: 'KVA',
-            render: (v: number) => v != null ? Number(v).toLocaleString('th-TH', { maximumFractionDigits: 2 }) : '—',
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
     ];
 
@@ -95,8 +97,8 @@ const MdbDashboard: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>DASHBOARD // MDB</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>แดชบอร์ดติดตามข้อมูลการใช้พลังงานแยกตามตู้ไฟ MDB</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('แดชบอร์ด // MDB', 'DASHBOARD // MDB')}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('แดชบอร์ดติดตามข้อมูลการใช้พลังงานแยกตามตู้ไฟ MDB', 'Dashboard tracking energy consumption by Main Distribution Board (MDB)')}</div>
                     </div>
                 </div>
             </div>
@@ -111,33 +113,33 @@ const MdbDashboard: React.FC = () => {
                     padding: '20px 24px',
                     marginBottom: 20,
                 }}>
-                    <h3 style={{ marginBottom: 16, fontWeight: 700, fontFamily: MONO, fontSize: 14, color: C.ink, letterSpacing: '0.5px' }}>ENERGY CONSUMPTION BY MDB (KWH)</h3>
+                    <h3 style={{ marginBottom: 16, fontWeight: 700, fontFamily: MONO, fontSize: 14, color: C.ink, letterSpacing: '0.5px' }}>{t('ปริมาณการใช้ไฟฟ้าจำแนกตามตู้ MDB (KWH)', 'ENERGY CONSUMPTION BY MDB (KWH)')}</h3>
                     <div style={{ height: 350 }}>
                         <Bar
-                            data={chartData}
-                            options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: { legend: { display: false } },
-                                scales: {
-                                    y: { 
-                                        beginAtZero: true, 
-                                        grid: { color: C.line },
-                                        ticks: { color: C.sub, font: { family: MONO, size: 10 } }
-                                    },
-                                    x: { 
-                                        grid: { display: false },
-                                        ticks: { color: C.sub, font: { family: MONO, size: 10 } }
-                                    },
-                                },
-                            }}
+                             data={chartData}
+                             options={{
+                                 responsive: true,
+                                 maintainAspectRatio: false,
+                                 plugins: { legend: { display: false } },
+                                 scales: {
+                                     y: { 
+                                         beginAtZero: true, 
+                                         grid: { color: C.line },
+                                         ticks: { color: C.sub, font: { family: MONO, size: 10 } }
+                                     },
+                                     x: { 
+                                         grid: { display: false },
+                                         ticks: { color: C.sub, font: { family: MONO, size: 10 } }
+                                     },
+                                 },
+                             }}
                         />
                     </div>
                 </div>
             )}
 
             <DataTable
-                title="รายละเอียด MDB"
+                title={t('รายละเอียด MDB', 'MDB Details')}
                 columns={columns}
                 data={data}
                 total={total}

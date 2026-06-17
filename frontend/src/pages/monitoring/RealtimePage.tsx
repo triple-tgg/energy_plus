@@ -3,6 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid } from 'lucide-react';
 import axios from 'axios';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -63,6 +64,7 @@ interface ChartDataPoint {
 
 const RealtimePage: React.FC = () => {
     const { theme } = useTheme();
+    const { t, language } = useLanguage();
     const C = THEMES[theme];
     const [meters, setMeters] = useState<RealtimeMeterData[]>([]);
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
@@ -82,8 +84,8 @@ const RealtimePage: React.FC = () => {
         if (data.vl1 < 210 || data.vl1 > 235) {
             newAlerts.push({
                 id: `${data.meter_code}-v1-${Date.now()}`,
-                time: new Date().toLocaleTimeString(),
-                msg: `มิเตอร์ ${data.meter_code} (${data.meter_name}): แรงดัน L1 ผิดปกติ (${data.vl1} V)`,
+                time: new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'),
+                msg: `${t('มิเตอร์', 'Meter')} ${data.meter_code} (${data.meter_name}): ${t('แรงดันไฟฟ้า L1 ผิดปกติ', 'L1 voltage abnormal')} (${data.vl1} V)`,
                 type: data.vl1 < 205 ? 'danger' : 'warning'
             });
         }
@@ -93,8 +95,8 @@ const RealtimePage: React.FC = () => {
         if (avgPf < 0.8 && avgPf > 0) {
             newAlerts.push({
                 id: `${data.meter_code}-pf-${Date.now()}`,
-                time: new Date().toLocaleTimeString(),
-                msg: `มิเตอร์ ${data.meter_code} (${data.meter_name}): ค่า Power Factor ต่ำ (${avgPf.toFixed(2)})`,
+                time: new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'),
+                msg: `${t('มิเตอร์', 'Meter')} ${data.meter_code} (${data.meter_name}): ${t('ตัวประกอบกำลังต่ำ', 'Low Power Factor')} (${avgPf.toFixed(2)})`,
                 type: 'warning'
             });
         }
@@ -241,16 +243,16 @@ const RealtimePage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>MONITORING // REALTIME</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('การติดตามข้อมูล // เรียลไทม์', 'MONITORING // REALTIME')}</div>
                         <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>
-                            แสดงผลข้อมูลมิเตอร์จากตาราง <code style={{ color: C.accent, padding: '1px 4px', background: C.barSub + '1a', fontFamily: MONO }}>meter_data_realtime</code>
+                            {t('แสดงข้อมูลมิเตอร์แบบเรียลไทม์จาก', 'Real-time meter data display from')} <code style={{ color: C.accent, padding: '1px 4px', background: C.barSub + '1a', fontFamily: MONO }}>meter_data_realtime</code>
                         </div>
                     </div>
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: C.barSub }}>LAST SYNC:</span>
+                        <span style={{ color: C.barSub }}>{t('ซิงค์ล่าสุด:', 'LAST SYNC:')}</span>
                         <span style={{ color: '#fff', fontWeight: 700 }}>{lastFetchTime || '-'}</span>
                     </div>
 
@@ -260,9 +262,9 @@ const RealtimePage: React.FC = () => {
                             display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',
                             background: 'transparent', border: `1px solid #ffffff33`, padding: '5px 9px', cursor: 'pointer'
                         }}
-                        title="Force Sync Data"
+                        title={t('ซิงค์ข้อมูลทันที', 'Force Sync Data')}
                     >
-                        <RefreshCw size={11} className={dbSyncStatus === 'syncing' ? 'spin' : ''} /> SYNC
+                        <RefreshCw size={11} className={dbSyncStatus === 'syncing' ? 'spin' : ''} /> {t('ซิงค์', 'SYNC')}
                     </button>
                 </div>
             </div>
@@ -277,11 +279,11 @@ const RealtimePage: React.FC = () => {
                 {/* Database Sync Status Card */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sync Status</span>
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานะการซิงค์', 'Sync Status')}</span>
                         <Radio size={20} style={{ color: syncColor }} />
                     </div>
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
-                        {dbSyncStatus === 'active' ? 'Connected' : dbSyncStatus === 'syncing' ? 'Syncing...' : 'Error'}
+                        {dbSyncStatus === 'active' ? t('เชื่อมต่อแล้ว', 'Connected') : dbSyncStatus === 'syncing' ? t('กำลังซิงค์...', 'Syncing...') : t('ขัดข้อง', 'Error')}
                     </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: MONO, color: syncColor, fontWeight: 600 }}>
                         <span style={{
@@ -289,49 +291,49 @@ const RealtimePage: React.FC = () => {
                             backgroundColor: syncColor,
                             boxShadow: dbSyncStatus === 'active' ? `0 0 8px ${C.green}` : 'none'
                         }} />
-                        {dbSyncStatus === 'active' ? 'LIVE TELEMETRY (5S)' : 'UPDATING CACHE...'}
+                        {dbSyncStatus === 'active' ? t('ดึงข้อมูลสด (5วินาที)', 'LIVE TELEMETRY (5S)') : t('กำลังอัปเดตแคช...', 'UPDATING CACHE...')}
                     </div>
                 </div>
 
                 {/* Active Meters Card */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Power Meters</span>
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('มิเตอร์ที่กำลังทำงาน', 'Active Power Meters')}</span>
                         <Cpu size={20} style={{ color: C.accent }} />
                     </div>
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
                         {activeCount} / 5
                     </h3>
                     <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
-                        ACTIVE CHANNELS IN PROCESS
+                        {t('ช่องสัญญาณที่ทำงานในระบบ', 'ACTIVE CHANNELS IN PROCESS')}
                     </span>
                 </div>
 
                 {/* Total Load Card */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Active Load</span>
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('โหลดกำลังไฟฟ้ารวม', 'Total Active Load')}</span>
                         <Zap size={20} style={{ color: C.yellow }} />
                     </div>
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.yellow }}>
                         {totalPower.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW
                     </h3>
                     <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
-                        AGGREGATED REALTIME POWER DEMAND
+                        {t('ความต้องการกำลังไฟฟ้ารวมเรียลไทม์', 'AGGREGATED REALTIME POWER DEMAND')}
                     </span>
                 </div>
 
                 {/* Avg Voltage Card */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Avg Line-to-Neutral</span>
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('แรงดันไฟฟ้าเฉลี่ย (L-N)', 'Avg Line-to-Neutral')}</span>
                         <Activity size={20} style={{ color: C.accent }} />
                     </div>
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
                         {avgVoltage.toFixed(1)} V
                     </h3>
                     <span style={{ fontSize: '11px', color: avgVoltage > 215 && avgVoltage < 230 ? C.green : C.red, fontWeight: 600, fontFamily: MONO }}>
-                        {avgVoltage > 215 && avgVoltage < 230 ? 'VOLTAGE NOMINAL' : 'VOLTAGE OUT OF TOLERANCE'}
+                        {avgVoltage > 215 && avgVoltage < 230 ? t('แรงดันไฟฟ้าปกติ', 'VOLTAGE NOMINAL') : t('แรงดันไฟฟ้านอกขอบเขต', 'VOLTAGE OUT OF TOLERANCE')}
                     </span>
                 </div>
             </div>
@@ -357,9 +359,9 @@ const RealtimePage: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                         <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
                             <Activity size={16} style={{ color: C.accent }} />
-                            ACTIVE POWER LOAD WAVEFORM (kW)
+                            {t('กราฟแสดงโหลดกำลังไฟฟ้าจริง (kW)', 'ACTIVE POWER LOAD WAVEFORM (kW)')}
                         </h4>
-                        <span style={{ fontSize: '10px', fontFamily: MONO, color: C.sub, fontWeight: 600 }}>15-POINT BUFFER</span>
+                        <span style={{ fontSize: '10px', fontFamily: MONO, color: C.sub, fontWeight: 600 }}>{t('บัฟเฟอร์ 15 จุดล่าสุด', '15-POINT BUFFER')}</span>
                     </div>
 
                     <div style={{ width: '100%', height: 300 }}>
@@ -400,7 +402,7 @@ const RealtimePage: React.FC = () => {
                             </ResponsiveContainer>
                         ) : (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: MONO, color: C.sub }}>
-                                LOADING WAVEFORM DATA...
+                                {t('กำลังโหลดข้อมูลกราฟ...', 'LOADING WAVEFORM DATA...')}
                             </div>
                         )}
                     </div>
@@ -419,7 +421,7 @@ const RealtimePage: React.FC = () => {
                 }}>
                     <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
                         <ShieldAlert size={16} style={{ color: C.red }} />
-                        Realtime Alerts
+                        {t('การแจ้งเตือนเรียลไทม์', 'Realtime Alerts')}
                     </h4>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
@@ -439,7 +441,7 @@ const RealtimePage: React.FC = () => {
                                     }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sub, fontSize: '9px', fontFamily: MONO, marginBottom: '4px' }}>
                                             <span style={{ fontWeight: 700, color: alertColor }}>
-                                                {al.type.toUpperCase()}
+                                                {al.type === 'danger' ? t('อันตราย', 'DANGER') : t('เตือนภัย', 'WARNING')}
                                             </span>
                                             <span style={{ fontWeight: 600 }}>{al.time}</span>
                                         </div>
@@ -450,7 +452,7 @@ const RealtimePage: React.FC = () => {
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: C.sub, gap: '8px', paddingTop: '40px' }}>
                                 <AlertTriangle size={24} style={{ color: C.line }} />
-                                <span style={{ fontWeight: 600, fontFamily: MONO, fontSize: 11 }}>SYSTEM HEALTH OK</span>
+                                <span style={{ fontWeight: 600, fontFamily: MONO, fontSize: 11 }}>{t('ระบบทำงานปกติ', 'SYSTEM HEALTH OK')}</span>
                             </div>
                         )}
                     </div>
@@ -468,7 +470,7 @@ const RealtimePage: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
                         <Cpu size={16} style={{ color: C.accent }} />
-                        METER CHANNELS REALTIME DIAGNOSTICS
+                        {t('การตรวจวิเคราะห์มิเตอร์แบบเรียลไทม์', 'METER CHANNELS REALTIME DIAGNOSTICS')}
                     </h4>
                 </div>
 
@@ -476,16 +478,16 @@ const RealtimePage: React.FC = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', fontFamily: MONO }}>
                         <thead>
                             <tr style={{ borderBottom: `2px solid ${C.line}`, color: C.sub, fontWeight: 700 }}>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Code</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Meter Name</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Voltage (V)</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Current (A)</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Active Power (kW)</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Apparent Power (kVA)</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Power Factor</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Frequency (Hz)</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Total Energy (kWh)</th>
-                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>Update Time</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('รหัส', 'Code')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('ชื่อมิเตอร์', 'Meter Name')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('แรงดันไฟฟ้า (V)', 'Voltage (V)')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('กระแสไฟฟ้า (A)', 'Current (A)')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('กำลังไฟฟ้าจริง (kW)', 'Active Power (kW)')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('กำลังไฟฟ้าปรากฏ (kVA)', 'Apparent Power (kVA)')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('ตัวประกอบกำลัง (PF)', 'Power Factor')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('ความถี่ (Hz)', 'Frequency (Hz)')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('พลังงานไฟฟ้ารวม (kWh)', 'Total Energy (kWh)')}</th>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('เวลาอัปเดตล่าสุด', 'Update Time')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -540,7 +542,7 @@ const RealtimePage: React.FC = () => {
                             ) : (
                                 <tr>
                                     <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: C.sub }}>
-                                        NO METER REGISTRIES FOUND
+                                        {t('ไม่พบข้อมูลการลงทะเบียนมิเตอร์', 'NO METER REGISTRIES FOUND')}
                                     </td>
                                 </tr>
                             )}

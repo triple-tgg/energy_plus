@@ -76,4 +76,18 @@ export class SitesController {
     async deleteZone(req: Request, res: Response, next: NextFunction) {
         try { await zonesService.deleteZone(parseInt(req.params.id)); res.json(successResponse(null, 'Zone deleted')); } catch (error) { next(error); }
     }
+
+    async getSiteUsers(req: Request, res: Response, next: NextFunction) {
+        try {
+            const users = await sitesService.getSiteUsers(parseInt(req.params.id));
+            res.json(successResponse(users));
+        } catch (error) { next(error); }
+    }
+
+    async updateSiteUsers(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await sitesService.updateSiteUsers(parseInt(req.params.id), req.body.userIds);
+            res.json(successResponse(result, 'Site users updated'));
+        } catch (error) { next(error); }
+    }
 }

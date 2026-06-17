@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { alarmsApi, metersApi } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ConfigForm {
     meterId: string;
@@ -24,6 +25,7 @@ const emptyForm: ConfigForm = {
 };
 
 const AlarmConfigsPage: React.FC = () => {
+    const { t } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -91,7 +93,7 @@ const AlarmConfigsPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.meterId) { setFormError('กรุณาเลือกมิเตอร์'); return; }
+        if (!form.meterId) { setFormError(t('กรุณาเลือกมิเตอร์', 'Please select a meter')); return; }
         setSaving(true); setFormError('');
         try {
             const payload = {
@@ -105,13 +107,13 @@ const AlarmConfigsPage: React.FC = () => {
             };
             if (editId) {
                 await alarmsApi.updateConfig(editId, payload);
-                setSuccessMsg('อัพเดตการตั้งค่าแจ้งเตือนสำเร็จ!');
+                setSuccessMsg(t('อัปเดตการตั้งค่าการแจ้งเตือนสำเร็จ!', 'Updated alarm configuration successfully!'));
             } else {
                 await alarmsApi.createConfig(payload);
-                setSuccessMsg('สร้างการตั้งค่าแจ้งเตือนสำเร็จ!');
+                setSuccessMsg(t('สร้างการตั้งค่าการแจ้งเตือนสำเร็จ!', 'Created alarm configuration successfully!'));
             }
             setShowModal(false); fetchData();
-        } catch (err: any) { setFormError(err.response?.data?.message || 'บันทึกไม่สำเร็จ'); }
+        } catch (err: any) { setFormError(err.response?.data?.message || t('บันทึกไม่สำเร็จ', 'Save failed')); }
         setSaving(false);
     };
 
@@ -122,30 +124,34 @@ const AlarmConfigsPage: React.FC = () => {
         setDeleting(true);
         try {
             await alarmsApi.deleteConfig(deleteTarget.alarm_config_id);
-            setSuccessMsg('ลบการตั้งค่าแจ้งเตือนสำเร็จ!');
+            setSuccessMsg(t('ลบการตั้งค่าการแจ้งเตือนสำเร็จ!', 'Deleted alarm configuration successfully!'));
             setShowDelete(false); setDeleteTarget(null); fetchData();
-        } catch (err: any) { alert(err.response?.data?.message || 'ลบไม่สำเร็จ'); }
+        } catch (err: any) { alert(err.response?.data?.message || t('ลบไม่สำเร็จ', 'Delete failed')); }
         setDeleting(false);
     };
 
     const columns = [
         {
-            key: 'meter_name', title: 'มิเตอร์',
+            key: 'meter_name', title: t('มิเตอร์', 'Meter'),
             render: (v: string, row: any) => <span>{row.meter_code} — {v}</span>,
         },
-        { key: 'energy_value_name', title: 'ค่าพลังงาน' },
-        { key: 'lower_value', title: 'ค่าต่ำสุด' },
-        { key: 'higher_value', title: 'ค่าสูงสุด' },
+        { key: 'energy_value_name', title: t('พารามิเตอร์พลังงาน', 'Energy Parameter') },
+        { key: 'lower_value', title: t('ขีดจำกัดล่าง', 'Lower Limit') },
+        { key: 'higher_value', title: t('ขีดจำกัดบน', 'Higher Limit') },
         {
-            key: 'is_active', title: 'สถานะ',
-            render: (v: boolean) => <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>{v ? 'ใช้งาน' : 'ปิด'}</span>,
+            key: 'is_active', title: t('สถานะ', 'Status'),
+            render: (v: boolean) => (
+                <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>
+                    {v ? t('ใช้งาน', 'Active') : t('ปิดใช้งาน', 'Inactive')}
+                </span>
+            ),
         },
         {
-            key: 'actions', title: 'จัดการ',
+            key: 'actions', title: t('การจัดการ', 'Actions'),
             render: (_: any, row: any) => (
                 <div className="table-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ แก้ไข</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ ลบ</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>{t('✏️ แก้ไข', '✏️ Edit')}</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>{t('🗑️ ลบ', '🗑️ Delete')}</button>
                 </div>
             ),
         },
@@ -154,65 +160,65 @@ const AlarmConfigsPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title="ตั้งค่าแจ้งเตือน" columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel="เพิ่มการแจ้งเตือน" />
+            <DataTable title={t('ตั้งค่าการแจ้งเตือน', 'Alarm Settings')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มการตั้งค่าการแจ้งเตือน', 'Add Alarm Configuration')} />
 
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? 'แก้ไขการแจ้งเตือน' : 'เพิ่มการแจ้งเตือน'} size="lg"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>ยกเลิก</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'กำลังบันทึก...' : editId ? 'อัพเดต' : 'สร้าง'}</button></div>}
+            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขการตั้งค่าการแจ้งเตือน', 'Edit Alarm Configuration') : t('เพิ่มการตั้งค่าการแจ้งเตือน', 'Add Alarm Configuration')} size="lg"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
 
-                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>มิเตอร์และค่าพลังงาน</div>
+                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('มิเตอร์และพารามิเตอร์', 'Meter and Parameter')}</div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">มิเตอร์ <span style={{ color: 'var(--danger)' }}>*</span></label>
+                        <label className="form-label">{t('มิเตอร์', 'Meter')} <span style={{ color: 'var(--danger)' }}>*</span></label>
                         <select className="form-control" value={form.meterId} onChange={e => setForm({ ...form, meterId: e.target.value })}>
-                            <option value="">— เลือกมิเตอร์ —</option>
+                            <option value="">{t('— เลือกมิเตอร์ —', '— Select Meter —')}</option>
                             {meters.map(m => <option key={m.meter_id} value={m.meter_id}>{m.meter_code} — {m.meter_name}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">ค่าพลังงาน</label>
+                        <label className="form-label">{t('พารามิเตอร์พลังงาน', 'Energy Parameter')}</label>
                         <select className="form-control" value={form.energyValueId} onChange={e => setForm({ ...form, energyValueId: e.target.value })}>
-                            <option value="">— เลือก —</option>
+                            <option value="">{t('— เลือก —', '— Select —')}</option>
                             {energyValues.map(ev => <option key={ev.energy_value_id} value={ev.energy_value_id}>{ev.energy_value_name}</option>)}
                         </select>
                     </div>
                 </div>
 
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ขีดจำกัด</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ขีดจำกัด', 'Limits')}</div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">ค่าต่ำสุด</label>
+                        <label className="form-label">{t('ขีดจำกัดล่าง', 'Lower Limit')}</label>
                         <input type="number" className="form-control" placeholder="0" value={form.lowerValue} onChange={e => setForm({ ...form, lowerValue: e.target.value })} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">ค่าสูงสุด</label>
+                        <label className="form-label">{t('ขีดจำกัดบน', 'Higher Limit')}</label>
                         <input type="number" className="form-control" placeholder="0" value={form.higherValue} onChange={e => setForm({ ...form, higherValue: e.target.value })} />
                     </div>
                 </div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">ข้อความค่าต่ำ</label>
-                        <input type="text" className="form-control" placeholder="ข้อความแจ้งเตือนค่าต่ำ" value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value })} />
+                        <label className="form-label">{t('ข้อความเตือนเมื่อขีดจำกัดต่ำกว่า', 'Lower Alert Message')}</label>
+                        <input type="text" className="form-control" placeholder={t('ข้อความแจ้งเตือนเมื่อต่ำกว่าขีดจำกัด', 'Alarm message for lower limit')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value })} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">ข้อความค่าสูง</label>
-                        <input type="text" className="form-control" placeholder="ข้อความแจ้งเตือนค่าสูง" value={form.higherMessage} onChange={e => setForm({ ...form, higherMessage: e.target.value })} />
+                        <label className="form-label">{t('ข้อความเตือนเมื่อขีดจำกัดสูงกว่า', 'Higher Alert Message')}</label>
+                        <input type="text" className="form-control" placeholder={t('ข้อความแจ้งเตือนเมื่อสูงกว่าขีดจำกัด', 'Alarm message for higher limit')} value={form.higherMessage} onChange={e => setForm({ ...form, higherMessage: e.target.value })} />
                     </div>
                 </div>
 
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>อุปกรณ์เตือน</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('อุปกรณ์แจ้งเตือน', 'Warning Devices')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <input type="checkbox" checked={form.isLampOn} onChange={e => setForm({ ...form, isLampOn: e.target.checked })} style={{ width: 18, height: 18 }} />
-                            เปิดไฟเตือน
+                            {t('เปิดใช้งานไฟเตือน', 'Enable Warning Lamp')}
                         </label>
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <input type="checkbox" checked={form.isBuzzerOn} onChange={e => setForm({ ...form, isBuzzerOn: e.target.checked })} style={{ width: 18, height: 18 }} />
-                            เปิดเสียงเตือน
+                            {t('เปิดใช้งานไซเรนเตือน', 'Enable Warning Buzzer')}
                         </label>
                     </div>
                 </div>
@@ -220,17 +226,17 @@ const AlarmConfigsPage: React.FC = () => {
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: 18, height: 18, accentColor: 'var(--success)' }} />
-                        ใช้งาน
+                        {t('เปิดใช้งาน', 'Active')}
                     </label>
                 </div>
             </Modal>
 
-            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title="ยืนยันการลบ" size="sm"
-                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>ยกเลิก</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? 'กำลังลบ...' : 'ลบ'}</button></div>}
+            <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title={t('ยืนยันการลบ', 'Confirm Delete')} size="sm"
+                footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowDelete(false)} disabled={deleting}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleting}>{deleting ? t('กำลังลบ...', 'Deleting...') : t('ลบ', 'Delete')}</button></div>}
             >
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-                    <p style={{ fontSize: 16, marginBottom: 8 }}>ลบการแจ้งเตือนของ</p>
+                    <p style={{ fontSize: 16, marginBottom: 8 }}>{t('ต้องการลบการตั้งค่าการแจ้งเตือนสำหรับ', 'Delete alarm configuration for')}</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>"{deleteTarget?.meter_name}"</p>
                 </div>
             </Modal>

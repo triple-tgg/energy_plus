@@ -72,9 +72,9 @@ export class AuthService {
             siteName: s.site_name,
         }));
 
-        // Get permissions
+        // Get permissions (only modules where can_view = true)
         const permResult = await query(
-            `SELECT permission_key FROM user_permission WHERE group_id = $1`,
+            `SELECT permission_key FROM user_permission WHERE group_id = $1 AND can_view = true`,
             [user.group_id]
         );
 

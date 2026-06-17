@@ -48,6 +48,9 @@ export const usersApi = {
     createGroup: (data: any) => api.post('/users/groups', data),
     updateGroup: (id: number, data: any) => api.put(`/users/groups/${id}`, data),
     deleteGroup: (id: number) => api.delete(`/users/groups/${id}`),
+    resetPassword: (id: number, data: { password: string }) => api.post(`/users/${id}/reset-password`, data),
+    getGroupPermissions: (id: number) => api.get(`/users/groups/${id}/permissions`),
+    updateGroupPermissions: (id: number, data: { permissions: any[] }) => api.put(`/users/groups/${id}/permissions`, data),
 };
 
 // Sites
@@ -58,6 +61,8 @@ export const sitesApi = {
     create: (data: any) => api.post('/sites', data),
     update: (id: number, data: any) => api.put(`/sites/${id}`, data),
     delete: (id: number) => api.delete(`/sites/${id}`),
+    getSiteUsers: (id: number) => api.get(`/sites/${id}/users`),
+    updateSiteUsers: (id: number, data: { userIds: number[] }) => api.put(`/sites/${id}/users`, data),
     getBuildings: (siteId: number, params?: any) => api.get(`/sites/${siteId}/buildings`, { params }),
     getAllBuildings: (params?: any) => api.get('/sites/buildings/list', { params }),
     createBuilding: (data: any) => api.post('/sites/buildings', data),

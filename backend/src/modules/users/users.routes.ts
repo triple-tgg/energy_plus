@@ -11,6 +11,7 @@ router.get('/:id', authenticate, controller.getUserById);
 router.post('/', authenticate, controller.createUser);
 router.put('/:id', authenticate, controller.updateUser);
 router.delete('/:id', authenticate, controller.deleteUser);
+router.post('/:id/reset-password', authenticate, controller.resetPassword);
 
 // Groups
 router.get('/groups/list', authenticate, controller.getGroups);
@@ -18,5 +19,7 @@ router.get('/groups/:id', authenticate, controller.getGroupById);
 router.post('/groups', authenticate, controller.createGroup);
 router.put('/groups/:id', authenticate, controller.updateGroup);
 router.delete('/groups/:id', authenticate, controller.deleteGroup);
+router.get('/groups/:id/permissions', authenticate, controller.getGroupPermissions);
+router.put('/groups/:id/permissions', authenticate, controller.updateGroupPermissions);
 
 export default router;

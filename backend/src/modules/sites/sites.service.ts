@@ -1,4 +1,4 @@
-import { query } from '../../config/database';
+import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 
@@ -70,6 +70,38 @@ export class SitesService {
         const result = await query(`DELETE FROM sites WHERE site_id = $1 RETURNING site_id`, [siteId]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Site not found');
         return result.rows[0];
+    }
+
+    async getSiteUsers(siteId: number) {
+        const result = await query(
+            `SELECT u.user_id, u.user_name, u.display_name
+             FROM site_user_map sum
+             JOIN app_user u ON sum.user_id = u.user_id
+             WHERE sum.site_id = $1`,
+            [siteId]
+        );
+        return result.rows;
+    }
+
+    async updateSiteUsers(siteId: number, userIds: number[]) {
+        const client = await getClient();
+        try {
+            await client.query('BEGIN');
+            await client.query(`DELETE FROM site_user_map WHERE site_id = $1`, [siteId]);
+            for (const userId of userIds) {
+                await client.query(
+                    `INSERT INTO site_user_map (site_id, user_id) VALUES ($1, $2)`,
+                    [siteId, userId]
+                );
+            }
+            await client.query('COMMIT');
+            return { message: 'Site users updated successfully' };
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 }
 

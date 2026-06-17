@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ExportButtonsProps {
     onExportExcel?: () => void;
@@ -13,6 +14,8 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
     onExportPdf,
     loading = false,
 }) => {
+    const { t } = useLanguage();
+
     return (
         <div className="export-buttons">
             {onExportExcel && (
@@ -21,7 +24,7 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
                     onClick={onExportExcel}
                     disabled={loading}
                 >
-                    📥 Export Excel
+                    📥 {t('ส่งออก Excel', 'Export Excel')}
                 </button>
             )}
             {onExportText && (
@@ -30,7 +33,7 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
                     onClick={onExportText}
                     disabled={loading}
                 >
-                    📄 Export Text
+                    📄 {t('ส่งออกข้อความ', 'Export Text')}
                 </button>
             )}
             {onExportPdf && (
@@ -39,7 +42,7 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
                     onClick={onExportPdf}
                     disabled={loading}
                 >
-                    📑 Export PDF
+                    📑 {t('ส่งออก PDF', 'Export PDF')}
                 </button>
             )}
         </div>

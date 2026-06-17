@@ -26,6 +26,8 @@ router.get('/', authenticate, controller.getSites);
 router.post('/', authenticate, controller.createSite);
 router.get('/:id/hierarchy', authenticate, controller.getSiteHierarchy);
 router.get('/:id/buildings', authenticate, controller.getBuildings);
+router.get('/:id/users', authenticate, controller.getSiteUsers);
+router.put('/:id/users', authenticate, controller.updateSiteUsers);
 router.get('/:id', authenticate, controller.getSiteById);
 router.put('/:id', authenticate, controller.updateSite);
 router.delete('/:id', authenticate, controller.deleteSite);
