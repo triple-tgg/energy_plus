@@ -461,13 +461,30 @@ async function migrateAndSeed() {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         image_name VARCHAR(255),
-        image_url VARCHAR(500),
+        image_url TEXT,
         position VARCHAR(100),
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
         console.log('  ✅ layouts');
+
+        // Layout Points (points placed on layout images)
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS layout_points (
+        id SERIAL PRIMARY KEY,
+        layout_id INTEGER REFERENCES layouts(id) ON DELETE CASCADE,
+        point_type VARCHAR(50) NOT NULL,
+        label VARCHAR(200),
+        x_percent DECIMAL(8,4) NOT NULL,
+        y_percent DECIMAL(8,4) NOT NULL,
+        meter_id INTEGER REFERENCES meter(meter_id),
+        config JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+        console.log('  ✅ layout_points');
 
         // ═══════════════════════════════════════════════════════
         // 2. SEED DATA

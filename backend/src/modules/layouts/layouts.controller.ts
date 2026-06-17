@@ -30,10 +30,9 @@ export class LayoutsController {
             let image_url = undefined;
 
             if (req.file) {
-                image_name = req.file.originalname;
-                const protocol = req.protocol;
-                const host = req.get('host');
-                image_url = `${protocol}://${host}/uploads/layouts/${req.file.filename}`;
+                // Fix Thai filename encoding from multer (latin1 -> utf8)
+                image_name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+                image_url = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
             }
 
             const newLayout = await svc.createLayout({
@@ -57,10 +56,9 @@ export class LayoutsController {
             let image_url = undefined;
 
             if (req.file) {
-                image_name = req.file.originalname;
-                const protocol = req.protocol;
-                const host = req.get('host');
-                image_url = `${protocol}://${host}/uploads/layouts/${req.file.filename}`;
+                // Fix Thai filename encoding from multer (latin1 -> utf8)
+                image_name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+                image_url = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
             }
 
             const updatedLayout = await svc.updateLayout(id, {
@@ -86,26 +84,59 @@ export class LayoutsController {
         }
     }
 
-    // Dummy Stubs for positions and live endpoints to prevent frontend breakage
-    async getPositions(req: Request, res: Response, next: NextFunction) {
+    // ═══════════════════════════════════════════════════════
+    // Layout Points
+    // ═══════════════════════════════════════════════════════
+
+    async getPoints(req: Request, res: Response, next: NextFunction) {
         try {
-            res.json(successResponse([]));
+            const layoutId = parseInt(req.params.id, 10);
+            const points = await svc.getPoints(layoutId);
+            res.json(successResponse(points));
         } catch (e) {
             next(e);
         }
     }
 
-    async updatePositions(req: Request, res: Response, next: NextFunction) {
+    async savePoints(req: Request, res: Response, next: NextFunction) {
         try {
-            res.json(successResponse(null, 'Positions updated successfully'));
+            const layoutId = parseInt(req.params.id, 10);
+            const { points } = req.body;
+            if (!Array.isArray(points)) {
+                return res.status(400).json({ success: false, error: { message: 'points must be an array' } });
+            }
+            const saved = await svc.savePoints(layoutId, points);
+            res.json(successResponse(saved, 'Points saved successfully'));
         } catch (e) {
             next(e);
         }
     }
 
-    async getLiveData(req: Request, res: Response, next: NextFunction) {
+    async addPoint(req: Request, res: Response, next: NextFunction) {
         try {
-            res.json(successResponse([]));
+            const layoutId = parseInt(req.params.id, 10);
+            const point = await svc.addPoint(layoutId, req.body);
+            res.status(201).json(successResponse(point, 'Point added successfully'));
+        } catch (e) {
+            next(e);
+        }
+    }
+
+    async updatePoint(req: Request, res: Response, next: NextFunction) {
+        try {
+            const pointId = parseInt(req.params.pointId, 10);
+            const point = await svc.updatePoint(pointId, req.body);
+            res.json(successResponse(point, 'Point updated successfully'));
+        } catch (e) {
+            next(e);
+        }
+    }
+
+    async deletePoint(req: Request, res: Response, next: NextFunction) {
+        try {
+            const pointId = parseInt(req.params.pointId, 10);
+            await svc.deletePoint(pointId);
+            res.json(successResponse(null, 'Point deleted successfully'));
         } catch (e) {
             next(e);
         }

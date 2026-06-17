@@ -155,9 +155,12 @@ export const layoutsApi = {
     create: (data: FormData) => api.post('/layouts', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
     update: (id: number, data: FormData) => api.put(`/layouts/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } }),
     delete: (id: number) => api.delete(`/layouts/${id}`),
-    getPositions: (id: number) => api.get(`/layouts/${id}/positions`),
-    updatePositions: (id: number, data: any) => api.put(`/layouts/${id}/positions`, data),
-    getLiveData: (id: number) => api.get(`/layouts/${id}/live`),
+    // Points
+    getPoints: (id: number) => api.get(`/layouts/${id}/points`),
+    savePoints: (id: number, points: any[]) => api.put(`/layouts/${id}/points`, { points }),
+    addPoint: (id: number, data: any) => api.post(`/layouts/${id}/points`, data),
+    updatePoint: (id: number, pointId: number, data: any) => api.put(`/layouts/${id}/points/${pointId}`, data),
+    deletePoint: (id: number, pointId: number) => api.delete(`/layouts/${id}/points/${pointId}`),
 };
 
 // Export Settings

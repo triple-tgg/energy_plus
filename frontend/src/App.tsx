@@ -29,6 +29,7 @@ import ExportSettingsPage from './pages/settings/ExportSettingsPage';
 // Monitoring
 import RealtimePage from './pages/monitoring/RealtimePage';
 import DemandPeakPage from './pages/monitoring/DemandPeakPage';
+import LayoutViewPage from './pages/monitoring/LayoutViewPage';
 
 // Dashboard
 import ZoneDashboard from './pages/dashboard/ZoneDashboard';
@@ -76,7 +77,7 @@ const App: React.FC = () => {
 
                             {/* Monitoring */}
                             <Route path="/monitoring/realtime" element={<RealtimePage />} />
-                            <Route path="/monitoring/layout" element={<PlaceholderPage title="สายทาง (Single Line Diagram) xxx" icon="🔌" />} />
+                            <Route path="/monitoring/layout" element={<LayoutViewPage />} />
                             <Route path="/monitoring/demand-peak" element={<DemandPeakPage />} />
 
                             {/* Reports */}
