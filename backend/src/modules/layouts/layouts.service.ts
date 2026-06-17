@@ -8,7 +8,14 @@ export class LayoutsService {
         const countResult = await query(`SELECT COUNT(*) FROM layouts`);
         const total = parseInt(countResult.rows[0].count, 10);
         const result = await query(
-            `SELECT * FROM layouts ORDER BY id DESC LIMIT $1 OFFSET $2`,
+            `SELECT l.*,
+                    COALESCE(
+                        (SELECT json_agg(json_build_object('label', lp.label, 'point_type', lp.point_type) ORDER BY lp.id)
+                         FROM layout_points lp WHERE lp.layout_id = l.id
+                        ), '[]'::json
+                    ) AS point_labels
+             FROM layouts l
+             ORDER BY l.id DESC LIMIT $1 OFFSET $2`,
             [limit, offset]
         );
         return { data: result.rows, total, page, limit };

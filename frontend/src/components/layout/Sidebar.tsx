@@ -1,74 +1,89 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
+import {
+    Settings, Building2, Users, User, MapPin, Construction,
+    Package, Plug, Tag, RefreshCw, Zap,
+    Wrench, Bell, AlertTriangle, Coins, TrendingDown, Map, Upload,
+    Radio, BarChart3, Network, Activity,
+    FileText, BarChartBig, History, GitCompare, Clock,
+    LayoutDashboard, MapPinned, Gauge, Table,
+    type LucideIcon,
+} from 'lucide-react';
+
+interface NavItem {
+    label: string;
+    path: string;
+    icon: LucideIcon;
+}
 
 interface NavGroup {
     title: string;
-    icon: string;
-    items: { label: string; path: string; icon: string }[];
+    icon: LucideIcon;
+    items: NavItem[];
 }
 
 const navGroups: NavGroup[] = [
     {
         title: 'ผู้ดูแลระบบ',
-        icon: '⚙',
+        icon: Settings,
         items: [
-            { label: 'ข้อมูลบริษัท', path: '/admin/company', icon: '🏢' },
-            { label: 'กลุ่มผู้ใช้', path: '/admin/groups', icon: '👥' },
-            { label: 'ผู้ใช้งาน', path: '/admin/users', icon: '👤' },
-            { label: 'สถานที่', path: '/admin/sites', icon: '📍' },
-            { label: 'อาคาร', path: '/admin/buildings', icon: '🏗' },
+            { label: 'ข้อมูลบริษัท', path: '/admin/company', icon: Building2 },
+            { label: 'กลุ่มผู้ใช้', path: '/admin/groups', icon: Users },
+            { label: 'ผู้ใช้งาน', path: '/admin/users', icon: User },
+            { label: 'สถานที่', path: '/admin/sites', icon: MapPin },
+            { label: 'อาคาร', path: '/admin/buildings', icon: Construction },
         ],
     },
     {
         title: 'ข้อมูลหลัก',
-        icon: '📦',
+        icon: Package,
         items: [
-            { label: 'ประเภทมิเตอร์', path: '/master/types', icon: '🔌' },
-            { label: 'ยี่ห้อ', path: '/master/brands', icon: '🏷' },
-            { label: 'ลูป', path: '/master/loops', icon: '🔄' },
-            { label: 'มิเตอร์', path: '/master/meters', icon: '⚡' },
+            { label: 'ประเภทมิเตอร์', path: '/master/types', icon: Plug },
+            { label: 'ยี่ห้อ', path: '/master/brands', icon: Tag },
+            { label: 'ลูป', path: '/master/loops', icon: RefreshCw },
+            { label: 'มิเตอร์', path: '/master/meters', icon: Zap },
         ],
     },
     {
         title: 'ตั้งค่า',
-        icon: '🔧',
+        icon: Wrench,
         items: [
-            { label: 'กลุ่มแจ้งเตือน', path: '/settings/alarm-groups', icon: '🔔' },
-            { label: 'ตั้งค่าแจ้งเตือน', path: '/settings/alarm-configs', icon: '⚠' },
-            { label: 'อัตราค่าไฟ', path: '/settings/billing', icon: '💰' },
-            { label: 'ดีมานด์ / ประหยัด', path: '/settings/demand', icon: '📉' },
-            { label: 'ตั้งค่าภาพแผนผัง', path: '/settings/layouts', icon: '🗺' },
-            { label: 'ตั้งค่าการ Export', path: '/settings/export', icon: '📤' },
+            { label: 'กลุ่มแจ้งเตือน', path: '/settings/alarm-groups', icon: Bell },
+            { label: 'ตั้งค่าแจ้งเตือน', path: '/settings/alarm-configs', icon: AlertTriangle },
+            { label: 'อัตราค่าไฟ', path: '/settings/billing', icon: Coins },
+            { label: 'ดีมานด์ / ประหยัด', path: '/settings/demand', icon: TrendingDown },
+            { label: 'ตั้งค่าภาพแผนผัง', path: '/settings/layouts', icon: Map },
+            { label: 'ตั้งค่าการ Export', path: '/settings/export', icon: Upload },
         ],
     },
     {
         title: 'ตรวจสอบ',
-        icon: '📡',
+        icon: Radio,
         items: [
-            { label: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: '📊' },
-            { label: 'Single Line Diagram', path: '/monitoring/layout', icon: '🔌' },
-            { label: 'พยากรณ์ Demand Peak', path: '/monitoring/demand-peak', icon: '⚡' },
+            { label: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: Activity },
+            { label: 'Single Line Diagram', path: '/monitoring/layout', icon: Network },
+            { label: 'พยากรณ์ Demand Peak', path: '/monitoring/demand-peak', icon: Zap },
         ],
     },
     {
         title: 'รายงาน',
-        icon: '📄',
+        icon: FileText,
         items: [
-            { label: 'พลังงานตามช่วงเวลา', path: '/reports/energy', icon: '📈' },
-            { label: 'ข้อมูลพลังงานย้อนหลัง', path: '/reports/history', icon: '📜' },
-            { label: 'เปรียบเทียบเดือนก่อน', path: '/reports/comparison', icon: '🔀' },
-            { label: 'ข้อมูลการแจ้งเตือน', path: '/reports/alarms', icon: '🕐' },
+            { label: 'พลังงานตามช่วงเวลา', path: '/reports/energy', icon: BarChartBig },
+            { label: 'ข้อมูลพลังงานย้อนหลัง', path: '/reports/history', icon: History },
+            { label: 'เปรียบเทียบเดือนก่อน', path: '/reports/comparison', icon: GitCompare },
+            { label: 'ข้อมูลการแจ้งเตือน', path: '/reports/alarms', icon: Clock },
         ],
     },
     {
         title: 'แดชบอร์ด',
-        icon: '📊',
+        icon: LayoutDashboard,
         items: [
-            { label: 'การใช้พลังงานตามโซน', path: '/dashboard/zone', icon: '🗺' },
-            { label: 'การใช้พลังงาน MDB', path: '/dashboard/mdb', icon: '⚡' },
-            { label: 'ดีมานด์', path: '/dashboard/demand', icon: '📉' },
-            { label: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: '📋' },
+            { label: 'การใช้พลังงานตามโซน', path: '/dashboard/zone', icon: MapPinned },
+            { label: 'การใช้พลังงาน MDB', path: '/dashboard/mdb', icon: Gauge },
+            { label: 'ดีมานด์', path: '/dashboard/demand', icon: TrendingDown },
+            { label: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: Table },
         ],
     },
 ];
@@ -131,19 +146,24 @@ const Sidebar: React.FC = () => {
                             )}
                         </button>
                         <div className={`sidebar-section__items ${openGroups.has(group.title) ? 'sidebar-section__items--open' : ''}`}>
-                            {group.items.map(item => (
-                                <NavLink
-                                    key={item.path}
-                                    to={item.path}
-                                    className={({ isActive }) =>
-                                        `sidebar-link ${isActive ? 'sidebar-link--active' : ''}`
-                                    }
-                                    title={item.label}
-                                >
-                                    <span className="sidebar-link__icon">{item.icon}</span>
-                                    {!collapsed && <span className="sidebar-link__label">{item.label}</span>}
-                                </NavLink>
-                            ))}
+                            {group.items.map(item => {
+                                const IconComp = item.icon;
+                                return (
+                                    <NavLink
+                                        key={item.path}
+                                        to={item.path}
+                                        className={({ isActive }) =>
+                                            `sidebar-link ${isActive ? 'sidebar-link--active' : ''}`
+                                        }
+                                        title={item.label}
+                                    >
+                                        <span className="sidebar-link__icon">
+                                            <IconComp size={18} strokeWidth={1.8} />
+                                        </span>
+                                        {!collapsed && <span className="sidebar-link__label">{item.label}</span>}
+                                    </NavLink>
+                                );
+                            })}
                         </div>
                     </div>
                 ))}

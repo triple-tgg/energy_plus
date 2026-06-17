@@ -159,8 +159,9 @@ const LayoutViewPage: React.FC = () => {
                 background: C.bar, padding: '10px 20px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderBottom: `2px solid ${C.accent}`, flexShrink: 0,
+                flexWrap: 'wrap', gap: 8,
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '1px', textTransform: 'uppercase' }}>
                         แผนผังสถานที่
@@ -195,8 +196,9 @@ const LayoutViewPage: React.FC = () => {
                     <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center', flexShrink: 0 }}>
                         {/* Legend */}
                         <div style={{
-                            flex: 1, display: 'flex', gap: 16, padding: '8px 16px',
+                            flex: 1, display: 'flex', gap: 12, padding: '8px 16px',
                             background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, alignItems: 'center',
+                            flexWrap: 'wrap', minWidth: 0,
                         }}>
                             <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '1px' }}>อุปกรณ์:</span>
                             {Object.entries(POINT_TYPES).map(([key, info]) => (

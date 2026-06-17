@@ -125,6 +125,9 @@ body {
   flex-direction: column;
   min-height: 100vh;
   transition: margin-left var(--transition);
+  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .app__content {
