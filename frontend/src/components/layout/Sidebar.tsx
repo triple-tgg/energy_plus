@@ -47,7 +47,7 @@ const navGroups: NavGroup[] = [
         icon: '📡',
         items: [
             { label: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: '📊' },
-            { label: 'สายทาง', path: '/monitoring/layout', icon: '🔌' },
+            { label: 'Single Line Diagram', path: '/monitoring/layout', icon: '🔌' },
             { label: 'พยากรณ์ Demand Peak', path: '/monitoring/demand-peak', icon: '⚡' },
         ],
     },

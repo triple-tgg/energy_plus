@@ -2003,6 +2003,17 @@ body {
 /* --- Dark Theme: Control Room --- */
 .app.ec-theme-dark {
   background-color: #0E1116;
+
+  /* Override semantic tokens for dark theme */
+  --bg: #0E1116;
+  --surface: #161B22;
+  --text: #E6EDF3;
+  --text-secondary: #8B98A6;
+  --text-muted: #6E7681;
+  --border: #2A313C;
+  --border-light: #1C232E;
+  --accent: #36C2CE;
+  --accent-hover: #2BA8B3;
 }
 
 .ec-theme-dark .sidebar {
@@ -2247,6 +2258,26 @@ body {
 .ec-theme-dark .btn-secondary:hover:not(:disabled) {
   background: #0E1116;
   border-color: #6E7681;
+}
+
+.ec-theme-dark .btn-outline {
+  background: transparent;
+  border: 1px solid #2A313C;
+  color: #E6EDF3;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.ec-theme-dark .btn-outline:hover:not(:disabled) {
+  background: #1C232E;
+  border-color: #6E7681;
+}
+
+.ec-theme-light .btn-outline {
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
 }
 
 /* --- Card Styles (used for Placeholder and simple summary cards) --- */
