@@ -347,12 +347,7 @@ const LayoutSettingsPage: React.FC = () => {
                 Point Editor (Full-screen overlay)
                 ═══════════════════════════════════════════════════════ */}
             {editorOpen && editorLayout && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 1100,
-                    background: theme === 'light' ? 'rgba(35,38,30,0.6)' : 'rgba(8,10,14,0.8)',
-                    backdropFilter: 'blur(4px)',
-                    display: 'flex', flexDirection: 'column',
-                }}>
+                <div className="layout-editor-overlay">
                     {/* Header */}
                     <div style={{
                         background: C.bar, color: '#fff', padding: '10px 20px',

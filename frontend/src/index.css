@@ -195,6 +195,31 @@ body {
   margin-left: var(--sidebar-w-collapsed);
 }
 
+.layout-editor-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--sidebar-w);
+  z-index: 1100;
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  transition: left var(--transition);
+}
+
+.sidebar--collapsed ~ .app__main .layout-editor-overlay {
+  left: var(--sidebar-w-collapsed);
+}
+
+.ec-theme-light .layout-editor-overlay {
+  background: rgba(35, 38, 30, 0.6);
+}
+
+.ec-theme-dark .layout-editor-overlay {
+  background: rgba(8, 10, 14, 0.8);
+}
+
 /* Brand */
 .sidebar-brand {
   display: flex;
