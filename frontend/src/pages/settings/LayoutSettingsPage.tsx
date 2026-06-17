@@ -259,8 +259,26 @@ const LayoutSettingsPage: React.FC = () => {
             ) : <span style={{ color: 'var(--text-muted)' }}>—</span>,
         },
         {
-            key: 'position', title: 'Position',
-            render: (v: string) => v ? <StatusBadge status={v} type="info" /> : '—',
+            key: 'point_labels', title: 'จุดบนแผนผัง',
+            render: (v: any) => {
+                const pts = Array.isArray(v) ? v : [];
+                if (pts.length === 0) return <span style={{ color: 'var(--text-muted)', fontFamily: MONO, fontSize: 11 }}>— ยังไม่มีจุด —</span>;
+                return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {pts.map((p: any, i: number) => {
+                            const typeInfo = POINT_TYPES.find(t => t.key === p.point_type) || POINT_TYPES[0];
+                            return (
+                                <span key={i} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                                    padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: MONO, fontWeight: 600,
+                                    background: typeInfo.color + '20', color: typeInfo.color,
+                                    border: `1px solid ${typeInfo.color}40`,
+                                }}>{typeInfo.icon} {p.label}</span>
+                            );
+                        })}
+                    </div>
+                );
+            },
         },
         {
             key: 'actions', title: 'จัดการ',
@@ -292,8 +310,8 @@ const LayoutSettingsPage: React.FC = () => {
                     <input type="text" className="form-control" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="เช่น 111PMT_Building_A" />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Position</label>
-                    <input type="text" className="form-control" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} placeholder="เช่น LA-100" />
+                    <label className="form-label">Description</label>
+                    <input type="text" className="form-control" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} placeholder="เช่น แผนผังไฟฟ้าอาคาร A" />
                 </div>
                 <div className="form-group">
                     <label className="form-label">รูปแผนผัง</label>
