@@ -9,7 +9,7 @@ interface ModalProps {
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'sm' | 'md' | 'lg' | 'xl';
     theme?: 'light' | 'dark';
 }
 
@@ -44,7 +44,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
 
     if (!isOpen) return null;
 
-    const widths = { sm: 400, md: 560, lg: 780 };
+    const widths = { sm: 400, md: 560, lg: 780, xl: 1100 };
 
     return (
         <div style={{
