@@ -703,7 +703,7 @@ const ZoneDashboard: React.FC = () => {
     const [, setTick] = useState(0);
     const [clock, setClock] = useState(Date.now());
     const [mode, setMode] = useState('monitor');
-    const { theme, toggleTheme } = useTheme(); // light = Engineering Paper, dark = Control Room
+    const { theme } = useTheme(); // light = Engineering Paper, dark = Control Room
     const C = THEMES[theme];
 
     const crumb = (active: boolean): React.CSSProperties => ({
@@ -877,14 +877,6 @@ const ZoneDashboard: React.FC = () => {
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
-                    <button onClick={toggleTheme}
-                        title={theme === 'light' ? 'สลับเป็นโหมดมืด (Control Room)' : 'สลับเป็นโหมดสว่าง (Engineering Paper)'}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',
-                            background: 'transparent', border: `1px solid #ffffff33`, padding: '5px 9px', cursor: 'pointer'
-                        }}>
-                        {theme === 'light' ? <Moon size={13} /> : <Sun size={13} />} {theme === 'light' ? 'DARK' : 'LIGHT'}
-                    </button>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fff' }}>
                         <StatusDot s="normal" size={8} pulse C={C} /> LIVE
                     </span>
