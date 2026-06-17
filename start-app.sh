@@ -47,9 +47,9 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Start Backend
-echo -e "${BLUE}📦 Starting Backend Server (Port 3000)...${NC}"
+echo -e "${BLUE}📦 Starting Backend Server with Nodemon (Port 3000)...${NC}"
 cd backend
-npm run dev &
+npm run dev:watch &
 BACKEND_PID=$!
 cd ..
 

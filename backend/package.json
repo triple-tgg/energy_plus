@@ -4,7 +4,7 @@
   "description": "EnergyPlus API Backend",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "ts-node src/server.ts",
+    "dev": "nodemon",
     "dev:watch": "nodemon",
     "build": "tsc",
     "start": "node dist/server.js",
