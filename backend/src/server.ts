@@ -17,6 +17,7 @@ import alarmsRoutes from './modules/alarms/alarms.routes';
 import billingRoutes from './modules/billing/billing.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import redisPubsubRoutes from './modules/redis-pubsub/redisPubsub.routes';
+import layoutRoutes from './modules/layouts/layouts.routes';
 import { autoSubscribeDefaultChannel, isAutoSubscribeEnabled } from './modules/redis-pubsub/redisPubsub.service';
 
 const app = createApp();
@@ -57,6 +58,7 @@ app.use(`${API_PREFIX}/alarms`, alarmsRoutes);
 app.use(`${API_PREFIX}/billing`, billingRoutes);
 app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
 app.use(`${API_PREFIX}/redis`, redisPubsubRoutes);
+app.use(`${API_PREFIX}/layouts`, layoutRoutes);
 
 // DEBUG: List databases and tables
 app.get(`${API_PREFIX}/debug/tables`, async (req, res) => {
@@ -79,6 +81,10 @@ app.get(`${API_PREFIX}/debug/users`, async (req, res) => {
         }
     }
 });
+
+// Serve uploaded files statically
+const uploadsPath = path.join(__dirname, '..', 'public/uploads');
+app.use('/uploads', express.static(uploadsPath));
 
 // ── Production: serve frontend static files ──
 const frontendPath = path.join(__dirname, '..', 'public');

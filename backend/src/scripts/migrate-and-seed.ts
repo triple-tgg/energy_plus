@@ -444,7 +444,6 @@ async function migrateAndSeed() {
     `);
         console.log('  ✅ write_log');
 
-        // Refresh Tokens
         await client.query(`
       CREATE TABLE IF NOT EXISTS refresh_tokens (
         id SERIAL PRIMARY KEY,
@@ -455,6 +454,20 @@ async function migrateAndSeed() {
       )
     `);
         console.log('  ✅ refresh_tokens');
+
+        // Layouts
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS layouts (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        image_name VARCHAR(255),
+        image_url VARCHAR(500),
+        position VARCHAR(100),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+        console.log('  ✅ layouts');
 
         // ═══════════════════════════════════════════════════════
         // 2. SEED DATA
