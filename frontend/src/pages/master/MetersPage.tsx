@@ -21,13 +21,17 @@ interface MeterForm {
     roomName: string;
     phase: string;
     circuit: string;
+    floor: string;
+    status: string;
+    parentMeterId: string;
     isActive: boolean;
 }
 
 const emptyForm: MeterForm = {
     meterCode: '', meterName: '', address: '', meterBrandId: '', meterTypeId: '',
     loopId: '', siteId: '', buildingId: '', zoneId: '', ipAddress: '', portNumber: '',
-    roomCode: '', roomName: '', phase: '', circuit: '', isActive: true,
+    roomCode: '', roomName: '', phase: '', circuit: '', floor: '', status: 'Manual',
+    parentMeterId: '', isActive: true,
 };
 
 // Excel column mapping for the 111PMT format
@@ -150,6 +154,9 @@ const MetersPage: React.FC = () => {
             roomName: row.room_name || '',
             phase: row.phase?.toString() || '',
             circuit: row.circuit?.toString() || '',
+            floor: row.floor?.toString() || '',
+            status: row.status || 'Manual',
+            parentMeterId: row.parent_meter_id?.toString() || '',
             isActive: row.is_active ?? true,
         });
         setFormError('');
@@ -172,7 +179,10 @@ const MetersPage: React.FC = () => {
                 zoneId: form.zoneId ? parseInt(form.zoneId) : null,
                 portNumber: form.portNumber ? parseInt(form.portNumber) : null,
                 phase: form.phase ? parseInt(form.phase) : null,
-                circuit: form.circuit ? parseInt(form.circuit) : null,
+                circuit: form.circuit || null,
+                floor: form.floor ? parseInt(form.floor) : null,
+                status: form.status || 'Manual',
+                parentMeterId: form.parentMeterId ? parseInt(form.parentMeterId) : null,
             };
             if (editId) {
                 await metersApi.update(editId, payload);
@@ -534,15 +544,40 @@ const MetersPage: React.FC = () => {
                     </div>
                     <div className="form-group">
                         <label className="form-label">{t('วงจร (Circuit)', 'Circuit')}</label>
-                        <input type="number" className="form-control" placeholder={t('หมายเลขวงจร', 'Circuit number')} value={form.circuit} onChange={e => setForm({ ...form, circuit: e.target.value })} />
+                        <input type="text" className="form-control" placeholder={t('เช่น MDB-01', 'e.g. MDB-01')} maxLength={50} value={form.circuit} onChange={e => setForm({ ...form, circuit: e.target.value })} />
+                    </div>
+                </div>
+                <div className="form-row">
+                    <div className="form-group">
+                        <label className="form-label">{t('ชั้น', 'Floor')}</label>
+                        <input type="number" className="form-control" placeholder={t('เช่น 1', 'e.g. 1')} value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">{t('มิเตอร์หลัก', 'Parent Meter')}</label>
+                        <select className="form-control" value={form.parentMeterId} onChange={e => setForm({ ...form, parentMeterId: e.target.value })}>
+                            <option value="">— {t('ไม่มี', 'None')} —</option>
+                            {data.filter(m => m.meter_id !== editId).map(m => <option key={m.meter_id} value={m.meter_id}>{m.meter_code} — {m.meter_name}</option>)}
+                        </select>
                     </div>
                 </div>
 
-                <div className="form-group">
-                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: 18, height: 18, accentColor: 'var(--success)' }} />
-                        {t('ใช้งาน', 'Active')}
-                    </label>
+                {/* Status */}
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานะ', 'Status')}</div>
+                <div className="form-row">
+                    <div className="form-group">
+                        <label className="form-label">{t('สถานะ', 'Status')}</label>
+                        <select className="form-control" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                            <option value="Manual">Manual</option>
+                            <option value="Auto">Auto</option>
+                            <option value="Offline">Offline</option>
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24 }}>
+                            <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: 18, height: 18, accentColor: 'var(--success)' }} />
+                            {t('ใช้งาน', 'Active')}
+                        </label>
+                    </div>
                 </div>
             </Modal>
 

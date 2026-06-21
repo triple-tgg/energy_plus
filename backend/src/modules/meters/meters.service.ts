@@ -55,11 +55,12 @@ export class MetersService {
         const result = await query(
             `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
        site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
-       phase, circuit, created_by, created_on)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW()) RETURNING *`,
+       phase, circuit, floor, status, parent_meter_id, created_by, created_on)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW()) RETURNING *`,
             [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId, data.loopId,
-            data.siteId, data.buildingId, data.zoneId, true, data.ipAddress, data.portNumber,
-            data.roomCode, data.roomName, data.phase, data.circuit, data.createdBy]
+            data.siteId, data.buildingId, data.zoneId, data.isActive ?? true, data.ipAddress, data.portNumber,
+            data.roomCode, data.roomName, data.phase, data.circuit, data.floor,
+            data.status || 'Manual', data.parentMeterId || null, data.createdBy]
         );
         return result.rows[0];
     }
@@ -69,11 +70,12 @@ export class MetersService {
             `UPDATE meter SET meter_code=$1, meter_name=$2, address=$3, meter_brand_id=$4, meter_type_id=$5,
        loop_id=$6, site_id=$7, building_id=$8, zone_id=$9, is_active=$10, ip_address=$11,
        port_number=$12, room_code=$13, room_name=$14, phase=$15, circuit=$16,
-       last_modified_by=$17, last_modified_on=NOW()
-       WHERE meter_id=$18 RETURNING *`,
+       floor=$17, status=$18, parent_meter_id=$19, last_modified_by=$20, last_modified_on=NOW()
+       WHERE meter_id=$21 RETURNING *`,
             [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId, data.loopId,
             data.siteId, data.buildingId, data.zoneId, data.isActive, data.ipAddress, data.portNumber,
-            data.roomCode, data.roomName, data.phase, data.circuit, data.modifiedBy, meterId]
+            data.roomCode, data.roomName, data.phase, data.circuit,
+            data.floor, data.status || 'Manual', data.parentMeterId || null, data.modifiedBy, meterId]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Meter not found');
         return result.rows[0];
