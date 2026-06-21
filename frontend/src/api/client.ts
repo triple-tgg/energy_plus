@@ -82,6 +82,7 @@ export const metersApi = {
     update: (id: number, data: any) => api.put(`/meters/${id}`, data),
     delete: (id: number) => api.delete(`/meters/${id}`),
     importMeters: (data: any[]) => api.post('/meters/import', data),
+    addManualReading: (id: number, data: { dateKeep: string; value: number }) => api.post(`/meters/${id}/manual-reading`, data),
     getBrands: (params?: any) => api.get('/meters/brands/list', { params }),
     createBrand: (data: any) => api.post('/meters/brands', data),
     updateBrand: (id: number, data: any) => api.put(`/meters/brands/${id}`, data),

@@ -12,6 +12,7 @@ router.post('/import', authenticate, json({ limit: '10mb' }), c.importMeters);
 router.get('/:id', authenticate, c.getMeterById);
 router.post('/', authenticate, c.createMeter);
 router.put('/:id', authenticate, c.updateMeter);
+router.post('/:id/manual-reading', authenticate, c.addManualReading);
 router.delete('/:id', authenticate, c.deleteMeter);
 
 // Brands

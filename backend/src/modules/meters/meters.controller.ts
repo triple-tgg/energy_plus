@@ -19,6 +19,9 @@ export class MetersController {
     async updateMeter(req: AuthRequest, res: Response, next: NextFunction) {
         try { res.json(successResponse(await svc.updateMeter(parseInt(req.params.id), { ...req.body, modifiedBy: req.user?.userName }), 'Meter updated')); } catch (e) { next(e); }
     }
+    async addManualReading(req: AuthRequest, res: Response, next: NextFunction) {
+        try { res.status(201).json(successResponse(await svc.addManualReading(parseInt(req.params.id), req.body), 'Manual reading recorded')); } catch (e) { next(e); }
+    }
     async deleteMeter(req: Request, res: Response, next: NextFunction) {
         try { await svc.deleteMeter(parseInt(req.params.id)); res.json(successResponse(null, 'Meter deleted')); } catch (e) { next(e); }
     }

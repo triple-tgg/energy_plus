@@ -435,5 +435,27 @@ export class MetersService {
 
         return results;
     }
+
+    async addManualReading(meterId: number, data: any) {
+        const meter = await this.getMeterById(meterId);
+        
+        let valueColumn = 'energy_kwh';
+        // Map based on meter_type_id (1: Electricity/ไฟฟ้า, 2: Water/น้ำ, 3: Gas/แก๊ส)
+        if (meter.meter_type_id === 2) {
+            valueColumn = 'water_value';
+        } else if (meter.meter_type_id === 3) {
+            valueColumn = 'gas_value';
+        }
+
+        const dateKeep = data.dateKeep ? new Date(data.dateKeep) : new Date();
+        const value = data.value !== undefined ? parseFloat(data.value) : 0;
+
+        const result = await query(
+            `INSERT INTO actual_meter_data (meter_id, date_keep, ${valueColumn}, status)
+             VALUES ($1, $2, $3, 'online') RETURNING *`,
+            [meterId, dateKeep, value]
+        );
+        return result.rows[0];
+    }
 }
 
