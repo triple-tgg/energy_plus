@@ -32,7 +32,7 @@ const emptyForm: MeterForm = {
 
 // Excel column mapping for the 111PMT format
 interface ParsedMeter {
-    address: number | null;
+    address: string;
     circuit: string;
     building: string;
     zone: string;
@@ -163,7 +163,7 @@ const MetersPage: React.FC = () => {
         try {
             const payload = {
                 ...form,
-                address: form.address ? parseInt(form.address) : null,
+                address: form.address || null,
                 meterBrandId: form.meterBrandId ? parseInt(form.meterBrandId) : null,
                 meterTypeId: form.meterTypeId ? parseInt(form.meterTypeId) : null,
                 loopId: form.loopId ? parseInt(form.loopId) : null,
@@ -229,7 +229,7 @@ const MetersPage: React.FC = () => {
                     if (row[2] === undefined || row[2] === null || row[2] === '') continue;
 
                     parsed.push({
-                        address: row[2] != null ? Number(row[2]) : null,           // C: Address
+                        address: row[2] != null ? String(row[2]).trim() : '',     // C: Address
                         circuit: row[4] != null ? String(row[4]) : '',             // E: circuit
                         building: row[5] != null ? String(row[5]).trim() : '',      // F: อาคาร
                         zone: row[6] != null ? String(row[6]).trim() : '',         // G: Zone
@@ -300,16 +300,25 @@ const MetersPage: React.FC = () => {
     const columns = [
         { key: 'meter_code', title: t('รหัส', 'Code') },
         { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
+        { key: 'address', title: t('Address', 'Address') },
         { key: 'site_name', title: t('ไซต์', 'Site') },
         { key: 'building_name', title: t('อาคาร', 'Building') },
         { key: 'zone_name', title: t('โซน', 'Zone') },
+        { key: 'meter_type_name', title: t('ประเภท', 'Type') },
         {
-            key: 'brand_name', title: t('แบรนด์', 'Brand'),
+            key: 'meter_brand_name', title: t('แบรนด์', 'Brand'),
             render: (v: string) => v ? <span className="badge badge-info">{v}</span> : '—',
         },
+        { key: 'ip_address', title: 'IP', render: (v: string) => v ? <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span> : '—' },
+        { key: 'port_number', title: t('พอร์ต', 'Port') },
+        { key: 'room_code', title: t('รหัสห้อง', 'Room Code') },
+        { key: 'room_name', title: t('ชื่อห้อง', 'Room Name') },
+        { key: 'phase', title: t('เฟส', 'Phase') },
+        { key: 'circuit', title: t('วงจร', 'Circuit') },
+        { key: 'floor', title: t('ชั้น', 'Floor') },
         {
             key: 'is_active', title: t('สถานะ', 'Status'),
-            render: (v: boolean) => <span className={`badge ${v ? t('ใช้งาน', 'Active') : t('ไม่ใช้งาน', 'Inactive')}`}>{v ? t('ใช้งาน', 'Active') : t('ไม่ใช้งาน', 'Inactive')}</span>,
+            render: (v: boolean) => <span className={`badge ${v ? 'badge-success' : 'badge-danger'}`}>{v ? t('ใช้งาน', 'Active') : t('ไม่ใช้งาน', 'Inactive')}</span>,
         },
         {
             key: 'actions', title: t('จัดการ', 'Actions'),
@@ -349,8 +358,54 @@ const MetersPage: React.FC = () => {
                 onChange={handleFileChange}
             />
 
-            {/* Header with Import button */}
+            {/* Header with Import & Template buttons */}
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                    className="btn btn-outline"
+                    onClick={() => {
+                        // Generate template Excel file
+                        const headers = [
+                            'No.',           // A
+                            'Status',        // B
+                            'Address',       // C
+                            'Loop',          // D (col index 3, but mapped from col 12 in import)
+                            'Circuit',       // E
+                            'Building',      // F
+                            'Zone',          // G
+                            'Meter Type',    // H
+                            'Meter Code',    // I
+                            'Meter Name',    // J
+                            'Room Code',     // K
+                            'Room Name',     // L
+                            'Loop No.',      // M
+                            'Meter Model',   // N
+                            'Port',          // O
+                            'IP Address',    // P
+                            'Phase',         // Q
+                            'Floor',         // R
+                        ];
+                        const sampleRow = [
+                            1, '', 1, 1, 'MDB-01', '111PMT_Building A', 'Common_A',
+                            'ELE', 'MTR-001', 'Main Meter', 'R-101', 'Room 101',
+                            1, 'MPR-47S', 23, '192.168.1.100', 3, 1,
+                        ];
+                        const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+                        // Set column widths
+                        ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 14) }));
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, 'Meter Import Template');
+                        XLSX.writeFile(wb, 'meter_import_template.xlsx');
+                    }}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        border: '1px solid var(--text-muted)',
+                        color: 'var(--text-muted)',
+                        fontWeight: 600,
+                        fontSize: 13,
+                    }}
+                >
+                    📄 {t('ดาวน์โหลด Template', 'Download Template')}
+                </button>
                 <button
                     className="btn btn-outline"
                     onClick={handleImportClick}
@@ -452,7 +507,7 @@ const MetersPage: React.FC = () => {
                     </div>
                     <div className="form-group">
                         <label className="form-label">{t('ที่อยู่ Modbus', 'Modbus Address')}</label>
-                        <input type="number" className="form-control" placeholder={t('เช่น 1', 'e.g. 1')} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+                        <input type="text" className="form-control" placeholder={t('เช่น 1', 'e.g. 1')} maxLength={10} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
                     </div>
                 </div>
                 <div className="form-row">

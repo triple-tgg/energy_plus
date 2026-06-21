@@ -348,7 +348,7 @@ export class MetersService {
 
                     // Check for existing meter by ip_address + address (composite key)
                     const ipAddr = row.ipAddress || null;
-                    const modbusAddr = row.address || null;
+                    const modbusAddr = row.address ? String(row.address).trim() : null;
                     let existingId: number | null = null;
 
                     if (ipAddr && modbusAddr !== null) {
@@ -399,7 +399,7 @@ export class MetersService {
                             [
                                 String(row.meterCode || '').trim(),
                                 row.meterName || '',
-                                row.address || null,
+                                modbusAddr,
                                 meterBrandId,
                                 meterTypeId,
                                 loopId,
