@@ -140,6 +140,10 @@ const Sidebar: React.FC = () => {
                         <span className="sidebar-brand__sub">Energy Monitoring</span>
                     </div>
                 )}
+            </div>
+
+            {/* Toggle — separate row below brand */}
+            <div className="sidebar-toggle-row">
                 <button
                     className="sidebar-toggle"
                     onClick={() => setCollapsed(!collapsed)}

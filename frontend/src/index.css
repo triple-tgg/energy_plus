@@ -270,29 +270,37 @@ body {
   margin-top: 2px;
 }
 
+/* Toggle Row */
+.sidebar-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar--collapsed .sidebar-toggle-row {
+  justify-content: center;
+  padding: 8px 0;
+}
+
 .sidebar-toggle {
-  position: absolute;
-  right: -24px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: inherit;
-  border: 1px solid var(--border, #e5e7eb);
-  border-left: none;
-  border-radius: 0 6px 6px 0;
-  width: 24px;
-  height: 44px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--gray-400);
+  color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
   transition: all var(--transition);
-  z-index: 110;
 }
 
 .sidebar-toggle:hover {
-  color: var(--primary-500);
-  background: var(--gray-50);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .sidebar-brand {
@@ -1916,17 +1924,20 @@ body {
   color: #6E705F;
 }
 
+.ec-theme-light .sidebar-toggle-row {
+  border-bottom: 1px solid #D4D1C0;
+}
+
 .ec-theme-light .sidebar-toggle {
-  background: #F1EFE3;
+  background: rgba(0, 0, 0, 0.03);
   border: 1px solid #D4D1C0;
-  border-left: none;
   color: #6E705F;
-  border-radius: 0 4px 4px 0;
 }
 
 .ec-theme-light .sidebar-toggle:hover {
-  background: #EAE7DA;
+  background: rgba(0, 0, 0, 0.07);
   color: #2B4C7E;
+  border-color: #2B4C7E;
 }
 
 .ec-theme-light .sidebar-section__title {
@@ -2084,17 +2095,20 @@ body {
   color: #8B98A6;
 }
 
+.ec-theme-dark .sidebar-toggle-row {
+  border-bottom: 1px solid #2A313C;
+}
+
 .ec-theme-dark .sidebar-toggle {
-  background: #1C232E;
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid #2A313C;
-  border-left: none;
   color: #8B98A6;
-  border-radius: 0 4px 4px 0;
 }
 
 .ec-theme-dark .sidebar-toggle:hover {
-  background: #0E1116;
+  background: rgba(255, 255, 255, 0.08);
   color: #36C2CE;
+  border-color: #36C2CE;
 }
 
 .ec-theme-dark .sidebar-section__title {
