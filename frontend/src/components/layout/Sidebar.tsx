@@ -145,7 +145,7 @@ const Sidebar: React.FC = () => {
                     onClick={() => setCollapsed(!collapsed)}
                     title={collapsed ? t('ขยาย', 'Expand') : t('ยุบ', 'Collapse')}
                 >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }}>
                         <polyline points="15 18 9 12 15 6" />
                     </svg>
                 </button>

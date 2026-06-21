@@ -3,7 +3,23 @@ import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { metersApi, sitesApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import * as XLSX from 'xlsx';
+
+const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+
+const THEMES = {
+    light: {
+        bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
+        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        successBg: '#16a34a', infoBg: '#2B4C7E', darkBg: '#23261E', warnBg: '#92400e',
+    },
+    dark: {
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
+        successBg: '#34d399', infoBg: '#36C2CE', darkBg: '#1C232E', warnBg: '#fbbf24',
+    },
+};
 
 interface MeterForm {
     meterCode: string;
@@ -55,6 +71,8 @@ interface ParsedMeter {
 
 const MetersPage: React.FC = () => {
     const { t } = useLanguage();
+    const { theme } = useTheme();
+    const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -637,163 +655,168 @@ const MetersPage: React.FC = () => {
                 onChange={handleFileChange}
             />
 
-            <h2 style={{ fontSize: 24, fontWeight: 700, margin: '10px 0 20px 0' }}>{t('มิเตอร์', 'Meters')}</h2>
+            <h2 style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', color: C.ink, margin: '10px 0 16px 0', textTransform: 'uppercase' }}>{t('มิเตอร์', 'Meters')}</h2>
 
             {/* Filter Bar Panel */}
             <div style={{
-                background: 'var(--bg-secondary, #1c232e)',
-                border: '1px solid var(--border, #2a313c)',
-                padding: '16px 20px',
-                borderRadius: 8,
-                marginBottom: 20,
+                background: C.panel,
+                border: `1px solid ${C.line}`,
+                padding: '12px 16px',
+                borderRadius: 0,
+                marginBottom: 12,
                 display: 'flex',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: 16
+                gap: 12
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={{ fontWeight: 600, fontSize: 14 }}>{t('ประเภท', 'Type')}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <label style={{ fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.sub, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{t('ประเภท', 'TYPE')}</label>
                     <select
-                        className="form-control"
-                        style={{ width: 140, height: 36, padding: '0 8px' }}
+                        style={{ fontFamily: MONO, fontSize: '12px', padding: '5px 8px', background: C.panel, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 0, minWidth: 120 }}
                         value={tempMeterTypeId}
                         onChange={e => setTempMeterTypeId(e.target.value)}
                     >
-                        <option value="">— {t('ทั้งหมด', 'All')} —</option>
+                        <option value="">— {t('ทั้งหมด', 'ALL')} —</option>
                         {types.map(t => <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>)}
                     </select>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={{ fontWeight: 600, fontSize: 14 }}>{t('สถานที่', 'Location')}</label>
+                <div style={{ width: 1, height: 24, background: C.line }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <label style={{ fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.sub, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{t('สถานที่', 'LOCATION')}</label>
                     <select
-                        className="form-control"
-                        style={{ width: 140, height: 36, padding: '0 8px' }}
+                        style={{ fontFamily: MONO, fontSize: '12px', padding: '5px 8px', background: C.panel, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 0, minWidth: 120 }}
                         value={tempSiteId}
                         onChange={e => { setTempSiteId(e.target.value); setTempBuildingId(''); setTempZoneId(''); }}
                     >
-                        <option value="">All Site</option>
+                        <option value="">{t('ทุกไซต์', 'All Site')}</option>
                         {sites.map(s => <option key={s.site_id} value={s.site_id}>{s.site_name}</option>)}
                     </select>
 
                     <select
-                        className="form-control"
-                        style={{ width: 140, height: 36, padding: '0 8px' }}
+                        style={{ fontFamily: MONO, fontSize: '12px', padding: '5px 8px', background: C.panel, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 0, minWidth: 120 }}
                         value={tempBuildingId}
                         onChange={e => { setTempBuildingId(e.target.value); setTempZoneId(''); }}
                     >
-                        <option value="">All Building</option>
+                        <option value="">{t('ทุกอาคาร', 'All Building')}</option>
                         {filteredFilterBuildings.map(b => <option key={b.building_id} value={b.building_id}>{b.building_name}</option>)}
                     </select>
 
                     <select
-                        className="form-control"
-                        style={{ width: 140, height: 36, padding: '0 8px' }}
+                        style={{ fontFamily: MONO, fontSize: '12px', padding: '5px 8px', background: C.panel, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 0, minWidth: 120 }}
                         value={tempZoneId}
                         onChange={e => setTempZoneId(e.target.value)}
                     >
-                        <option value="">All Zone</option>
+                        <option value="">{t('ทุกโซน', 'All Zone')}</option>
                         {filteredFilterZones.map(z => <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>)}
                     </select>
                 </div>
 
                 <button
-                    className="btn btn-primary"
                     onClick={handleShowData}
                     style={{
-                        height: 36,
+                        fontFamily: MONO,
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        letterSpacing: '1px',
+                        padding: '7px 14px',
+                        background: C.accent,
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 0,
+                        cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 6,
-                        background: 'var(--accent, #2b4c7e)',
-                        fontWeight: 600,
-                        border: 'none',
-                        padding: '0 16px'
+                        textTransform: 'uppercase'
                     }}
                 >
-                    🔄 {t('Show Data', 'Show Data')}
+                    ▶ {t('แสดงข้อมูล', 'SHOW DATA')}
                 </button>
             </div>
 
             {/* Actions Bar Panel */}
-            <div style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button
-                    className="btn btn-success"
-                    onClick={handleCreate}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: '#22c55e', color: '#fff', border: 'none',
-                        fontWeight: 600, fontSize: 13, padding: '8px 16px'
-                    }}
-                >
-                    ➕ {t('Create New', 'Create New')}
-                </button>
-                <button
-                    className="btn"
-                    onClick={handleImportClick}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: '#0ea5e9', color: '#fff', border: 'none',
-                        fontWeight: 600, fontSize: 13, padding: '8px 16px'
-                    }}
-                >
-                    📄 {t('Import Meter', 'Import Meter')}
-                </button>
-                <button
-                    className="btn"
-                    onClick={handlePrintAllQrs}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: '#1e293b', color: '#fff', border: 'none',
-                        fontWeight: 600, fontSize: 13, padding: '8px 16px'
-                    }}
-                >
-                    🔳 {t('Show QR', 'Show QR')}
-                </button>
-                <button
-                    className="btn"
-                    onClick={handleOpenManualFromHeader}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: '#eab308', color: '#fff', border: 'none',
-                        fontWeight: 600, fontSize: 13, padding: '8px 16px'
-                    }}
-                >
-                    📝 {t('Add Manual', 'Add Manual')}
-                </button>
-
-                {/* Download Template button styled cleanly at the end */}
-                <button
-                    className="btn btn-outline"
-                    onClick={() => {
-                        // Generate template Excel file
-                        const headers = [
-                            'No.', 'Status', 'Address', 'Loop', 'Circuit', 'Building', 'Zone',
-                            'Meter Type', 'Meter Code', 'Meter Name', 'Room Code', 'Room Name',
-                            'Loop No.', 'Meter Model', 'Port', 'IP Address', 'Phase', 'Floor'
-                        ];
-                        const sampleRow = [
-                            1, '', 1, 1, 'MDB-01', '111PMT_Building A', 'Common_A',
-                            'ELE', 'MTR-001', 'Main Meter', 'R-101', 'Room 101',
-                            1, 'MPR-47S', 23, '192.168.1.100', 3, 1,
-                        ];
-                        const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
-                        ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 14) }));
-                        const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, 'Meter Import Template');
-                        XLSX.writeFile(wb, 'meter_import_template.xlsx');
-                    }}
-                    style={{
-                        marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
-                        border: '1px solid var(--text-muted)', color: 'var(--text-muted)',
-                        fontWeight: 600, fontSize: 13, padding: '8px 16px'
-                    }}
-                >
-                    📄 {t('ดาวน์โหลด Template', 'Download Template')}
-                </button>
-            </div>
-
-            <DataTable title={t('มิเตอร์', 'Meters')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable
+                title={t('มิเตอร์', 'Meters')}
+                columns={columns}
+                data={data}
+                total={total}
+                page={page}
+                limit={limit}
+                loading={loading}
+                onPageChange={setPage}
+                onLimitChange={(l) => { setLimit(l); setPage(1); }}
+                onCreate={handleCreate}
+                createLabel={t('เพิ่มมิเตอร์', 'Add Meter')}
+                headerActions={
+                    <>
+                        <button
+                            onClick={() => {
+                                const headers = [
+                                    'No.', 'Status', 'Address', 'Loop', 'Circuit', 'Building', 'Zone',
+                                    'Meter Type', 'Meter Code', 'Meter Name', 'Room Code', 'Room Name',
+                                    'Loop No.', 'Meter Model', 'Port', 'IP Address', 'Phase', 'Floor'
+                                ];
+                                const sampleRow = [
+                                    1, '', 1, 1, 'MDB-01', '111PMT_Building A', 'Common_A',
+                                    'ELE', 'MTR-001', 'Main Meter', 'R-101', 'Room 101',
+                                    1, 'MPR-47S', 23, '192.168.1.100', 3, 1,
+                                ];
+                                const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+                                ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 14) }));
+                                const wb = XLSX.utils.book_new();
+                                XLSX.utils.book_append_sheet(wb, ws, 'Meter Import Template');
+                                XLSX.writeFile(wb, 'meter_import_template.xlsx');
+                            }}
+                            style={{
+                                fontFamily: MONO, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
+                                padding: '6px 10px', background: C.panel, color: C.sub,
+                                border: `1px solid ${C.line}`, borderRadius: 0, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' as const
+                            }}
+                        >
+                            ↓ {t('แบบฟอร์ม', 'TEMPLATE')}
+                        </button>
+                        <button
+                            onClick={handleImportClick}
+                            style={{
+                                fontFamily: MONO, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
+                                padding: '6px 10px', background: C.infoBg,
+                                color: theme === 'dark' ? '#0E1116' : '#fff',
+                                border: 'none', borderRadius: 0, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' as const
+                            }}
+                        >
+                            ↑ {t('นำเข้า', 'IMPORT')}
+                        </button>
+                        <button
+                            onClick={handlePrintAllQrs}
+                            style={{
+                                fontFamily: MONO, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
+                                padding: '6px 10px', background: C.darkBg,
+                                color: theme === 'dark' ? C.ink : '#fff',
+                                border: `1px solid ${C.line}`, borderRadius: 0, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' as const
+                            }}
+                        >
+                            ▣ {t('แสดง QR', 'SHOW QR')}
+                        </button>
+                        <button
+                            onClick={handleOpenManualFromHeader}
+                            style={{
+                                fontFamily: MONO, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
+                                padding: '6px 10px', background: C.warnBg,
+                                color: theme === 'dark' ? '#0E1116' : '#fff',
+                                border: 'none', borderRadius: 0, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' as const
+                            }}
+                        >
+                            ✎ {t('บันทึกข้อมูล', 'ADD MANUAL')}
+                        </button>
+                    </>
+                }
+            />
 
             {/* Create/Edit Modal — larger size */}
             <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขมิเตอร์', 'Edit Meter') : t('เพิ่มมิเตอร์ใหม่', 'Add New Meter')} size="lg"
@@ -802,7 +825,7 @@ const MetersPage: React.FC = () => {
                 {formError && <div className="form-error-banner">{formError}</div>}
 
                 {/* Basic Info */}
-                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ข้อมูลพื้นฐาน', 'Basic Information')}</div>
+                <div style={{ marginBottom: 8, fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.accent, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('ข้อมูลพื้นฐาน', 'BASIC INFORMATION')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('รหัสมิเตอร์', 'Meter Code')} <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -832,7 +855,7 @@ const MetersPage: React.FC = () => {
                 </div>
 
                 {/* Location */}
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานที่', 'Location')}</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.accent, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('สถานที่', 'LOCATION')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('ไซต์', 'Site')}</label>
@@ -868,7 +891,7 @@ const MetersPage: React.FC = () => {
                 </div>
 
                 {/* Communication */}
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('การสื่อสาร', 'Communication')}</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.accent, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('การสื่อสาร', 'COMMUNICATION')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('ลูป', 'Loop')}</label>
@@ -894,7 +917,7 @@ const MetersPage: React.FC = () => {
                 </div>
 
                 {/* Electrical */}
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ระบบไฟฟ้า', 'Electrical')}</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.accent, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('ระบบไฟฟ้า', 'ELECTRICAL')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('เฟส', 'Phase')}</label>
@@ -924,7 +947,7 @@ const MetersPage: React.FC = () => {
                 </div>
 
                 {/* Status */}
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานะ', 'Status')}</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.accent, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('สถานะ', 'STATUS')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('สถานะ', 'Status')}</label>
@@ -986,14 +1009,14 @@ const MetersPage: React.FC = () => {
                 {/* File name */}
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
-                    padding: '10px 14px', background: 'var(--bg-secondary, #1c232e)',
-                    borderRadius: 6, border: '1px solid var(--border, #2a313c)',
+                    padding: '10px 14px', background: C.panel2,
+                    borderRadius: 0, border: `1px solid ${C.line}`,
                 }}>
                     <span style={{ fontSize: 20 }}>📄</span>
                     <div>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{importFileName}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            {parsedMeters.length} {t('แถวข้อมูล', 'data rows')} | Sheet1
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: '12px', color: C.ink }}>{importFileName}</div>
+                        <div style={{ fontFamily: MONO, fontSize: '10.5px', color: C.sub }}>
+                            {parsedMeters.length} {t('แถวข้อมูล', 'DATA ROWS')} | SHEET1
                         </div>
                     </div>
                 </div>
@@ -1043,12 +1066,12 @@ const MetersPage: React.FC = () => {
                 {/* Column Mapping */}
                 <div style={{
                     padding: '10px 14px', marginBottom: 16,
-                    background: 'var(--bg-secondary, #1c232e)', border: '1px solid var(--border, #2a313c)', borderRadius: 6,
+                    background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 0,
                 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--accent)' }}>
-                        🔗 {t('การ Mapping คอลัมน์', 'Column Mapping')}
+                    <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', marginBottom: 8, color: C.accent, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                        🔗 {t('การ MAPPING คอลัมน์', 'COLUMN MAPPING')}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px', fontSize: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px', fontSize: '11px', fontFamily: MONO }}>
                         {[
                             ['C: Address', '→ address (Modbus)'],
                             ['E: circuit', '→ circuit'],
@@ -1066,27 +1089,27 @@ const MetersPage: React.FC = () => {
                             ['Q: Phase', '→ phase'],
                             ['R: ชั้น', '→ floor'],
                         ].map(([from, to], idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--border, #2a313c)' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>{from}</span>
-                                <span style={{ color: '#10b981', fontWeight: 600 }}>{to}</span>
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: `1px solid ${C.line}` }}>
+                                <span style={{ color: C.sub }}>{from}</span>
+                                <span style={{ color: C.accent, fontWeight: 700 }}>{to}</span>
                             </div>
                         ))}
                     </div>
                 </div>
 
                 {/* Data Preview Table */}
-                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--accent)' }}>
-                    📋 {t('ตัวอย่างข้อมูล', 'Data Preview')} ({t('แสดง 10 แถวแรก', 'showing first 10 rows')})
+                <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', marginBottom: 8, color: C.accent, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                    📋 {t('ตัวอย่างข้อมูล', 'DATA PREVIEW')} ({t('แสดง 10 แถวแรก', 'FIRST 10 ROWS')})
                 </div>
-                <div style={{ overflowX: 'auto', maxHeight: 300, borderRadius: 6, border: '1px solid var(--border, #2a313c)' }}>
+                <div style={{ overflowX: 'auto', maxHeight: 300, borderRadius: 0, border: `1px solid ${C.line}` }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, minWidth: 800 }}>
                         <thead>
-                            <tr style={{ background: 'var(--bg-tertiary, #23261e)', position: 'sticky', top: 0 }}>
+                            <tr style={{ background: C.bar, position: 'sticky', top: 0, color: '#fff' }}>
                                 {previewColumns.map((col, idx) => (
                                     <th key={idx} style={{
-                                        padding: '7px 10px', fontWeight: 700, fontSize: 10.5,
+                                        padding: '7px 10px', fontFamily: MONO, fontWeight: 700, fontSize: '10px',
                                         letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap',
-                                        borderBottom: '2px solid var(--accent)',
+                                        borderBottom: `2px solid ${C.accent}`,
                                         width: col.width,
                                     }}>{col.label}</th>
                                 ))}
@@ -1094,7 +1117,7 @@ const MetersPage: React.FC = () => {
                         </thead>
                         <tbody>
                             {parsedMeters.slice(0, 10).map((m, idx) => (
-                                <tr key={idx} style={{ borderBottom: '1px solid var(--border, #2a313c)', background: idx % 2 === 0 ? 'transparent' : 'var(--bg-secondary, #1c232e)' }}>
+                                <tr key={idx} style={{ borderBottom: `1px solid ${C.line}`, background: idx % 2 === 0 ? 'transparent' : C.panel2, fontFamily: MONO }}>
                                     <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{idx + 1}</td>
                                     <td style={{ padding: '6px 10px', fontWeight: 600, fontFamily: 'monospace' }}>{m.meterCode}</td>
                                     <td style={{ padding: '6px 10px' }}>{m.meterName}</td>
@@ -1229,7 +1252,7 @@ const MetersPage: React.FC = () => {
                         <button className="btn btn-outline" onClick={() => { setShowManualModal(false); setSelectedMeterForManual(null); setManualMeterSelectId(''); }} disabled={manualSaving}>
                             {t('ยกเลิก', 'Cancel')}
                         </button>
-                        <button className="btn btn-primary" onClick={handleSaveManual} disabled={manualSaving} style={{ background: 'var(--accent, #2b4c7e)' }}>
+                        <button className="btn btn-primary" onClick={handleSaveManual} disabled={manualSaving} style={{ background: C.accent }}>
                             {manualSaving ? t('กำลังบันทึก...', 'Saving...') : t('Save', 'Save')}
                         </button>
                     </div>
@@ -1265,22 +1288,22 @@ const MetersPage: React.FC = () => {
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label" style={{ fontWeight: 600 }}>{t('รหัสมิเตอร์', 'Meter Code')}</label>
-                        <input type="text" className="form-control" value={selectedMeterForManual?.meter_code || ''} disabled style={{ backgroundColor: 'var(--bg-secondary, #f1efe3)', opacity: 0.8 }} />
+                        <input type="text" className="form-control" value={selectedMeterForManual?.meter_code || ''} disabled style={{ backgroundColor: C.panel2, opacity: 0.8 }} />
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ fontWeight: 600 }}>{t('ชื่อมิเตอร์', 'Meter Name')}</label>
-                        <input type="text" className="form-control" value={selectedMeterForManual?.meter_name || ''} disabled style={{ backgroundColor: 'var(--bg-secondary, #f1efe3)', opacity: 0.8 }} />
+                        <input type="text" className="form-control" value={selectedMeterForManual?.meter_name || ''} disabled style={{ backgroundColor: C.panel2, opacity: 0.8 }} />
                     </div>
                 </div>
 
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label" style={{ fontWeight: 600 }}>{t('อาคาร', 'Building')}</label>
-                        <input type="text" className="form-control" value={selectedMeterForManual?.building_name || ''} disabled style={{ backgroundColor: 'var(--bg-secondary, #f1efe3)', opacity: 0.8 }} />
+                        <input type="text" className="form-control" value={selectedMeterForManual?.building_name || ''} disabled style={{ backgroundColor: C.panel2, opacity: 0.8 }} />
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ fontWeight: 600 }}>{t('โซน', 'Zone')}</label>
-                        <input type="text" className="form-control" value={selectedMeterForManual?.zone_name || ''} disabled style={{ backgroundColor: 'var(--bg-secondary, #f1efe3)', opacity: 0.8 }} />
+                        <input type="text" className="form-control" value={selectedMeterForManual?.zone_name || ''} disabled style={{ backgroundColor: C.panel2, opacity: 0.8 }} />
                     </div>
                 </div>
 

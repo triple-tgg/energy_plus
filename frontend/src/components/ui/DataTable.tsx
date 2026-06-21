@@ -22,6 +22,7 @@ interface DataTableProps {
     onSearch?: (search: string) => void;
     onCreate?: () => void;
     createLabel?: string;
+    headerActions?: React.ReactNode;
     loading?: boolean;
     theme?: 'light' | 'dark';
 }
@@ -39,7 +40,7 @@ const THEMES = {
 
 const DataTable: React.FC<DataTableProps> = ({
     title, columns, data, total = 0, page = 1, limit = 10,
-    onPageChange, onLimitChange, onSearch, onCreate, createLabel,
+    onPageChange, onLimitChange, onSearch, onCreate, createLabel, headerActions,
     loading = false, theme
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -95,7 +96,8 @@ const DataTable: React.FC<DataTableProps> = ({
                     <h2 style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', color: C.ink, margin: 0, textTransform: 'uppercase' }}>{title}</h2>
                     <span style={{ fontFamily: MONO, fontSize: '10.5px', color: C.sub }}>[{total} {t('รายการ', 'RECORDS')}]</span>
                 </div>
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {headerActions}
                     {onCreate && (
                         <button style={btnStyle('primary')} onClick={onCreate}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
