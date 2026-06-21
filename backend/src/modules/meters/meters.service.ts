@@ -191,6 +191,7 @@ export class MetersService {
         const client = await getClient();
         const results = {
             imported: 0,
+            updated: 0,
             skipped: 0,
             errors: [] as { row: number; message: string }[],
             createdMasterData: {
@@ -345,45 +346,78 @@ export class MetersService {
                     const meterBrandId = await getOrCreateMeterBrand(row.meterModel);
                     const loopId = await getOrCreateLoop(row.loop);
 
-                    // Check for duplicate meter_code
-                    if (row.meterCode) {
+                    // Check for existing meter by ip_address + address (composite key)
+                    const ipAddr = row.ipAddress || null;
+                    const modbusAddr = row.address || null;
+                    let existingId: number | null = null;
+
+                    if (ipAddr && modbusAddr !== null) {
                         const existing = await client.query(
-                            `SELECT meter_id FROM meter WHERE meter_code = $1`,
-                            [String(row.meterCode).trim()]
+                            `SELECT meter_id FROM meter WHERE ip_address = $1 AND address = $2`,
+                            [ipAddr, modbusAddr]
                         );
                         if (existing.rows.length > 0) {
-                            results.skipped++;
-                            results.errors.push({ row: i + 1, message: `Meter code "${row.meterCode}" already exists — skipped` });
-                            continue;
+                            existingId = existing.rows[0].meter_id;
                         }
                     }
 
-                    await client.query(
-                        `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
-                         site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
-                         phase, circuit, floor, created_by, created_on)
-                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,NOW())`,
-                        [
-                            String(row.meterCode || '').trim(),
-                            row.meterName || '',
-                            row.address || null,
-                            meterBrandId,
-                            meterTypeId,
-                            loopId,
-                            siteId,
-                            buildingId,
-                            zoneId,
-                            row.ipAddress || null,
-                            row.portNumber || null,
-                            row.roomCode || null,
-                            row.roomName || null,
-                            row.phase || null,
-                            row.circuit || null,
-                            row.floor || null,
-                            createdBy,
-                        ]
-                    );
-                    results.imported++;
+                    if (existingId) {
+                        // UPDATE existing meter
+                        await client.query(
+                            `UPDATE meter SET meter_code=$1, meter_name=$2, meter_brand_id=$3, meter_type_id=$4, loop_id=$5,
+                             site_id=$6, building_id=$7, zone_id=$8, ip_address=$9, port_number=$10, room_code=$11, room_name=$12,
+                             phase=$13, circuit=$14, floor=$15, last_modified_by=$16, last_modified_on=NOW()
+                             WHERE meter_id=$17`,
+                            [
+                                String(row.meterCode || '').trim(),
+                                row.meterName || '',
+                                meterBrandId,
+                                meterTypeId,
+                                loopId,
+                                siteId,
+                                buildingId,
+                                zoneId,
+                                ipAddr,
+                                row.portNumber || null,
+                                row.roomCode || null,
+                                row.roomName || null,
+                                row.phase || null,
+                                row.circuit || null,
+                                row.floor || null,
+                                createdBy,
+                                existingId,
+                            ]
+                        );
+                        results.updated++;
+                    } else {
+                        // INSERT new meter
+                        await client.query(
+                            `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
+                             site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
+                             phase, circuit, floor, created_by, created_on)
+                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,NOW())`,
+                            [
+                                String(row.meterCode || '').trim(),
+                                row.meterName || '',
+                                row.address || null,
+                                meterBrandId,
+                                meterTypeId,
+                                loopId,
+                                siteId,
+                                buildingId,
+                                zoneId,
+                                ipAddr,
+                                row.portNumber || null,
+                                row.roomCode || null,
+                                row.roomName || null,
+                                row.phase || null,
+                                row.circuit || null,
+                                row.floor || null,
+                                createdBy,
+                            ]
+                        );
+                        results.imported++;
+                    }
                 } catch (err: any) {
                     results.errors.push({ row: i + 1, message: err.message });
                 }

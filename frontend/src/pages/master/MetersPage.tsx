@@ -690,15 +690,19 @@ const MetersPage: React.FC = () => {
                     <div style={{ padding: '8px 0' }}>
                         {/* Result Summary */}
                         <div style={{
-                            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16,
+                            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16,
                         }}>
                             <div style={{ textAlign: 'center', padding: 16, borderRadius: 8, background: '#10b98115', border: '1px solid #10b98130' }}>
                                 <div style={{ fontSize: 28, fontWeight: 800, color: '#10b981' }}>{importResult.imported}</div>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>{t('นำเข้าสำเร็จ', 'Imported')}</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>{t('นำเข้าใหม่', 'Inserted')}</div>
+                            </div>
+                            <div style={{ textAlign: 'center', padding: 16, borderRadius: 8, background: '#3b82f615', border: '1px solid #3b82f630' }}>
+                                <div style={{ fontSize: 28, fontWeight: 800, color: '#3b82f6' }}>{importResult.updated || 0}</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#3b82f6' }}>{t('อัปเดต', 'Updated')}</div>
                             </div>
                             <div style={{ textAlign: 'center', padding: 16, borderRadius: 8, background: '#f59e0b15', border: '1px solid #f59e0b30' }}>
                                 <div style={{ fontSize: 28, fontWeight: 800, color: '#f59e0b' }}>{importResult.skipped}</div>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b' }}>{t('ข้าม (ซ้ำ)', 'Skipped')}</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b' }}>{t('ข้าม', 'Skipped')}</div>
                             </div>
                             <div style={{ textAlign: 'center', padding: 16, borderRadius: 8, background: '#ef444415', border: '1px solid #ef444430' }}>
                                 <div style={{ fontSize: 28, fontWeight: 800, color: '#ef4444' }}>{importResult.errors?.length || 0}</div>
