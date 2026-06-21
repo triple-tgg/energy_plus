@@ -81,6 +81,7 @@ export const metersApi = {
     create: (data: any) => api.post('/meters', data),
     update: (id: number, data: any) => api.put(`/meters/${id}`, data),
     delete: (id: number) => api.delete(`/meters/${id}`),
+    importMeters: (data: any[]) => api.post('/meters/import', data),
     getBrands: (params?: any) => api.get('/meters/brands/list', { params }),
     createBrand: (data: any) => api.post('/meters/brands', data),
     updateBrand: (id: number, data: any) => api.put(`/meters/brands/${id}`, data),

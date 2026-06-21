@@ -69,4 +69,17 @@ export class MetersController {
     async getEnergyValues(req: Request, res: Response, next: NextFunction) {
         try { res.json(successResponse(await svc.getEnergyValues())); } catch (e) { next(e); }
     }
+
+    // Import Meters from Excel
+    async importMeters(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const meters = req.body;
+            if (!Array.isArray(meters) || meters.length === 0) {
+                return res.status(400).json({ success: false, message: 'No meter data provided' });
+            }
+            const result = await svc.importMeters(meters, req.user?.userName || 'import');
+            res.json(successResponse(result, `Imported ${result.imported} meters`));
+        } catch (e) { next(e); }
+    }
 }
+

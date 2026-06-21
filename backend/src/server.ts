@@ -3,7 +3,7 @@ import express from 'express';
 import path from 'path';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import pool from './config/database';
-import { connectRedis, disconnectRedis, pubClient } from './config/redis';
+import { connectRedis, disconnectRedis, pubClient, REDIS_ENABLED } from './config/redis';
 import { successResponse } from './utils/response';
 
 // Import routes
@@ -107,17 +107,21 @@ app.use(errorHandler);
 
 // Start server with Redis connection
 const startServer = async () => {
-    try {
-        // Connect to Redis
-        await connectRedis();
-        console.log('📡 Redis Pub/Sub ready');
+    if (REDIS_ENABLED) {
+        try {
+            // Connect to Redis
+            await connectRedis();
+            console.log('📡 Redis Pub/Sub ready');
 
-        // Auto-subscribe to default channel if enabled
-        if (isAutoSubscribeEnabled()) {
-            await autoSubscribeDefaultChannel();
+            // Auto-subscribe to default channel if enabled
+            if (isAutoSubscribeEnabled()) {
+                await autoSubscribeDefaultChannel();
+            }
+        } catch (error) {
+            console.warn('⚠️  Redis connection failed, server will start without Redis');
         }
-    } catch (error) {
-        console.warn('⚠️  Redis connection failed, server will start without Redis');
+    } else {
+        console.log('⏸️  Redis is DISABLED (REDIS_ENABLED=false)');
     }
 
     const server = app.listen(PORT, () => {

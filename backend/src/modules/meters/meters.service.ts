@@ -1,4 +1,4 @@
-import { query } from '../../config/database';
+import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 
@@ -183,4 +183,221 @@ export class MetersService {
         const result = await query(`SELECT * FROM energy_value ORDER BY energy_value_id`);
         return result.rows;
     }
+
+    // ==========================================
+    // IMPORT from Excel — auto-create master data
+    // ==========================================
+    async importMeters(meters: any[], createdBy: string) {
+        const client = await getClient();
+        const results = {
+            imported: 0,
+            skipped: 0,
+            errors: [] as { row: number; message: string }[],
+            createdMasterData: {
+                sites: [] as string[],
+                buildings: [] as string[],
+                zones: [] as string[],
+                meterTypes: [] as string[],
+                meterBrands: [] as string[],
+                loops: [] as number[],
+            },
+        };
+
+        try {
+            await client.query('BEGIN');
+
+            // Ensure phase, circuit, floor columns exist
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase INTEGER`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(50)`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(100)`);
+
+            // Cache for lookups — keyed by name, value is DB id
+            const siteCache = new Map<string, number>();
+            const buildingCache = new Map<string, number>();
+            const zoneCache = new Map<string, number>();
+            const meterTypeCache = new Map<string, number>();
+            const meterBrandCache = new Map<string, number>();
+            const loopCache = new Map<number, number>();
+
+            // Pre-load existing lookups
+            const existingSites = await client.query(`SELECT site_id, site_name FROM sites`);
+            existingSites.rows.forEach((r: any) => siteCache.set(r.site_name, r.site_id));
+
+            const existingBuildings = await client.query(`SELECT building_id, building_name, site_id FROM buildings`);
+            existingBuildings.rows.forEach((r: any) => buildingCache.set(r.building_name, r.building_id));
+
+            const existingZones = await client.query(`SELECT zone_id, zone_name, building_id FROM zones`);
+            existingZones.rows.forEach((r: any) => zoneCache.set(r.zone_name, r.zone_id));
+
+            const existingTypes = await client.query(`SELECT meter_type_id, meter_type_name FROM meter_type`);
+            existingTypes.rows.forEach((r: any) => meterTypeCache.set(r.meter_type_name, r.meter_type_id));
+
+            const existingBrands = await client.query(`SELECT meter_brand_id, meter_brand_name, model_name FROM meter_brand`);
+            existingBrands.rows.forEach((r: any) => {
+                meterBrandCache.set(r.model_name || r.meter_brand_name, r.meter_brand_id);
+            });
+
+            const existingLoops = await client.query(`SELECT loop_id, port_no FROM loop`);
+            existingLoops.rows.forEach((r: any) => loopCache.set(r.port_no, r.loop_id));
+
+            // Helper: get or create site
+            const getOrCreateSite = async (siteName: string): Promise<number | null> => {
+                if (!siteName) return null;
+                if (siteCache.has(siteName)) return siteCache.get(siteName)!;
+                const res = await client.query(
+                    `INSERT INTO sites (site_name, created_by) VALUES ($1, $2) RETURNING site_id`,
+                    [siteName, createdBy]
+                );
+                const id = res.rows[0].site_id;
+                siteCache.set(siteName, id);
+                results.createdMasterData.sites.push(siteName);
+                return id;
+            };
+
+            // Helper: get or create building (linked to site)
+            const getOrCreateBuilding = async (buildingName: string, siteId: number | null): Promise<number | null> => {
+                if (!buildingName) return null;
+                if (buildingCache.has(buildingName)) return buildingCache.get(buildingName)!;
+                const res = await client.query(
+                    `INSERT INTO buildings (building_name, site_id, created_by) VALUES ($1, $2, $3) RETURNING building_id`,
+                    [buildingName, siteId, createdBy]
+                );
+                const id = res.rows[0].building_id;
+                buildingCache.set(buildingName, id);
+                results.createdMasterData.buildings.push(buildingName);
+                return id;
+            };
+
+            // Helper: get or create zone (linked to building)
+            const getOrCreateZone = async (zoneName: string, buildingId: number | null): Promise<number | null> => {
+                if (!zoneName) return null;
+                if (zoneCache.has(zoneName)) return zoneCache.get(zoneName)!;
+                const res = await client.query(
+                    `INSERT INTO zones (zone_name, building_id) VALUES ($1, $2) RETURNING zone_id`,
+                    [zoneName, buildingId]
+                );
+                const id = res.rows[0].zone_id;
+                zoneCache.set(zoneName, id);
+                results.createdMasterData.zones.push(zoneName);
+                return id;
+            };
+
+            // Helper: get or create meter type
+            const getOrCreateMeterType = async (typeName: string): Promise<number | null> => {
+                if (!typeName) return null;
+                if (meterTypeCache.has(typeName)) return meterTypeCache.get(typeName)!;
+                const res = await client.query(
+                    `INSERT INTO meter_type (meter_type_name, is_active) VALUES ($1, true) RETURNING meter_type_id`,
+                    [typeName]
+                );
+                const id = res.rows[0].meter_type_id;
+                meterTypeCache.set(typeName, id);
+                results.createdMasterData.meterTypes.push(typeName);
+                return id;
+            };
+
+            // Helper: get or create meter brand (by model_name)
+            const getOrCreateMeterBrand = async (modelName: string): Promise<number | null> => {
+                if (!modelName) return null;
+                if (meterBrandCache.has(modelName)) return meterBrandCache.get(modelName)!;
+                const res = await client.query(
+                    `INSERT INTO meter_brand (meter_brand_name, model_name, is_active) VALUES ($1, $2, true) RETURNING meter_brand_id`,
+                    [modelName, modelName]
+                );
+                const id = res.rows[0].meter_brand_id;
+                meterBrandCache.set(modelName, id);
+                results.createdMasterData.meterBrands.push(modelName);
+                return id;
+            };
+
+            // Helper: get or create loop (by loop number)
+            const getOrCreateLoop = async (loopNo: number): Promise<number | null> => {
+                if (!loopNo && loopNo !== 0) return null;
+                if (loopCache.has(loopNo)) return loopCache.get(loopNo)!;
+                const res = await client.query(
+                    `INSERT INTO loop (loop_name, port_no, baudrate, is_active) VALUES ($1, $2, 9600, true) RETURNING loop_id`,
+                    [`Loop ${loopNo}`, loopNo]
+                );
+                const id = res.rows[0].loop_id;
+                loopCache.set(loopNo, id);
+                results.createdMasterData.loops.push(loopNo);
+                return id;
+            };
+
+            // Derive site name from building name (e.g. "111PMT_Building A" → "111PMT")
+            const deriveSiteName = (buildingName: string): string => {
+                if (!buildingName) return '';
+                const parts = buildingName.split('_');
+                return parts.length > 1 ? parts[0] : buildingName;
+            };
+
+            // Process each meter row
+            for (let i = 0; i < meters.length; i++) {
+                const row = meters[i];
+                try {
+                    // Resolve lookups — auto-create if not found
+                    const siteName = deriveSiteName(row.building || '');
+                    const siteId = await getOrCreateSite(siteName);
+                    const buildingId = await getOrCreateBuilding(row.building, siteId);
+                    const zoneId = await getOrCreateZone(row.zone, buildingId);
+                    const meterTypeId = await getOrCreateMeterType(row.meterType);
+                    const meterBrandId = await getOrCreateMeterBrand(row.meterModel);
+                    const loopId = await getOrCreateLoop(row.loop);
+
+                    // Check for duplicate meter_code
+                    if (row.meterCode) {
+                        const existing = await client.query(
+                            `SELECT meter_id FROM meter WHERE meter_code = $1`,
+                            [String(row.meterCode).trim()]
+                        );
+                        if (existing.rows.length > 0) {
+                            results.skipped++;
+                            results.errors.push({ row: i + 1, message: `Meter code "${row.meterCode}" already exists — skipped` });
+                            continue;
+                        }
+                    }
+
+                    await client.query(
+                        `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
+                         site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
+                         phase, circuit, floor, created_by, created_on)
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,NOW())`,
+                        [
+                            String(row.meterCode || '').trim(),
+                            row.meterName || '',
+                            row.address || null,
+                            meterBrandId,
+                            meterTypeId,
+                            loopId,
+                            siteId,
+                            buildingId,
+                            zoneId,
+                            row.ipAddress || null,
+                            row.portNumber || null,
+                            row.roomCode || null,
+                            row.roomName || null,
+                            row.phase || null,
+                            row.circuit || null,
+                            row.floor || null,
+                            createdBy,
+                        ]
+                    );
+                    results.imported++;
+                } catch (err: any) {
+                    results.errors.push({ row: i + 1, message: err.message });
+                }
+            }
+
+            await client.query('COMMIT');
+        } catch (err: any) {
+            await client.query('ROLLBACK');
+            throw new AppError(500, 'IMPORT_FAILED', `Import failed: ${err.message}`);
+        } finally {
+            client.release();
+        }
+
+        return results;
+    }
 }
+

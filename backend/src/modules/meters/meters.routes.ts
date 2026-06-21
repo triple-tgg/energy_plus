@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, json } from 'express';
 import { MetersController } from './meters.controller';
 import { authenticate } from '../../middleware/auth';
 
@@ -8,6 +8,7 @@ const c = new MetersController();
 // Meters
 router.get('/', authenticate, c.getMeters);
 router.get('/energy-values', authenticate, c.getEnergyValues);
+router.post('/import', authenticate, json({ limit: '10mb' }), c.importMeters);
 router.get('/:id', authenticate, c.getMeterById);
 router.post('/', authenticate, c.createMeter);
 router.put('/:id', authenticate, c.updateMeter);

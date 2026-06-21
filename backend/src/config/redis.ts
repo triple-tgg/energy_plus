@@ -33,6 +33,9 @@ export const DEFAULT_CHANNEL = process.env.REDIS_DEFAULT_CHANNEL || 'default';
 // Auto-subscribe on startup (true/false)
 export const AUTO_SUBSCRIBE = process.env.REDIS_AUTO_SUBSCRIBE === 'true';
 
+// Master toggle — skip Redis entirely if false
+export const REDIS_ENABLED = process.env.REDIS_ENABLED !== 'false';
+
 /**
  * Connect both Redis clients
  */
