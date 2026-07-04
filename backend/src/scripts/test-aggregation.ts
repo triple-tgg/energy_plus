@@ -29,12 +29,18 @@ async function main() {
     record('required tables exist', tables.length === 2 ? 'PASS' : 'FAIL', { tables });
 
     const realtime = await pool.query(`
-        SELECT channel, site_id, address_id, date_trunc('minute', max(received_at)) AS to_time
+        SELECT
+            channel,
+            site_id,
+            address_id,
+            date_trunc('hour', max(received_at))
+              + (floor(extract(minute from max(received_at)) / $1::int) * $1::int) * interval '1 minute'
+              AS to_time
         FROM meter_data_realtime
         GROUP BY channel, site_id, address_id
         ORDER BY max(received_at) DESC
         LIMIT 1
-    `);
+    `, [aggregationConfig.intervalMinutes]);
     if (realtime.rowCount === 0) {
         record('realtime source available', 'FAIL', { message: 'meter_data_realtime has no rows' });
         return;
@@ -64,25 +70,45 @@ async function main() {
         const testDate = toTime.toISOString().slice(0, 10);
         const testMonth = testDate.slice(0, 7);
 
-        await client.query(
+        const existingMapping = await client.query(
             `
-            INSERT INTO realtime_meter_map (
-                channel, realtime_site_id, realtime_address_id, meter_id
-            )
-            VALUES ($1, $2, $3, $4)
+            SELECT id
+            FROM realtime_meter_map
+            WHERE COALESCE(channel, '') = $1
+              AND realtime_site_id = $2
+              AND realtime_address_id = $3
+              AND is_active = true
+            LIMIT 1
             `,
-            [source.channel, source.site_id, source.address_id, target.meter_id]
+            [source.channel, source.site_id, source.address_id]
         );
+
+        if (!existingMapping.rowCount) {
+            await client.query(
+                `
+                INSERT INTO realtime_meter_map (
+                    channel, realtime_site_id, realtime_address_id, meter_id
+                )
+                VALUES ($1, $2, $3, $4)
+                `,
+                [source.channel, source.site_id, source.address_id, target.meter_id]
+            );
+        }
 
         const minuteResult = await client.query(
             `
             WITH raw AS (
                 SELECT
                     COALESCE(rmm.meter_id, m.meter_id) AS meter_id,
-                    date_trunc('minute', r.received_at) AS date_keep,
+                    date_trunc('hour', r.received_at)
+                      + (floor(extract(minute from r.received_at) / $3::int) * $3::int) * interval '1 minute'
+                      AS date_keep,
                     r.*,
                     row_number() OVER (
-                        PARTITION BY COALESCE(rmm.meter_id, m.meter_id), date_trunc('minute', r.received_at)
+                        PARTITION BY
+                            COALESCE(rmm.meter_id, m.meter_id),
+                            date_trunc('hour', r.received_at)
+                              + (floor(extract(minute from r.received_at) / $3::int) * $3::int) * interval '1 minute'
                         ORDER BY r.received_at DESC, r.id DESC
                     ) AS latest_rank
                 FROM meter_data_realtime r
@@ -173,7 +199,7 @@ async function main() {
                 COALESCE((SELECT SUM(rows_read)::int FROM agg), 0) AS rows_read,
                 (SELECT COUNT(*)::int FROM upserted) AS rows_written
             `,
-            [fromTime, toTime]
+            [fromTime, toTime, aggregationConfig.intervalMinutes]
         );
         const minute = minuteResult.rows[0];
         record('minute aggregation rollback test', minute.rows_written > 0 ? 'PASS' : 'FAIL', {

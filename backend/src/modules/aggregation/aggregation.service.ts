@@ -23,9 +23,10 @@ const advisoryLockIds: Record<string, number> = {
     retention: 9101004,
 };
 
-const floorToMinute = (date: Date): Date => {
+const floorToInterval = (date: Date, intervalMinutes: number): Date => {
     const next = new Date(date);
-    next.setUTCSeconds(0, 0);
+    const flooredMinute = Math.floor(next.getUTCMinutes() / intervalMinutes) * intervalMinutes;
+    next.setUTCMinutes(flooredMinute, 0, 0);
     return next;
 };
 
@@ -130,7 +131,7 @@ export class AggregationService {
     }
 
     async aggregateRecentMinutes(now = new Date()): Promise<void> {
-        const toTime = floorToMinute(now);
+        const toTime = floorToInterval(now, aggregationConfig.intervalMinutes);
         const fromTime = addMinutes(toTime, -aggregationConfig.lookbackMinutes);
         await this.aggregateMinuteRange(fromTime, toTime);
     }
@@ -144,10 +145,15 @@ export class AggregationService {
                     WITH raw AS (
                         SELECT
                             COALESCE(rmm.meter_id, m.meter_id) AS meter_id,
-                            date_trunc('minute', r.received_at) AS date_keep,
+                            date_trunc('hour', r.received_at)
+                              + (floor(extract(minute from r.received_at) / $3::int) * $3::int) * interval '1 minute'
+                              AS date_keep,
                             r.*,
                             row_number() OVER (
-                                PARTITION BY COALESCE(rmm.meter_id, m.meter_id), date_trunc('minute', r.received_at)
+                                PARTITION BY
+                                    COALESCE(rmm.meter_id, m.meter_id),
+                                    date_trunc('hour', r.received_at)
+                                      + (floor(extract(minute from r.received_at) / $3::int) * $3::int) * interval '1 minute'
                                 ORDER BY r.received_at DESC, r.id DESC
                             ) AS latest_rank
                         FROM meter_data_realtime r
@@ -255,7 +261,7 @@ export class AggregationService {
                         (SELECT COUNT(*)::int FROM upserted) AS rows_written,
                         (SELECT rows_skipped FROM skipped) AS rows_skipped
                     `,
-                    [fromTime, toTime]
+                    [fromTime, toTime, aggregationConfig.intervalMinutes]
                 );
 
                 await this.logJob(client, {

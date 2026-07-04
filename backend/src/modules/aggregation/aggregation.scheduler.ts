@@ -2,13 +2,25 @@ import { aggregationConfig } from '../../config/aggregation';
 import { aggregationService } from './aggregation.service';
 
 interface SimpleSchedule {
-    minute: number | '*';
+    minute: number | '*' | { every: number };
     hour: number | '*';
     dayOfMonth: number | '*';
 }
 
 const parseSchedule = (expression: string): SimpleSchedule => {
     const [minute = '*', hour = '*', dayOfMonth = '*'] = expression.trim().split(/\s+/);
+    const parseMinutePart = (value: string): number | '*' | { every: number } => {
+        if (value === '*') {
+            return '*';
+        }
+        if (value.startsWith('*/')) {
+            const parsedEvery = Number(value.slice(2));
+            return Number.isInteger(parsedEvery) && parsedEvery > 0 ? { every: parsedEvery } : '*';
+        }
+        const parsed = Number(value);
+        return Number.isInteger(parsed) ? parsed : '*';
+    };
+
     const parsePart = (value: string): number | '*' => {
         if (value === '*') {
             return '*';
@@ -18,7 +30,7 @@ const parseSchedule = (expression: string): SimpleSchedule => {
     };
 
     return {
-        minute: parsePart(minute),
+        minute: parseMinutePart(minute),
         hour: parsePart(hour),
         dayOfMonth: parsePart(dayOfMonth),
     };
@@ -46,7 +58,11 @@ const getZonedParts = (date: Date, timeZone: string) => {
 
 const matchesSchedule = (schedule: SimpleSchedule, date: Date): boolean => {
     const parts = getZonedParts(date, aggregationConfig.timezone);
-    return (schedule.minute === '*' || schedule.minute === parts.minute)
+    const minuteMatches = schedule.minute === '*'
+        || (typeof schedule.minute === 'number' && schedule.minute === parts.minute)
+        || (typeof schedule.minute === 'object' && parts.minute % schedule.minute.every === 0);
+
+    return minuteMatches
         && (schedule.hour === '*' || schedule.hour === parts.hour)
         && (schedule.dayOfMonth === '*' || schedule.dayOfMonth === parts.day);
 };

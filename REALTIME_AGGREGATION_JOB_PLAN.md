@@ -4,7 +4,7 @@
 
 ## เป้าหมาย
 
-1. ทุก 1 นาที สรุปข้อมูลจาก `meter_data_realtime` ลง `actual_meter_data`
+1. ทุก 15 นาที สรุปข้อมูลจาก `meter_data_realtime` ลง `actual_meter_data`
 2. ทุก 1 วัน สรุปข้อมูลรายวันลง `actual_meter_data_daily`
 3. ทุก 1 เดือน สรุปข้อมูลรายเดือนลง `actual_meter_data_monthly`
 4. ลบข้อมูลใน `meter_data_realtime` โดยเก็บเฉพาะ 3 เดือนล่าสุด และปรับจำนวนเดือนได้จาก config
@@ -37,17 +37,19 @@
 
 ```env
 AGGREGATION_ENABLED=true
-AGGREGATION_MINUTE_CRON=* * * * *
+AGGREGATION_MINUTE_CRON=*/15 * * * *
 AGGREGATION_DAILY_CRON=0 0 * * *
 AGGREGATION_MONTHLY_CRON=0 0 20 * *
 AGGREGATION_RETENTION_CRON=30 2 * * *
 AGGREGATION_RETENTION_MONTHS=3
 AGGREGATION_TIMEZONE=Asia/Bangkok
-AGGREGATION_LOOKBACK_MINUTES=5
+AGGREGATION_INTERVAL_MINUTES=15
+AGGREGATION_LOOKBACK_MINUTES=30
 ```
 
 ความหมาย:
-- `AGGREGATION_LOOKBACK_MINUTES`: เผื่อข้อมูลมาช้า เช่น job ตอน 10:05 จะประมวลผลย้อนหลังถึง 10:00 แล้ว upsert ทับ bucket เดิม
+- `AGGREGATION_INTERVAL_MINUTES`: ขนาด bucket ของข้อมูลสรุป เช่น 15 นาที
+- `AGGREGATION_LOOKBACK_MINUTES`: เผื่อข้อมูลมาช้า เช่น job ตอน 10:30 จะประมวลผลย้อนหลังถึง 10:00 แล้ว upsert ทับ bucket เดิม
 - `AGGREGATION_RETENTION_MONTHS`: default 3 เดือน ปรับได้โดยไม่แก้ code
 
 ## Schema / Index ที่ควรเพิ่ม
@@ -132,7 +134,7 @@ VALUES (
 | Source | Target | วิธีสรุป |
 |---|---|---|
 | `meter.site_id + meter.address` จาก `site_id + address_id` | `meter_id` | join หา meter |
-| minute bucket จาก `received_at` | `date_keep` | `date_trunc('minute', received_at)` |
+| 15-minute bucket จาก `received_at` | `date_keep` | `floor เป็นช่วง 15 นาทีจาก received_at` |
 | `kva_3ph` | `energy_kva` | Last value ใน bucket |
 | `kw_3ph` | `energy_kw` | Last value ใน bucket |
 | `kvar_3ph` | `energy_kvar` | Last value ใน bucket |
@@ -144,20 +146,20 @@ VALUES (
 | `import_kwhr` | `energy_kwh` | Last value ใน bucket |
 | fixed value | `status` | `online` |
 
-Minute aggregation ใช้ row ล่าสุดในแต่ละ `meter_id + minute bucket` สำหรับทุก field โดยเรียง `received_at DESC, id DESC`
+15-minute aggregation ใช้ row ล่าสุดในแต่ละ `meter_id + 15-minute bucket` สำหรับทุก field โดยเรียง `received_at DESC, id DESC`
 
-## Job 1: Minute Aggregation
+## Job 1: 15-Minute Aggregation
 
-ความถี่: ทุก 1 นาที
+ความถี่: ทุก 15 นาที
 
 Input: `meter_data_realtime`
 
 Output: `actual_meter_data`
 
 ช่วงประมวลผล:
-- ใช้ bucket เป็นนาที เช่น `2026-07-04 22:47:00`
+- ใช้ bucket เป็นช่วง 15 นาที เช่น `22:00`, `22:15`, `22:30`, `22:45`
 - รันย้อนหลังตาม `AGGREGATION_LOOKBACK_MINUTES`
-- ไม่ประมวลผลนาทีปัจจุบันที่ยังไม่จบ เช่น job เวลา 10:05:20 ให้ประมวลผลถึง `< 10:05:00`
+- ไม่ประมวลผล bucket ปัจจุบันที่ยังไม่จบ เช่น job เวลา 10:30:20 ให้ประมวลผลถึง `< 10:30:00`
 
 Pseudo SQL:
 
@@ -165,10 +167,10 @@ Pseudo SQL:
 WITH raw AS (
   SELECT
     m.meter_id,
-    date_trunc('minute', r.received_at AT TIME ZONE :timezone) AT TIME ZONE :timezone AS bucket_time,
+    date_trunc('hour', r.received_at) + floor(extract(minute from r.received_at) / 15) * interval '15 minutes' AS bucket_time,
     r.*,
     row_number() OVER (
-      PARTITION BY m.meter_id, date_trunc('minute', r.received_at AT TIME ZONE :timezone)
+      PARTITION BY m.meter_id, 15-minute bucket
       ORDER BY r.received_at DESC
     ) AS latest_rank
   FROM meter_data_realtime r
@@ -376,7 +378,7 @@ WHERE id IN (
 2. เพิ่ม migration script สำหรับ indexes และ optional `aggregation_job_runs`
 3. เพิ่ม service ใหม่ เช่น `backend/src/modules/aggregation/aggregation.service.ts`
 4. เพิ่ม helper สำหรับ:
-   - คำนวณ minute/day/month bucket ตาม timezone
+   - คำนวณ 15-minute/day/month bucket ตาม timezone
    - advisory lock
    - insert job run log
 
@@ -386,7 +388,7 @@ WHERE id IN (
 2. Join realtime กับ meter ด้วย `site_id + address_id`
 3. Upsert ลง `actual_meter_data`
 4. บันทึก rows read/written/skipped
-5. เพิ่ม manual script สำหรับ backfill เช่น `npm run aggregation:minute -- --from ... --to ...`
+5. เพิ่ม manual script สำหรับ backfill เช่น `npm run aggregation:backfill -- --job minute --from ... --to ...`
 
 ### Phase 3: Daily Job
 
@@ -447,7 +449,7 @@ backend/package-lock.json
 ### หลังทำ Minute Job
 
 - `/meter-data/realtime` จะเริ่มมีข้อมูล เพราะ API อ่าน latest จาก `actual_meter_data`
-- `/meter-data/history` จะเริ่มมีข้อมูลย้อนหลังระดับ 1 นาที
+- `/meter-data/history` จะเริ่มมีข้อมูลย้อนหลังระดับ 15 นาที
 - Dashboard ที่อ่าน `actual_meter_data` จะไม่ว่าง
 
 ### หลังทำ Daily/Monthly Job
@@ -526,14 +528,14 @@ npm run aggregation:backfill -- --job retention --months 3
 | เรื่อง | Decision ที่ต้องเลือก |
 |---|---|
 | Daily target table | แนะนำ `actual_meter_data_daily`; ถ้าต้องลง `actual_meter_data` จริง ต้องกำหนด `status='daily'` หรือ field แยก ไม่งั้นปนกับ minute data |
-| ค่าใน minute bucket | ใช้ `AVG` สำหรับ instantaneous values และ latest สำหรับ cumulative kWh |
+| ค่าใน 15-minute bucket | ใช้ `AVG` สำหรับ instantaneous values และ latest สำหรับ cumulative kWh |
 | Timezone | ใช้ `Asia/Bangkok` เป็น business timezone |
 | Missing meter mapping | Skip + log หรือ auto-create meter |
 | Deployment style | `node-cron` ใน backend หรือแยก worker/external scheduler |
 
 ## Acceptance Criteria
 
-- `actual_meter_data` มีไม่เกิน 1 row ต่อ `meter_id + minute`
+- `actual_meter_data` มีไม่เกิน 1 row ต่อ `meter_id + 15-minute bucket`
 - `actual_meter_data_daily` มีไม่เกิน 1 row ต่อ `meter_id + date`
 - `actual_meter_data_monthly` มีไม่เกิน 1 row ต่อ `meter_id + year_month`
 - รัน job ซ้ำไม่เกิด duplicate rows
