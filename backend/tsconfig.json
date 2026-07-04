@@ -18,22 +18,21 @@
         "declaration": true,
         "declarationMap": true,
         "sourceMap": true,
-        "baseUrl": "./src",
         "paths": {
             "@config/*": [
-                "config/*"
+                "./src/config/*"
             ],
             "@middleware/*": [
-                "middleware/*"
+                "./src/middleware/*"
             ],
             "@modules/*": [
-                "modules/*"
+                "./src/modules/*"
             ],
             "@utils/*": [
-                "utils/*"
+                "./src/utils/*"
             ],
             "@types/*": [
-                "types/*"
+                "./src/types/*"
             ]
         }
     },

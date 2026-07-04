@@ -9,7 +9,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "db:seed": "node dist/scripts/migrate-and-seed.js",
-    "db:seed:dev": "ts-node src/scripts/migrate-and-seed.ts"
+    "db:seed:dev": "ts-node src/scripts/migrate-and-seed.ts",
+    "aggregation:setup": "ts-node src/scripts/add-aggregation-indexes.ts",
+    "aggregation:backfill": "ts-node src/scripts/backfill-aggregation.ts",
+    "aggregation:test": "ts-node src/scripts/test-aggregation.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

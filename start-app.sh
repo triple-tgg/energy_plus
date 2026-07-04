@@ -19,15 +19,15 @@ check_port() {
     fi
 }
 
-# Clean up any existing processes on port 3000 or 5173
-if check_port 3000; then
-    echo -e "${RED}⚠️ Port 3000 is already in use. Cleaning up...${NC}"
-    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+# Clean up any existing processes on port 3003 or 5175
+if check_port 3003; then
+    echo -e "${RED}⚠️ Port 3003 is already in use. Cleaning up...${NC}"
+    lsof -ti:3003 | xargs kill -9 2>/dev/null || true
 fi
 
-if check_port 5173; then
-    echo -e "${RED}⚠️ Port 5173 is already in use. Cleaning up...${NC}"
-    lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+if check_port 5175; then
+    echo -e "${RED}⚠️ Port 5175 is already in use. Cleaning up...${NC}"
+    lsof -ti:5175 | xargs kill -9 2>/dev/null || true
 fi
 
 # Function to handle script termination
@@ -47,7 +47,7 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Start Backend
-echo -e "${BLUE}📦 Starting Backend Server with Nodemon (Port 3000)...${NC}"
+echo -e "${BLUE}📦 Starting Backend Server with Nodemon (Port 3003)...${NC}"
 cd backend
 npm run dev:watch &
 BACKEND_PID=$!
@@ -57,15 +57,15 @@ cd ..
 sleep 1.5
 
 # Start Frontend
-echo -e "${BLUE}🎨 Starting Frontend Dev Server (Port 5173)...${NC}"
+echo -e "${BLUE}🎨 Starting Frontend Dev Server (Port 5175)...${NC}"
 cd frontend
 npm run dev &
 FRONTEND_PID=$!
 cd ..
 
 echo -e "\n${GREEN}🚀 EnergyPlus is ready!${NC}"
-echo -e "${GREEN}👉 Backend:  http://localhost:3000${NC}"
-echo -e "${GREEN}👉 Frontend: http://localhost:5173${NC}"
+echo -e "${GREEN}👉 Backend:  http://localhost:3003${NC}"
+echo -e "${GREEN}👉 Frontend: http://localhost:5175${NC}"
 echo -e "${YELLOW}Press [Ctrl+C] to stop both servers.${NC}\n"
 
 # Wait for background processes to keep shell active

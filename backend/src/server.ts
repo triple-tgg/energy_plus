@@ -19,9 +19,10 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import redisPubsubRoutes from './modules/redis-pubsub/redisPubsub.routes';
 import layoutRoutes from './modules/layouts/layouts.routes';
 import { autoSubscribeDefaultChannel, isAutoSubscribeEnabled } from './modules/redis-pubsub/redisPubsub.service';
+import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 
 const app = createApp();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3003;
 const API_PREFIX = '/api/v1';
 
 // Health check
@@ -124,6 +125,12 @@ const startServer = async () => {
         console.log('⏸️  Redis is DISABLED (REDIS_ENABLED=false)');
     }
 
+    try {
+        await aggregationScheduler.start();
+    } catch (error: any) {
+        console.warn('⚠️  Aggregation scheduler failed to start:', error.message);
+    }
+
     const server = app.listen(PORT, () => {
         console.log(`\n🚀 EnergyPlus API Server running on port ${PORT}`);
         console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
@@ -134,6 +141,7 @@ const startServer = async () => {
     // Graceful shutdown
     const shutdown = async () => {
         console.log('\n🔄 Shutting down gracefully...');
+        aggregationScheduler.stop();
         await disconnectRedis();
         server.close(() => {
             console.log('👋 Server closed');
