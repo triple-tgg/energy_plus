@@ -99,7 +99,7 @@ export class AggregationScheduler {
         try {
             await this.runIfDue('minute', this.minuteSchedule, now, () => aggregationService.aggregateRecentMinutes(now));
             await this.runIfDue('daily', this.dailySchedule, now, () => aggregationService.aggregatePreviousDay());
-            await this.runIfDue('monthly', this.monthlySchedule, now, () => aggregationService.aggregatePreviousMonth());
+            await this.runIfDue('monthly', this.monthlySchedule, now, () => aggregationService.aggregateCurrentMonth());
             await this.runIfDue('retention', this.retentionSchedule, now, () => aggregationService.cleanupRealtimeData());
         } finally {
             this.running = false;

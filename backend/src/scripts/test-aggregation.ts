@@ -101,28 +101,35 @@ async function main() {
             ),
             agg AS (
                 SELECT
-                    meter_id,
-                    date_keep,
-                    AVG(kva_3ph) AS energy_kva,
-                    AVG(kw_3ph) AS energy_kw,
-                    AVG(kvar_3ph) AS energy_kvar,
-                    AVG(hz) AS energy_frequency,
-                    AVG(vl1) AS energy_volt_p1,
-                    AVG(vl2) AS energy_volt_p2,
-                    AVG(vl3) AS energy_volt_p3,
-                    AVG(vl12) AS energy_volt_l1,
-                    AVG(vl23) AS energy_volt_l2,
-                    AVG(vl31) AS energy_volt_l3,
-                    AVG(il1) AS energy_amp1,
-                    AVG(il2) AS energy_amp2,
-                    AVG(il3) AS energy_amp3,
-                    AVG(pf1) AS energy_pf1,
-                    AVG(pf2) AS energy_pf2,
-                    AVG(pf3) AS energy_pf3,
-                    MAX(import_kwhr) FILTER (WHERE latest_rank = 1) AS energy_kwh,
-                    COUNT(*)::int AS rows_read
-                FROM raw
-                GROUP BY meter_id, date_keep
+                    latest.meter_id,
+                    latest.date_keep,
+                    latest.kva_3ph AS energy_kva,
+                    latest.kw_3ph AS energy_kw,
+                    latest.kvar_3ph AS energy_kvar,
+                    latest.hz AS energy_frequency,
+                    latest.vl1 AS energy_volt_p1,
+                    latest.vl2 AS energy_volt_p2,
+                    latest.vl3 AS energy_volt_p3,
+                    latest.vl12 AS energy_volt_l1,
+                    latest.vl23 AS energy_volt_l2,
+                    latest.vl31 AS energy_volt_l3,
+                    latest.il1 AS energy_amp1,
+                    latest.il2 AS energy_amp2,
+                    latest.il3 AS energy_amp3,
+                    latest.pf1 AS energy_pf1,
+                    latest.pf2 AS energy_pf2,
+                    latest.pf3 AS energy_pf3,
+                    latest.import_kwhr AS energy_kwh,
+                    counts.rows_read
+                FROM raw latest
+                JOIN (
+                    SELECT meter_id, date_keep, COUNT(*)::int AS rows_read
+                    FROM raw
+                    GROUP BY meter_id, date_keep
+                ) counts
+                  ON counts.meter_id = latest.meter_id
+                 AND counts.date_keep = latest.date_keep
+                WHERE latest.latest_rank = 1
             ),
             upserted AS (
                 INSERT INTO actual_meter_data (
@@ -184,17 +191,25 @@ async function main() {
 
         const dailyResult = await client.query(
             `
-            WITH agg AS (
+            WITH ranked AS (
                 SELECT
                     meter_id,
                     $1::date AS date_keep,
-                    GREATEST(MAX(energy_kwh) - MIN(energy_kwh), 0) AS total_kwh,
-                    MAX(energy_kw) AS max_kw,
-                    MIN(energy_kw) AS min_kw,
-                    AVG(energy_kw) AS avg_kw
+                    energy_kwh AS total_kwh,
+                    energy_kw AS max_kw,
+                    energy_kw AS min_kw,
+                    energy_kw AS avg_kw,
+                    row_number() OVER (
+                        PARTITION BY meter_id
+                        ORDER BY date_keep DESC, id DESC
+                    ) AS latest_rank
                 FROM actual_meter_data
                 WHERE (date_keep AT TIME ZONE $2)::date = $1::date
-                GROUP BY meter_id
+            ),
+            agg AS (
+                SELECT meter_id, date_keep, total_kwh, max_kw, min_kw, avg_kw
+                FROM ranked
+                WHERE latest_rank = 1
             ),
             upserted AS (
                 INSERT INTO actual_meter_data_daily (
@@ -228,12 +243,24 @@ async function main() {
                 SELECT
                     meter_id,
                     $1 AS year_month,
-                    SUM(total_kwh) AS total_kwh,
-                    MAX(max_kw) AS max_kw,
-                    AVG(avg_kw) AS avg_kw
-                FROM actual_meter_data_daily
-                WHERE to_char(date_keep, 'YYYY-MM') = $1
-                GROUP BY meter_id
+                    total_kwh,
+                    max_kw,
+                    avg_kw
+                FROM (
+                    SELECT
+                        meter_id,
+                        date_keep,
+                        total_kwh,
+                        max_kw,
+                        avg_kw,
+                        row_number() OVER (
+                            PARTITION BY meter_id
+                            ORDER BY date_keep DESC, id DESC
+                        ) AS latest_rank
+                    FROM actual_meter_data_daily
+                    WHERE to_char(date_keep, 'YYYY-MM') = $1
+                ) ranked
+                WHERE latest_rank = 1
             ),
             upserted AS (
                 INSERT INTO actual_meter_data_monthly (
@@ -298,4 +325,3 @@ main()
     .finally(async () => {
         await pool.end();
     });
-
