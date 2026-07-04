@@ -12,6 +12,7 @@ import {
     LayoutDashboard, MapPinned, Gauge, Table,
     type LucideIcon,
 } from 'lucide-react';
+import logo from '../../assets/logo.jpg';
 
 interface NavItem {
     labelEn: string;
@@ -132,7 +133,7 @@ const Sidebar: React.FC = () => {
             {/* Logo */}
             <div className="sidebar-brand">
                 <div className="sidebar-brand__icon">
-                    <span style={{ fontSize: '22px', fontWeight: 800, color: '#dc2626', lineHeight: 1 }}>M</span>
+                    <img src={logo} alt="MAC Energy" className="sidebar-brand__logo" />
                 </div>
                 {!collapsed && (
                     <div className="sidebar-brand__text">

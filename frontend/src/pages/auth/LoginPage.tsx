@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Sun, Moon, User, Lock, Eye, EyeOff, Terminal, ShieldAlert } from 'lucide-react';
+import logo from '../../assets/logo.jpg';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -178,6 +179,19 @@ const LoginPage: React.FC = () => {
                 <form onSubmit={handleSubmit} style={{ padding: '32px 28px' }}>
                     {/* Brand display */}
                     <div style={{ textAlign: 'center', marginBottom: 28 }}>
+                        <img
+                            src={logo}
+                            alt="MAC Energy"
+                            style={{
+                                width: 76,
+                                height: 76,
+                                objectFit: 'contain',
+                                borderRadius: 8,
+                                marginBottom: 14,
+                                background: '#ffffff',
+                                border: `1px solid ${C.line}`,
+                            }}
+                        />
                         <h1 style={{ fontSize: '24px', fontWeight: 800, color: C.ink, margin: 0, letterSpacing: '1px' }}>
                             [ <span style={{ color: C.accent }}>MAC</span> ENERGY ]
                         </h1>
@@ -272,4 +286,3 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
-
