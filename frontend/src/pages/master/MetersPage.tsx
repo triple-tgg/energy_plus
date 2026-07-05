@@ -54,6 +54,7 @@ const emptyForm: MeterForm = {
 interface ParsedMeter {
     address: string;
     circuit: string;
+    siteName: string;
     building: string;
     zone: string;
     meterType: string;
@@ -67,6 +68,8 @@ interface ParsedMeter {
     ipAddress: string;
     phase: number | null;
     floor: number | null;
+    previousKwh: number | null;
+    currentKwh: number | null;
 }
 
 const MetersPage: React.FC = () => {
@@ -535,10 +538,13 @@ const MetersPage: React.FC = () => {
                         roomName: row[11] != null ? String(row[11]).trim() : '',   // L: ชื่อห้อง
                         loop: row[12] != null ? Number(row[12]) : null,            // M: Loop
                         meterModel: row[13] != null ? String(row[13]).trim() : '', // N: Meter Model
-                        portNumber: row[14] != null ? Number(row[14]) : null,      // O: Port
-                        ipAddress: row[15] != null ? String(row[15]).trim() : '',   // P: IP Converter
+                        siteName: row[14] != null ? String(row[14]).trim() : '',    // O: Project / Site
+                        portNumber: null,
+                        ipAddress: '',
                         phase: row[16] != null ? Number(row[16]) : null,           // Q: Phase
                         floor: row[17] != null ? Number(row[17]) : null,           // R: ชั้น
+                        previousKwh: row[18] != null && row[18] !== '' ? Number(row[18]) : null, // S: Previous Kwh
+                        currentKwh: row[21] != null && row[21] !== '' ? Number(row[21]) : null,  // V: Current Kwh
                     });
                 }
 

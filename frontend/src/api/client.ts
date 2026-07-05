@@ -138,6 +138,7 @@ export const billingApi = {
 
 // Dashboard
 export const dashboardApi = {
+    getZoneDashboard: (params?: any) => api.get('/dashboard/zone', { params }),
     getZoneConsumption: (params?: any) => api.get('/dashboard/zone-consumption', { params }),
     getMdbConsumption: (params?: any) => api.get('/dashboard/mdb-consumption', { params }),
     getDemand: (params?: any) => api.get('/dashboard/demand', { params }),

@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth';
 const router = Router();
 const c = new DashboardController();
 
+router.get('/zone', authenticate, c.getZoneDashboard);
 router.get('/zone-consumption', authenticate, c.getZoneConsumption);
 router.get('/mdb-consumption', authenticate, c.getMdbConsumption);
 router.get('/demand', authenticate, c.getDemandData);

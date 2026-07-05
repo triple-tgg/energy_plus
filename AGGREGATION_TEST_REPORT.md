@@ -13,6 +13,8 @@
 
 การทดสอบใช้ production PostgreSQL Railway แต่ส่วน integration test ที่เขียนข้อมูลใช้ transaction และ `ROLLBACK` เพื่อไม่ทิ้งข้อมูลทดสอบไว้ใน database
 
+หมายเหตุอัปเดต: หลังจากเก็บรายงานนี้ ระบบ production มี `realtime_meter_map` สำหรับ channel หลัก `project1_1000_1` แล้ว รายงานด้านล่างยังคงสะท้อนสภาพตอนทดสอบแบบ transaction เพื่อให้ trace ได้ว่าทดสอบอะไรไปบ้าง
+
 ## Commands
 
 ```bash
@@ -45,7 +47,7 @@ npm run build
 | 15-minute aggregation | PASS | อ่าน raw realtime `95` rows และเขียนได้ `1` 15-minute snapshot โดยใช้ Last row ทุก field |
 | Daily aggregation | PASS | อ่าน `1` meter/day และเขียนได้ `1` daily snapshot จากแถวล่าสุดของวัน |
 | Monthly aggregation | PASS | อ่าน `1` meter/month และเขียนได้ `1` monthly snapshot จากแถวล่าสุดของเดือน |
-| Retention dry-run | PASS | พบข้อมูลเก่ากว่า config 3 เดือนจำนวน `9,665` rows |
+| Retention dry-run | PASS | พบข้อมูลเก่ากว่า config 3 เดือนประมาณ `9,670` rows |
 | Rollback cleanup | PASS | ข้อมูล mapping/aggregate ที่ใช้ทดสอบไม่ถูก persist |
 
 ## Test Data Used
@@ -99,13 +101,13 @@ Temporary mapping ใน transaction:
 3. Daily aggregation ใช้ Last row ของวันจาก `actual_meter_data`
 4. Monthly aggregation ใช้ Last row ของเดือนจาก `actual_meter_data_daily`
 5. Monthly scheduler ถูกตั้งให้รันทุกวันที่ 20 เวลา `00:00` เวลาไทย และเขียน `year_month` ของเดือนปัจจุบัน
-6. ข้อมูล realtime ปัจจุบัน (`site_id=1000`, `address_id=1`) ยังไม่มี mapping จริงใน `realtime_meter_map`
-7. หากเปิด scheduler ตอนนี้โดยยังไม่เพิ่ม mapping, job จะ skip ข้อมูล realtime ปัจจุบันและ `actual_meter_data` จะยังไม่มีข้อมูล
-8. Retention พบข้อมูลเก่ากว่า 3 เดือน `9,670` rows แต่ยังไม่ได้ลบ เพราะทดสอบแบบ dry-run
+6. ตอนทดสอบต้องมี mapping ใน `realtime_meter_map` ถึงจะสรุปข้อมูลได้
+7. หากเปิด scheduler โดยไม่มี mapping, job จะ skip ข้อมูล realtime ที่หา `meter_id` ไม่เจอ
+8. Retention พบข้อมูลเก่ากว่า 3 เดือนประมาณ `9,670` rows แต่ยังไม่ได้ลบ เพราะทดสอบแบบ dry-run
 
 ## Next Step Before Enabling Jobs
 
-ต้องเพิ่ม mapping จริงก่อน เช่น:
+ถ้ายังไม่มี mapping ของ channel ใหม่ ต้องเพิ่ม mapping ก่อน เช่น:
 
 ```sql
 INSERT INTO realtime_meter_map (

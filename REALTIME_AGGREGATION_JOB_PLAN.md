@@ -1,6 +1,6 @@
 # Realtime Aggregation Job Plan
 
-แผนงานสำหรับทำ background job สรุปข้อมูลจาก `meter_data_realtime` ไปยังตารางรายนาที/รายวัน/รายเดือน และลบ raw realtime data ตาม retention policy
+แผนงานสำหรับทำ background job สรุปข้อมูลจาก `meter_data_realtime` ไปยังตารางราย 15 นาที/รายวัน/รายเดือน และลบ raw realtime data ตาม retention policy
 
 ## เป้าหมาย
 
@@ -16,9 +16,9 @@
 | Table | สถานะข้อมูล | การใช้งานปัจจุบัน |
 |---|---:|---|
 | `meter_data_realtime` | มีข้อมูลจำนวนมากและยังไหลเข้าอยู่ | รับข้อมูลจาก Redis Pub/Sub |
-| `actual_meter_data` | ยังไม่มีข้อมูล | API realtime/history/dashboard อ่านจาก table นี้ |
-| `actual_meter_data_daily` | ยังไม่มีข้อมูล | มี schema แล้ว แต่ runtime ยังไม่ได้อ่านตรง |
-| `actual_meter_data_monthly` | ยังไม่มีข้อมูล | มี schema แล้ว แต่ runtime ยังไม่ได้อ่านตรง |
+| `actual_meter_data` | มีข้อมูล 15-minute snapshot แล้ว | API realtime/history/dashboard อ่านจาก table นี้ |
+| `actual_meter_data_daily` | มีข้อมูล daily snapshot แล้ว | ใช้เป็นแหล่งข้อมูลสรุปรายวัน |
+| `actual_meter_data_monthly` | มีข้อมูล monthly snapshot แล้ว | ใช้เป็นแหล่งข้อมูลสรุปรายเดือน |
 
 ## หลักการออกแบบ
 
@@ -446,7 +446,7 @@ backend/package-lock.json
 
 ## API/Frontend Impact
 
-### หลังทำ Minute Job
+### หลังทำ 15-Minute Job
 
 - `/meter-data/realtime` จะเริ่มมีข้อมูล เพราะ API อ่าน latest จาก `actual_meter_data`
 - `/meter-data/history` จะเริ่มมีข้อมูลย้อนหลังระดับ 15 นาที
@@ -468,10 +468,10 @@ backend/package-lock.json
 1. Unit test การคำนวณ bucket timezone
 2. Integration test ด้วย sample rows:
    - realtime หลายแถวใน 1 นาที ต้องได้ 1 row ต่อ meter
-   - rerun minute job ต้อง update ไม่ duplicate
+   - rerun 15-minute job ต้อง update ไม่ duplicate
    - missing meter mapping ต้อง skip
-   - daily total kWh = max - min
-   - monthly total kWh = sum daily
+   - daily snapshot ใช้ row ล่าสุดของวัน
+   - monthly snapshot ใช้ row ล่าสุดของเดือนจาก daily table
 3. Backfill test:
    - backfill 1 ชั่วโมง
    - backfill 1 วัน
@@ -484,7 +484,7 @@ backend/package-lock.json
 
 1. Deploy migration indexes ก่อน
 2. เพิ่ม mapping ใน `realtime_meter_map` ให้ครบก่อน โดยเฉพาะ channel/site/address ที่มาจาก Redis
-3. Enable minute job ด้วย lookback 5 นาที
+3. Enable 15-minute job ด้วย lookback 30 นาที
 4. Run backfill จาก `meter_data_realtime` ย้อนหลังเท่าที่ต้องการ เช่น 7 วัน หรือ 3 เดือน
 5. เปิด daily job และ backfill daily จาก `actual_meter_data`
 6. เปิด monthly job และ backfill monthly จาก `actual_meter_data_daily`
@@ -499,7 +499,7 @@ backend/package-lock.json
 npm run aggregation:setup
 ```
 
-Backfill ราย minute:
+Backfill ราย 15-minute:
 
 ```bash
 npm run aggregation:backfill -- --job minute --from 2026-07-04T00:00:00Z --to 2026-07-04T01:00:00Z
@@ -527,8 +527,8 @@ npm run aggregation:backfill -- --job retention --months 3
 
 | เรื่อง | Decision ที่ต้องเลือก |
 |---|---|
-| Daily target table | แนะนำ `actual_meter_data_daily`; ถ้าต้องลง `actual_meter_data` จริง ต้องกำหนด `status='daily'` หรือ field แยก ไม่งั้นปนกับ minute data |
-| ค่าใน 15-minute bucket | ใช้ `AVG` สำหรับ instantaneous values และ latest สำหรับ cumulative kWh |
+| Daily target table | ใช้ `actual_meter_data_daily` ตาม schema ปัจจุบัน |
+| ค่าใน 15-minute bucket | ใช้ Last row ทุก field ในแต่ละ bucket โดยเรียง `received_at DESC, id DESC` |
 | Timezone | ใช้ `Asia/Bangkok` เป็น business timezone |
 | Missing meter mapping | Skip + log หรือ auto-create meter |
 | Deployment style | `node-cron` ใน backend หรือแยก worker/external scheduler |

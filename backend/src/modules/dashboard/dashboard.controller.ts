@@ -5,6 +5,9 @@ import { successResponse } from '../../utils/response';
 const svc = new DashboardService();
 
 export class DashboardController {
+    async getZoneDashboard(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await svc.getZoneDashboardData(req.query))); } catch (e) { next(e); }
+    }
     async getZoneConsumption(req: Request, res: Response, next: NextFunction) {
         try { res.json(successResponse(await svc.getZoneConsumption(req.query))); } catch (e) { next(e); }
     }

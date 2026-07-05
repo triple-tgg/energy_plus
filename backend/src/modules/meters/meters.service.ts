@@ -340,7 +340,7 @@ export class MetersService {
                 const row = meters[i];
                 try {
                     // Resolve lookups — auto-create if not found
-                    const siteName = deriveSiteName(row.building || '');
+                    const siteName = String(row.siteName || '').trim() || deriveSiteName(row.building || '');
                     const siteId = await getOrCreateSite(siteName);
                     const buildingId = await getOrCreateBuilding(row.building, siteId);
                     const zoneId = await getOrCreateZone(row.zone, buildingId);
@@ -348,12 +348,23 @@ export class MetersService {
                     const meterBrandId = await getOrCreateMeterBrand(row.meterModel);
                     const loopId = await getOrCreateLoop(row.loop);
 
-                    // Check for existing meter by ip_address + address (composite key)
+                    // Check for existing meter by meter_code first, then ip_address + address (legacy composite key)
                     const ipAddr = row.ipAddress || null;
                     const modbusAddr = row.address ? String(row.address).trim() : null;
                     let existingId: number | null = null;
 
-                    if (ipAddr && modbusAddr !== null) {
+                    const meterCode = String(row.meterCode || '').trim();
+                    if (meterCode) {
+                        const existing = await client.query(
+                            `SELECT meter_id FROM meter WHERE meter_code = $1`,
+                            [meterCode]
+                        );
+                        if (existing.rows.length > 0) {
+                            existingId = existing.rows[0].meter_id;
+                        }
+                    }
+
+                    if (!existingId && ipAddr && modbusAddr !== null) {
                         const existing = await client.query(
                             `SELECT meter_id FROM meter WHERE ip_address = $1 AND address = $2`,
                             [ipAddr, modbusAddr]
@@ -371,7 +382,7 @@ export class MetersService {
                              phase=$13, circuit=$14, floor=$15, last_modified_by=$16, last_modified_on=NOW()
                              WHERE meter_id=$17`,
                             [
-                                String(row.meterCode || '').trim(),
+                                meterCode,
                                 row.meterName || '',
                                 meterBrandId,
                                 meterTypeId,
@@ -399,7 +410,7 @@ export class MetersService {
                              phase, circuit, floor, created_by, created_on)
                              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,NOW())`,
                             [
-                                String(row.meterCode || '').trim(),
+                                meterCode,
                                 row.meterName || '',
                                 modbusAddr,
                                 meterBrandId,
@@ -419,6 +430,29 @@ export class MetersService {
                             ]
                         );
                         results.imported++;
+                    }
+
+                    const readingValue = row.currentKwh && Number(row.currentKwh) > 0
+                        ? Number(row.currentKwh)
+                        : row.previousKwh && Number(row.previousKwh) > 0
+                            ? Number(row.previousKwh)
+                            : null;
+                    if (readingValue !== null) {
+                        const meterResult = await client.query(
+                            `SELECT meter_id FROM meter WHERE meter_code = $1`,
+                            [meterCode]
+                        );
+                        const meterId = meterResult.rows[0]?.meter_id;
+                        if (meterId) {
+                            await client.query(
+                                `INSERT INTO actual_meter_data (meter_id, date_keep, energy_kwh, status)
+                                 VALUES ($1, NOW(), $2, 'online')
+                                 ON CONFLICT (meter_id, date_keep) DO UPDATE SET
+                                    energy_kwh = EXCLUDED.energy_kwh,
+                                    status = EXCLUDED.status`,
+                                [meterId, readingValue]
+                            );
+                        }
                     }
                 } catch (err: any) {
                     results.errors.push({ row: i + 1, message: err.message });
@@ -458,4 +492,3 @@ export class MetersService {
         return result.rows[0];
     }
 }
-
