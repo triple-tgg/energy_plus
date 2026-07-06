@@ -18,7 +18,7 @@ import billingRoutes from './modules/billing/billing.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import redisPubsubRoutes from './modules/redis-pubsub/redisPubsub.routes';
 import layoutRoutes from './modules/layouts/layouts.routes';
-import { autoSubscribeDefaultChannel, isAutoSubscribeEnabled } from './modules/redis-pubsub/redisPubsub.service';
+import { autoSubscribeFromMeterTable, isAutoSubscribeEnabled } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 
 const app = createApp();
@@ -116,7 +116,7 @@ const startServer = async () => {
 
             // Auto-subscribe to default channel if enabled
             if (isAutoSubscribeEnabled()) {
-                await autoSubscribeDefaultChannel();
+                await autoSubscribeFromMeterTable();
             }
         } catch (error) {
             console.warn('⚠️  Redis connection failed, server will start without Redis');

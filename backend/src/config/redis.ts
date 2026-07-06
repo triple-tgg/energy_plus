@@ -27,8 +27,7 @@ export const pubClient: RedisClientType = createClient(REDIS_CONFIG);
 // --- Subscriber client (ใช้สำหรับ subscribe — ต้องแยก client) ---
 export const subClient: RedisClientType = createClient(REDIS_CONFIG);
 
-// Default channel from env
-export const DEFAULT_CHANNEL = process.env.REDIS_DEFAULT_CHANNEL || 'default';
+
 
 // Auto-subscribe on startup (true/false)
 export const AUTO_SUBSCRIBE = process.env.REDIS_AUTO_SUBSCRIBE === 'true';

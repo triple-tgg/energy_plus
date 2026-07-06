@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { pubClient, subClient, DEFAULT_CHANNEL, AUTO_SUBSCRIBE } from '../../config/redis';
+import { pubClient, subClient, AUTO_SUBSCRIBE } from '../../config/redis';
 import pool from '../../config/database';
 
 // Track SSE clients per channel
@@ -65,12 +65,7 @@ export const getActiveChannels = async (): Promise<string[]> => {
     return channels ? [String(channels)] : [];
 };
 
-/**
- * Get default channel name
- */
-export const getDefaultChannel = (): string => {
-    return DEFAULT_CHANNEL;
-};
+
 
 /**
  * Check if auto-subscribe is enabled
@@ -135,34 +130,62 @@ const saveMeterDataToDb = async (channel: string, message: string): Promise<void
 };
 
 /**
- * Auto-subscribe to the default channel on server startup.
+ * Auto-subscribe to channels derived from the Meter table on server startup.
+ * Reads all active meters' site_el + address, builds channel names like "1000_1",
+ * and subscribes to each unique channel.
  * Messages will be saved to database and broadcast to SSE clients.
  * Called from server.ts if REDIS_AUTO_SUBSCRIBE=true
  */
-export const autoSubscribeDefaultChannel = async (): Promise<void> => {
-    const channel = DEFAULT_CHANNEL;
+export const autoSubscribeFromMeterTable = async (): Promise<void> => {
+    // Query distinct channels from meter table
+    const result = await pool.query(
+        `SELECT DISTINCT site_el, address
+         FROM meter
+         WHERE site_el IS NOT NULL
+           AND address IS NOT NULL
+           AND is_active = true
+         ORDER BY site_el, address`
+    );
 
-    // Ensure the channel entry exists in the map
-    if (!sseClientsMap.has(channel)) {
-        sseClientsMap.set(channel, new Set());
+    if (result.rows.length === 0) {
+        console.log('⚠️  No active meters with site_el + address found — skipping auto-subscribe');
+        return;
     }
 
-    // Subscribe to Redis — save to DB + broadcast to SSE clients
-    await subClient.subscribe(channel, async (message) => {
-        // 1. Save to database
-        await saveMeterDataToDb(channel, message);
+    // Build unique channel names: "<site_el>_<address>"
+    const channels = result.rows.map((row: any) => `${row.site_el}_${row.address}`);
+    let subscribedCount = 0;
 
-        // 2. Broadcast to SSE clients
-        const data = `data: ${JSON.stringify({ channel, message })}\n\n`;
-        const clients = sseClientsMap.get(channel);
-        if (clients) {
-            for (const client of clients) {
-                client.write(data);
-            }
+    for (const channel of channels) {
+        // Skip if already subscribed
+        if (sseClientsMap.has(channel)) {
+            console.log(`  ⏭️  Channel already subscribed: ${channel}`);
+            continue;
         }
-    });
 
-    console.log(`📡 Auto-subscribed to default channel: ${channel} (with DB save)`);
+        // Initialize client set for this channel
+        sseClientsMap.set(channel, new Set());
+
+        // Subscribe to Redis — save to DB + broadcast to SSE clients
+        await subClient.subscribe(channel, async (message) => {
+            // 1. Save to database
+            await saveMeterDataToDb(channel, message);
+
+            // 2. Broadcast to SSE clients
+            const data = `data: ${JSON.stringify({ channel, message })}\n\n`;
+            const clients = sseClientsMap.get(channel);
+            if (clients) {
+                for (const client of clients) {
+                    client.write(data);
+                }
+            }
+        });
+
+        subscribedCount++;
+    }
+
+    console.log(`📡 Auto-subscribed to ${subscribedCount} channel(s) from Meter table:`);
+    channels.forEach((ch: string) => console.log(`    ↳ ${ch}`));
 };
 
 /**

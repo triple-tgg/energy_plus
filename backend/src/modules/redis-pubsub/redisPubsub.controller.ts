@@ -4,7 +4,6 @@ import {
     subscribeChannel,
     publishMessage,
     getActiveChannels,
-    getDefaultChannel,
 } from './redisPubsub.service';
 
 /**
@@ -15,7 +14,11 @@ import {
 export const publish = async (req: Request, res: Response): Promise<void> => {
     try {
         const { channel, message } = req.body;
-        const targetChannel = channel || getDefaultChannel();
+
+        if (!channel) {
+            res.status(400).json(errorResponse('VALIDATION_ERROR', 'channel is required'));
+            return;
+        }
 
         if (!message) {
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'message is required'));
@@ -23,10 +26,10 @@ export const publish = async (req: Request, res: Response): Promise<void> => {
         }
 
         const payload = typeof message === 'string' ? message : JSON.stringify(message);
-        const receivers = await publishMessage(targetChannel, payload);
+        const receivers = await publishMessage(channel, payload);
 
         res.json(successResponse({
-            channel: targetChannel,
+            channel: channel,
             message: payload,
             receivers,
         }, 'Message published successfully'));
@@ -42,7 +45,12 @@ export const publish = async (req: Request, res: Response): Promise<void> => {
  */
 export const subscribe = async (req: Request, res: Response): Promise<void> => {
     try {
-        const channel = req.params.channel || getDefaultChannel();
+        const channel = req.params.channel;
+
+        if (!channel) {
+            res.status(400).json(errorResponse('VALIDATION_ERROR', 'channel parameter is required'));
+            return;
+        }
 
         // SSE headers
         res.setHeader('Content-Type', 'text/event-stream');
@@ -71,7 +79,6 @@ export const channels = async (req: Request, res: Response): Promise<void> => {
         const activeChannels = await getActiveChannels();
         res.json(successResponse({
             channels: activeChannels,
-            defaultChannel: getDefaultChannel(),
             count: activeChannels.length,
         }));
     } catch (error: any) {
