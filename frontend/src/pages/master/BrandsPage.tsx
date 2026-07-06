@@ -65,18 +65,18 @@ const BrandsPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.meterBrandName.trim()) { setFormError(t('กรุณากรอกชื่อแบรนด์', 'Brand Name is required')); return; }
+        if (!form.meterBrandName.trim()) { setFormError(t('กรุณากรอกชื่อรุ่น', 'Model Name is required')); return; }
         setSaving(true); setFormError('');
         try {
             if (editId) {
                 await metersApi.updateBrand(editId, form);
-                setSuccessMsg(t('อัปเดตแบรนด์สำเร็จ!', 'Brand updated successfully!'));
+                setSuccessMsg(t('อัปเดตรุ่นสำเร็จ!', 'Model updated successfully!'));
             } else {
                 await metersApi.createBrand(form);
-                setSuccessMsg(t('สร้างแบรนด์สำเร็จ!', 'Brand created successfully!'));
+                setSuccessMsg(t('สร้างรุ่นสำเร็จ!', 'Model created successfully!'));
             }
             setShowModal(false); fetchData();
-        } catch (err: any) { setFormError(err.response?.data?.message || t('บันทึกแบรนด์ล้มเหลว', 'Failed to save brand')); }
+        } catch (err: any) { setFormError(err.response?.data?.message || t('บันทึกรุ่นล้มเหลว', 'Failed to save model')); }
         setSaving(false);
     };
 
@@ -87,15 +87,15 @@ const BrandsPage: React.FC = () => {
         setDeleting(true);
         try {
             await metersApi.deleteBrand(deleteTarget.meter_brand_id);
-            setSuccessMsg(t('ลบแบรนด์สำเร็จ!', 'Brand deleted successfully!'));
+            setSuccessMsg(t('ลบรุ่นสำเร็จ!', 'Model deleted successfully!'));
             setShowDelete(false); setDeleteTarget(null); fetchData();
-        } catch (err: any) { alert(err.response?.data?.message || t('ลบแบรนด์ล้มเหลว', 'Failed to delete brand')); }
+        } catch (err: any) { alert(err.response?.data?.message || t('ลบรุ่นล้มเหลว', 'Failed to delete model')); }
         setDeleting(false);
     };
 
     const columns = [
-        { key: 'meter_brand_name', title: t('ชื่อแบรนด์', 'Brand Name') },
-        { key: 'model_name', title: t('รุ่น', 'Model') },
+        { key: 'meter_brand_name', title: t('ชื่อรุ่น', 'Model Name') },
+        { key: 'model_name', title: t('รายละเอียดรุ่น', 'Model Detail') },
         { key: 'notes', title: t('หมายเหตุ', 'Notes') },
         {
             key: 'is_active', title: t('สถานะ', 'Status'),
@@ -115,19 +115,19 @@ const BrandsPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title={t('แบรนด์มิเตอร์', 'Meter Brands')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มแบรนด์', 'Add Brand')} />
+            <DataTable title={t('รุ่นมิเตอร์', 'Meter Models')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มรุ่น', 'Add Model')} />
 
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขแบรนด์', 'Edit Brand') : t('เพิ่มแบรนด์ใหม่', 'Add New Brand')} size="md"
+            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขรุ่น', 'Edit Model') : t('เพิ่มรุ่นใหม่', 'Add New Model')} size="md"
                 footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
                 <div className="form-group">
-                    <label className="form-label">{t('ชื่อแบรนด์', 'Brand Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" placeholder={t('กรอกชื่อแบรนด์', 'Enter brand name')} value={form.meterBrandName} onChange={(e) => setForm({ ...form, meterBrandName: e.target.value })} autoFocus />
+                    <label className="form-label">{t('ชื่อรุ่น', 'Model Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="text" className="form-control" placeholder={t('กรอกชื่อรุ่น', 'Enter model name')} value={form.meterBrandName} onChange={(e) => setForm({ ...form, meterBrandName: e.target.value })} autoFocus />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">{t('ชื่อรุ่น', 'Model Name')}</label>
-                    <input type="text" className="form-control" placeholder={t('กรอกชื่อรุ่น', 'Enter model name')} value={form.modelName} onChange={(e) => setForm({ ...form, modelName: e.target.value })} />
+                    <label className="form-label">{t('รายละเอียดรุ่น', 'Model Detail')}</label>
+                    <input type="text" className="form-control" placeholder={t('กรอกรายละเอียดรุ่น', 'Enter model detail')} value={form.modelName} onChange={(e) => setForm({ ...form, modelName: e.target.value })} />
                 </div>
                 <div className="form-group">
                     <label className="form-label">{t('หมายเหตุ', 'Notes')}</label>
@@ -146,7 +146,7 @@ const BrandsPage: React.FC = () => {
             >
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
                     <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-                    <p style={{ fontSize: 16, marginBottom: 8 }}>{t('ลบแบรนด์', 'Delete brand')}</p>
+                    <p style={{ fontSize: 16, marginBottom: 8 }}>{t('ลบรุ่น', 'Delete model')}</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>"{deleteTarget?.meter_brand_name}"</p>
                 </div>
             </Modal>

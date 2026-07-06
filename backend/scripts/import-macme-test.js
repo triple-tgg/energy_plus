@@ -68,6 +68,8 @@ const main = async () => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site VARCHAR(200)`);
+    await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site_el INTEGER`);
 
     const before = await client.query(`
       SELECT
@@ -174,7 +176,7 @@ const main = async () => {
            SET meter_name = $2, address = $3, meter_brand_id = $4, meter_type_id = $5, loop_id = $6,
                site_id = $7, building_id = $8, zone_id = $9, is_active = true, room_code = $10,
                room_name = $11, phase = $12, circuit = $13, floor = $14, status = 'Imported',
-               last_modified_by = 'macme-import', last_modified_on = NOW()
+               site = $15, site_el = $16, last_modified_by = 'macme-import', last_modified_on = NOW()
            WHERE meter_id = $1`,
           [
             meterId,
@@ -191,6 +193,8 @@ const main = async () => {
             row.phase,
             row.circuit,
             row.floor,
+            row.siteName,
+            Number.isFinite(row.siteEl) ? row.siteEl : null,
           ]
         );
       } else {
@@ -198,9 +202,9 @@ const main = async () => {
           `INSERT INTO meter (
              meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
              site_id, building_id, zone_id, is_active, room_code, room_name,
-             phase, circuit, floor, status, created_by, created_on
+             phase, circuit, floor, site, site_el, status, created_by, created_on
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, 'Imported', 'macme-import', NOW())
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12, $13, $14, $15, $16, 'Imported', 'macme-import', NOW())
            RETURNING meter_id`,
           [
             row.meterCode,
@@ -217,6 +221,8 @@ const main = async () => {
             row.phase,
             row.circuit,
             row.floor,
+            row.siteName,
+            Number.isFinite(row.siteEl) ? row.siteEl : null,
           ]
         );
         meterId = inserted.rows[0].meter_id;

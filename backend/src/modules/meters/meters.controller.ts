@@ -31,13 +31,13 @@ export class MetersController {
         try { const r = await svc.getBrands(req.query); res.json(successResponse(r.data, undefined, paginationHelper(r.page, r.limit, r.total))); } catch (e) { next(e); }
     }
     async createBrand(req: AuthRequest, res: Response, next: NextFunction) {
-        try { res.status(201).json(successResponse(await svc.createBrand({ ...req.body, createdBy: req.user?.userName }), 'Brand created')); } catch (e) { next(e); }
+        try { res.status(201).json(successResponse(await svc.createBrand({ ...req.body, createdBy: req.user?.userName }), 'Model created')); } catch (e) { next(e); }
     }
     async updateBrand(req: AuthRequest, res: Response, next: NextFunction) {
-        try { res.json(successResponse(await svc.updateBrand(parseInt(req.params.id), { ...req.body, modifiedBy: req.user?.userName }), 'Brand updated')); } catch (e) { next(e); }
+        try { res.json(successResponse(await svc.updateBrand(parseInt(req.params.id), { ...req.body, modifiedBy: req.user?.userName }), 'Model updated')); } catch (e) { next(e); }
     }
     async deleteBrand(req: Request, res: Response, next: NextFunction) {
-        try { await svc.deleteBrand(parseInt(req.params.id)); res.json(successResponse(null, 'Brand deleted')); } catch (e) { next(e); }
+        try { await svc.deleteBrand(parseInt(req.params.id)); res.json(successResponse(null, 'Model deleted')); } catch (e) { next(e); }
     }
 
     // Types
@@ -85,4 +85,3 @@ export class MetersController {
         } catch (e) { next(e); }
     }
 }
-

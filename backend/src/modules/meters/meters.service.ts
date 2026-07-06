@@ -118,12 +118,12 @@ export class MetersService {
        last_modified_by=$5, last_modified_on=NOW() WHERE meter_brand_id=$6 RETURNING *`,
             [data.meterBrandName, data.modelName, data.notes, data.isActive, data.modifiedBy, id]
         );
-        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Brand not found');
+        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Model not found');
         return result.rows[0];
     }
     async deleteBrand(id: number) {
         const result = await query(`DELETE FROM meter_brand WHERE meter_brand_id=$1 RETURNING meter_brand_id`, [id]);
-        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Brand not found');
+        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Model not found');
         return result.rows[0];
     }
 
@@ -222,6 +222,8 @@ export class MetersService {
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase INTEGER`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(50)`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site VARCHAR(200)`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site_el INTEGER`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(100)`);
 
             // Cache for lookups — keyed by name, value is DB id
@@ -350,6 +352,10 @@ export class MetersService {
                 try {
                     // Resolve lookups — auto-create if not found
                     const siteName = String(row.siteName || '').trim() || deriveSiteName(row.building || '');
+                    const meterSite = String(row.siteName || '').trim() || null;
+                    const meterSiteEl = row.siteEl !== null && row.siteEl !== undefined && row.siteEl !== ''
+                        ? Number(row.siteEl)
+                        : null;
                     const siteId = await getOrCreateSite(siteName);
                     const buildingId = await getOrCreateBuilding(row.building, siteId);
                     const zoneId = await getOrCreateZone(row.zone, buildingId);
@@ -390,8 +396,8 @@ export class MetersService {
                         await client.query(
                             `UPDATE meter SET meter_code=$1, meter_name=$2, meter_brand_id=$3, meter_type_id=$4, loop_id=$5,
                              site_id=$6, building_id=$7, zone_id=$8, ip_address=$9, port_number=$10, room_code=$11, room_name=$12,
-                             phase=$13, circuit=$14, floor=$15, last_modified_by=$16, last_modified_on=NOW()
-                             WHERE meter_id=$17`,
+                             phase=$13, circuit=$14, floor=$15, site=$16, site_el=$17, last_modified_by=$18, last_modified_on=NOW()
+                             WHERE meter_id=$19`,
                             [
                                 meterCode,
                                 row.meterName || '',
@@ -408,6 +414,8 @@ export class MetersService {
                                 row.phase || null,
                                 row.circuit || null,
                                 row.floor || null,
+                                meterSite,
+                                Number.isFinite(meterSiteEl) ? meterSiteEl : null,
                                 createdBy,
                                 existingId,
                             ]
@@ -418,8 +426,8 @@ export class MetersService {
                         const inserted = await client.query(
                             `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
                              site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
-                             phase, circuit, floor, created_by, created_on)
-                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+                             phase, circuit, floor, site, site_el, created_by, created_on)
+                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
                              RETURNING meter_id`,
                             [
                                 meterCode,
@@ -438,6 +446,8 @@ export class MetersService {
                                 row.phase || null,
                                 row.circuit || null,
                                 row.floor || null,
+                                meterSite,
+                                Number.isFinite(meterSiteEl) ? meterSiteEl : null,
                                 createdBy,
                             ]
                         );

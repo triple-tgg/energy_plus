@@ -48,7 +48,7 @@ const navGroups: NavGroup[] = [
         icon: Package,
         items: [
             { labelEn: 'Meter Types', labelTh: 'ประเภทมิเตอร์', path: '/master/types', icon: Plug, permissionKey: 'meters' },
-            { labelEn: 'Brands', labelTh: 'แบรนด์ / ยี่ห้อ', path: '/master/brands', icon: Tag, permissionKey: 'meters' },
+            { labelEn: 'Models', labelTh: 'รุ่นมิเตอร์', path: '/master/brands', icon: Tag, permissionKey: 'meters' },
             { labelEn: 'Loops', labelTh: 'วงจรการจ่ายไฟ', path: '/master/loops', icon: RefreshCw, permissionKey: 'meters' },
             { labelEn: 'Meters', labelTh: 'มิเตอร์', path: '/master/meters', icon: Zap, permissionKey: 'meters' },
         ],
@@ -133,11 +133,11 @@ const Sidebar: React.FC = () => {
             {/* Logo */}
             <div className="sidebar-brand">
                 <div className="sidebar-brand__icon">
-                    <img src={logo} alt="MAC Energy" className="sidebar-brand__logo" />
+                    <img src={logo} alt="M Soft" className="sidebar-brand__logo" />
                 </div>
                 {!collapsed && (
                     <div className="sidebar-brand__text">
-                        <span className="sidebar-brand__name">MAC <span>Energy</span></span>
+                        <span className="sidebar-brand__name">M <span>Soft</span></span>
                         <span className="sidebar-brand__sub">Energy Monitoring</span>
                     </div>
                 )}
@@ -205,7 +205,7 @@ const Sidebar: React.FC = () => {
             {/* Footer */}
             {!collapsed && (
                 <div className="sidebar-footer">
-                    <span>v2.0 — MAC Energy</span>
+                    <span>v2.0 — M Soft</span>
                 </div>
             )}
         </aside>

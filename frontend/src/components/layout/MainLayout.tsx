@@ -13,7 +13,7 @@ const MainLayout: React.FC = () => {
         return (
             <div className="app-loader">
                 <div className="app-loader__spinner" />
-                <p>Loading MAC Energy...</p>
+                <p>Loading M Soft...</p>
             </div>
         );
     }

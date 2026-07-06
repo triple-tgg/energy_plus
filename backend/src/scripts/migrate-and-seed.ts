@@ -205,6 +205,8 @@ async function migrateAndSeed() {
         port_number INTEGER,
         room_code VARCHAR(100),
         room_name VARCHAR(200),
+        site VARCHAR(200),
+        site_el INTEGER,
         parent_meter_id INTEGER REFERENCES meter(meter_id),
         is_active BOOLEAN DEFAULT true,
         status VARCHAR(50) DEFAULT 'Manual',

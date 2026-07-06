@@ -609,7 +609,7 @@ const MetersPage: React.FC = () => {
         { key: 'zone_name', title: t('โซน', 'Zone') },
         { key: 'meter_type_name', title: t('ประเภท', 'Type') },
         {
-            key: 'meter_brand_name', title: t('แบรนด์', 'Brand'),
+            key: 'meter_brand_name', title: t('รุ่น', 'Model'),
             render: (v: string) => v ? <span className="badge badge-info">{v}</span> : '—',
         },
         { key: 'ip_address', title: 'IP', render: (v: string) => v ? <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span> : '—' },
@@ -854,7 +854,7 @@ const MetersPage: React.FC = () => {
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">{t('แบรนด์', 'Brand')}</label>
+                        <label className="form-label">{t('รุ่น', 'Model')}</label>
                         <select className="form-control" value={form.meterBrandId} onChange={e => setForm({ ...form, meterBrandId: e.target.value })}>
                             <option value="">— {t('เลือก', 'Select')} —</option>
                             {brands.map(b => <option key={b.meter_brand_id} value={b.meter_brand_id}>{b.meter_brand_name}{b.model_name ? ` — ${b.model_name}` : ''}</option>)}
@@ -1039,7 +1039,7 @@ const MetersPage: React.FC = () => {
                         { label: t('อาคาร', 'Buildings'), value: importSummary.buildings.length, icon: '🏢', color: '#8b5cf6' },
                         { label: t('โซน', 'Zones'), value: importSummary.zones.length, icon: '📍', color: '#f59e0b' },
                         { label: t('ประเภท', 'Types'), value: importSummary.meterTypes.length, icon: '🔌', color: '#10b981' },
-                        { label: t('รุ่น/แบรนด์', 'Models'), value: importSummary.meterModels.length, icon: '🏭', color: '#ef4444' },
+                        { label: t('รุ่น', 'Models'), value: importSummary.meterModels.length, icon: '🏭', color: '#ef4444' },
                         { label: t('ลูป', 'Loops'), value: importSummary.loops.length, icon: '🔄', color: '#06b6d4' },
                     ].map((card, idx) => (
                         <div key={idx} style={{
@@ -1216,7 +1216,7 @@ const MetersPage: React.FC = () => {
                                         <div>🔌 <strong>{t('ประเภท', 'Types')}:</strong> {importResult.createdMasterData.meterTypes.join(', ')}</div>
                                     )}
                                     {importResult.createdMasterData.meterBrands?.length > 0 && (
-                                        <div>🏭 <strong>{t('รุ่น', 'Brands')}:</strong> {importResult.createdMasterData.meterBrands.join(', ')}</div>
+                                        <div>🏭 <strong>{t('รุ่น', 'Models')}:</strong> {importResult.createdMasterData.meterBrands.join(', ')}</div>
                                     )}
                                     {importResult.createdMasterData.loops?.length > 0 && (
                                         <div>🔄 <strong>{t('ลูป', 'Loops')}:</strong> Loop {importResult.createdMasterData.loops.join(', ')}</div>
