@@ -181,7 +181,7 @@ const LoginPage: React.FC = () => {
                     <div style={{ textAlign: 'center', marginBottom: 28 }}>
                         <img
                             src={logo}
-                            alt="MAC Energy"
+                            alt="M Soft"
                             style={{
                                 width: 76,
                                 height: 76,
@@ -193,7 +193,7 @@ const LoginPage: React.FC = () => {
                             }}
                         />
                         <h1 style={{ fontSize: '24px', fontWeight: 800, color: C.ink, margin: 0, letterSpacing: '1px' }}>
-                            [ <span style={{ color: C.accent }}>MAC</span> ENERGY ]
+                            [ <span style={{ color: C.accent }}>M</span> Soft ]
                         </h1>
                         <p style={{ fontSize: '10px', color: C.sub, marginTop: 4, letterSpacing: '0.5px' }}>
                             SMART ENERGY MONITORING CONSOLE
@@ -277,7 +277,7 @@ const LoginPage: React.FC = () => {
                     </button>
 
                     <p style={{ textAlign: 'center', fontSize: '9px', color: C.sub, marginTop: 24, margin: '24px 0 0 0' }}>
-                        © 2026 MAC Energy // ACCESS AUDITED
+                        © 2026 M Soft // ACCESS AUDITED
                     </p>
                 </form>
             </div>

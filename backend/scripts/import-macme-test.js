@@ -5,7 +5,7 @@ const XLSX = require('../../frontend/node_modules/xlsx');
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const workbookPath = '/Users/taeypro14/Triple-T/EnergyPlus/FileMacMe/MacMe_import test.xlsx';
+const workbookPath = '/Users/taeypro14/Triple-T/EnergyPlus/FileMacMe/import test R1 06072026.xlsx';
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -59,10 +59,56 @@ const getOrCreateOne = async (client, selectSql, insertSql, params) => {
   return created.rows[0];
 };
 
+const getOrCreateSite = async (client, siteName) => {
+  return getOrCreateOne(
+    client,
+    'SELECT site_id FROM sites WHERE site_name = $1',
+    `INSERT INTO sites (site_name, site_status, created_by, created_on)
+     VALUES ($1, true, $2, NOW())
+     RETURNING site_id`,
+    [siteName || 'Project 1', 'macme-import']
+  );
+};
+
+const getOrCreateMeterType = async (client, meterTypeName) => {
+  return getOrCreateOne(
+    client,
+    'SELECT meter_type_id FROM meter_type WHERE meter_type_name = $1',
+    `INSERT INTO meter_type (meter_type_name, is_active)
+     VALUES ($1, true)
+     RETURNING meter_type_id`,
+    [meterTypeName || 'ELE']
+  );
+};
+
+const getOrCreateBrand = async (client, modelName) => {
+  return getOrCreateOne(
+    client,
+    'SELECT meter_brand_id FROM meter_brand WHERE model_name = $1 OR meter_brand_name = $1',
+    `INSERT INTO meter_brand (meter_brand_name, model_name, is_active)
+     VALUES ($1, $1, true)
+     RETURNING meter_brand_id`,
+    [modelName || 'MPR-45S']
+  );
+};
+
+const getOrCreateLoop = async (client, loopNo) => {
+  let loop = (await client.query('SELECT loop_id FROM loop WHERE port_no = $1', [loopNo])).rows[0];
+  if (!loop) {
+    loop = (await client.query(
+      `INSERT INTO loop (loop_name, port_no, baudrate, is_active)
+       VALUES ($1, $2, 9600, true)
+       RETURNING loop_id`,
+      [`Loop ${loopNo}`, loopNo]
+    )).rows[0];
+  }
+  return loop;
+};
+
 const main = async () => {
   const rows = readRows();
-  if (rows.length !== 4) {
-    throw new Error(`Expected 4 meter rows, found ${rows.length}`);
+  if (rows.length !== 6) {
+    throw new Error(`Expected 6 meter rows, found ${rows.length}`);
   }
 
   const client = await pool.connect();
@@ -78,67 +124,26 @@ const main = async () => {
         (SELECT COUNT(*) FROM actual_meter_data)::int AS readings
     `);
 
-    const siteName = rows[0].siteName || 'Project 1';
-    const site = await getOrCreateOne(
-      client,
-      'SELECT site_id FROM sites WHERE site_name = $1',
-      `INSERT INTO sites (site_name, site_status, created_by, created_on)
-       VALUES ($1, true, $2, NOW())
-       RETURNING site_id`,
-      [siteName, 'macme-import']
-    );
-    const siteId = site.site_id;
-
-    await client.query(
-      `INSERT INTO site_user_map (site_id, user_id)
-       SELECT $1, user_id FROM app_user WHERE is_active IS DISTINCT FROM false
-       ON CONFLICT DO NOTHING`,
-      [siteId]
-    );
-
-    const meterType = await getOrCreateOne(
-      client,
-      'SELECT meter_type_id FROM meter_type WHERE meter_type_name = $1',
-      `INSERT INTO meter_type (meter_type_name, is_active)
-       VALUES ($1, true)
-       RETURNING meter_type_id`,
-      [rows[0].meterType || 'ELE']
-    );
-
-    const brand = await getOrCreateOne(
-      client,
-      'SELECT meter_brand_id FROM meter_brand WHERE model_name = $1 OR meter_brand_name = $1',
-      `INSERT INTO meter_brand (meter_brand_name, model_name, is_active, created_on)
-       VALUES ($1, $1, true, NOW())
-       RETURNING meter_brand_id`,
-      [rows[0].model || 'MPR-45S']
-    );
-
-    const loopNo = rows[0].loop || 1;
-    let loop = (await client.query('SELECT loop_id FROM loop WHERE port_no = $1', [loopNo])).rows[0];
-    if (!loop) {
-      loop = (await client.query(
-        `INSERT INTO loop (loop_name, port_no, baudrate, is_active)
-         VALUES ($1, $2, 9600, true)
-         RETURNING loop_id`,
-        [`Loop ${loopNo}`, loopNo]
-      )).rows[0];
-    }
-
-    const activeCodes = rows.map((row) => row.meterCode);
-    await client.query(
-      `UPDATE meter
-       SET is_active = false, status = 'Inactive', last_modified_by = 'macme-import', last_modified_on = NOW()
-       WHERE meter_code <> ALL($1::text[])`,
-      [activeCodes]
-    );
-
     const buildingIds = new Map();
     const zoneIds = new Map();
     const importedMeterIds = [];
 
     for (const row of rows) {
-      if (!buildingIds.has(row.building)) {
+      const site = await getOrCreateSite(client, row.siteName);
+      const siteId = site.site_id;
+      const meterType = await getOrCreateMeterType(client, row.meterType);
+      const brand = await getOrCreateBrand(client, row.model);
+      const loop = await getOrCreateLoop(client, row.loop || 1);
+
+      await client.query(
+        `INSERT INTO site_user_map (site_id, user_id)
+         SELECT $1, user_id FROM app_user WHERE is_active IS DISTINCT FROM false
+         ON CONFLICT DO NOTHING`,
+        [siteId]
+      );
+
+      const buildingKey = `${siteId}::${row.building}`;
+      if (!buildingIds.has(buildingKey)) {
         const existingBuilding = await client.query(
           'SELECT building_id FROM buildings WHERE building_name = $1 AND site_id = $2',
           [row.building, siteId]
@@ -149,20 +154,20 @@ const main = async () => {
            RETURNING building_id`,
           [row.building, siteId]
         )).rows[0];
-        buildingIds.set(row.building, resolved.building_id);
+        buildingIds.set(buildingKey, resolved.building_id);
       }
 
-      const zoneKey = `${row.building}::${row.zone}`;
+      const zoneKey = `${buildingIds.get(buildingKey)}::${row.zone}`;
       if (!zoneIds.has(zoneKey)) {
         const existingZone = await client.query(
           'SELECT zone_id FROM zones WHERE zone_name = $1 AND building_id = $2',
-          [row.zone, buildingIds.get(row.building)]
+          [row.zone, buildingIds.get(buildingKey)]
         );
         const resolved = existingZone.rows[0] || (await client.query(
           `INSERT INTO zones (zone_name, building_id, is_show_dashboard, created_on)
            VALUES ($1, $2, true, NOW())
            RETURNING zone_id`,
-          [row.zone, buildingIds.get(row.building)]
+          [row.zone, buildingIds.get(buildingKey)]
         )).rows[0];
         zoneIds.set(zoneKey, resolved.zone_id);
       }
@@ -186,7 +191,7 @@ const main = async () => {
             meterType.meter_type_id,
             loop.loop_id,
             siteId,
-            buildingIds.get(row.building),
+            buildingIds.get(buildingKey),
             zoneIds.get(zoneKey),
             row.roomCode,
             row.roomName,
@@ -214,7 +219,7 @@ const main = async () => {
             meterType.meter_type_id,
             loop.loop_id,
             siteId,
-            buildingIds.get(row.building),
+            buildingIds.get(buildingKey),
             zoneIds.get(zoneKey),
             row.roomCode,
             row.roomName,
