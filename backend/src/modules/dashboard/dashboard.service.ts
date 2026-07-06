@@ -130,7 +130,11 @@ export class DashboardService {
 
         const trendResult = await query(
             `WITH realtime_scoped AS (
-                SELECT ${realtimeBucketExpr} AS date_keep, SUM(COALESCE(r.kw_3ph, 0)) AS kw
+                SELECT
+                    ${realtimeBucketExpr} AS date_keep,
+                    SUM(COALESCE(r.kw_3ph, 0)) AS kw,
+                    MAX(COALESCE(r.import_kwhr, 0)) AS kwh,
+                    COUNT(*)::int AS readings
                 FROM meter_data_realtime r
                 LEFT JOIN realtime_meter_map rmm
                   ON rmm.realtime_site_id = r.site_id
@@ -142,12 +146,12 @@ export class DashboardService {
                  AND mapped_meter.address::text = r.address_id::text
                  AND rmm.id IS NULL
                 JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, mapped_meter.meter_id)
-                WHERE r.received_at >= NOW() - INTERVAL '1 hour'
+                WHERE r.received_at >= NOW() - INTERVAL '24 hours'
                   AND m.is_active IS DISTINCT FROM false
                   ${trendSiteFilter}
                 GROUP BY ${realtimeBucketExpr}
             )
-            SELECT date_keep AS t, kw
+            SELECT date_keep AS t, kw, kwh, readings
             FROM realtime_scoped
             ORDER BY t`,
             trendParams
@@ -280,7 +284,12 @@ export class DashboardService {
         return {
             tree,
             meters,
-            trend: trendResult.rows.map((row: any) => ({ t: new Date(row.t).getTime(), kw: toNumber(row.kw) })),
+            trend: trendResult.rows.map((row: any) => ({
+                t: new Date(row.t).getTime(),
+                kw: toNumber(row.kw),
+                kwh: toNumber(row.kwh),
+                readings: toNumber(row.readings),
+            })),
             comparison: comparisonResult.rows.map((row: any) => ({
                 gran: row.gran,
                 bucket: row.bucket,

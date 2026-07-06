@@ -7,7 +7,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell, LineChart, Line,
+    PieChart, Pie, Cell, LineChart, Line, ComposedChart,
 } from 'recharts';
 import { dashboardApi } from '../../api/client';
 
@@ -137,9 +137,11 @@ interface ComparisonRow {
 interface ZoneDashboardPayload {
     tree: TreeNode[];
     meters: MeterData[];
-    trend: { t: number; kw: number }[];
+    trend: { t: number; kw: number; kwh?: number; readings?: number }[];
     comparison: ComparisonRow[];
 }
+
+type TrendPoint = ZoneDashboardPayload['trend'][number];
 
 const period = (m: MeterData) => Math.max(0, m.import_kwhr - m.periodStart_kwhr);
 const isRealtime = (m: MeterData) => m.data_source === 'realtime';
@@ -710,7 +712,7 @@ const ZoneDashboard: React.FC = () => {
         background: active ? C.accent : 'transparent', color: active ? '#fff' : C.sub,
     });
 
-    const histRef = useRef<{ t: number; kw: number }[]>([]); // บัฟเฟอร์กราฟ Realtime (kW ของขอบเขตปัจจุบัน)
+    const histRef = useRef<TrendPoint[]>([]); // บัฟเฟอร์กราฟ Realtime history
     const [, setHistVer] = useState(0);
 
     useEffect(() => {
@@ -726,7 +728,7 @@ const ZoneDashboard: React.FC = () => {
                     trend: next.trend || [],
                     comparison: next.comparison || [],
                 });
-                histRef.current = (next.trend || []).slice(-60);
+                histRef.current = (next.trend || []).slice(-120);
                 setLoadError(null);
                 setTick((t) => t + 1);
             } catch (error: any) {
@@ -748,7 +750,7 @@ const ZoneDashboard: React.FC = () => {
 
     // กราฟ Realtime: รีเซ็ตเมื่อเปลี่ยนขอบเขต, เก็บตัวอย่างทุก 1 นาที (สูงสุด ~1 ชั่วโมง)
     useEffect(() => {
-        histRef.current = dashboardData.trend.slice(-60);
+        histRef.current = dashboardData.trend.slice(-120);
         setHistVer((v) => v + 1);
     }, [dashboardData.trend]);
 
@@ -1072,39 +1074,56 @@ const ZoneDashboard: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Realtime trend (kW line) — bottom */}
+                    {/* Realtime history — bottom */}
                     <div style={{ padding: '0 16px 16px' }}>
                         {(() => {
                             const buf = histRef.current;
                             const curKw = buf.length ? buf[buf.length - 1].kw : 0;
                             const peak = buf.reduce((mx, p) => Math.max(mx, p.kw), 0);
-                            const tdata = buf.map((p, idx) => ({ idx, kw: p.kw, t: new Date(p.t).toLocaleTimeString(t('th-TH', 'en-US')) }));
+                            const curKwh = buf.length ? (buf[buf.length - 1].kwh || 0) : 0;
+                            const totalReadings = buf.reduce((sum, p) => sum + (p.readings || 0), 0);
+                            const tdata = buf.map((p, idx) => ({
+                                idx,
+                                kw: p.kw,
+                                kwh: p.kwh || 0,
+                                readings: p.readings || 0,
+                                t: new Date(p.t).toLocaleTimeString(t('th-TH', 'en-US'), { hour: '2-digit', minute: '2-digit' }),
+                            }));
                             return (
                                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, margin: '0 16px' }}>
                                     <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 10, background: C.panel2, flexWrap: 'wrap' }}>
                                         <Activity size={14} color={C.accent} />
                                         <span style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: 1, fontWeight: 700 }}>REALTIME TREND</span>
-                                        <span style={{ fontSize: 12, color: C.sub }}>{t('กำลังไฟรวม (kW) · ', 'Total Power (kW) · ')}{level === 0 ? t('ทุกสาขา', 'All Branches') : formatNodeName(currentName || '', t)}</span>
+                                        <span style={{ fontSize: 12, color: C.sub }}>{t('ข้อมูลย้อนหลัง 24 ชม. · ', 'Last 24h history · ')}{level === 0 ? t('ทุกสาขา', 'All Branches') : formatNodeName(currentName || '', t)}</span>
                                         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
                                             <StatusDot s="normal" size={8} pulse C={C} />
-                                            <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 700, color: C.accent }}>{fmt(curKw, 1)}</span>
-                                            <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kW</span>
-                                            <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub, marginLeft: 8 }}>PEAK {fmt(peak, 1)}</span>
+                                            <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 700, color: C.accent }}>{fmt(curKwh, 1)}</span>
+                                            <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
+                                            <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub, marginLeft: 8 }}>{fmt(totalReadings)} REC · {fmt(curKw, 1)} kW · PEAK {fmt(peak, 1)}</span>
                                         </span>
                                     </div>
-                                    <div style={{ height: 150, padding: '8px 8px 0' }}>
+                                    <div style={{ height: 190, padding: '8px 8px 0' }}>
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart data={tdata} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
+                                            <ComposedChart data={tdata} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
                                                 <CartesianGrid strokeDasharray="2 3" stroke={C.line} vertical={false} />
                                                 <XAxis dataKey="t" tick={{ fontSize: 9.5, fill: C.sub, fontFamily: MONO }} minTickGap={60} tickLine={false} axisLine={{ stroke: C.line }} />
-                                                <YAxis tick={{ fontSize: 10, fill: C.sub, fontFamily: MONO }} width={44} tickLine={false} axisLine={{ stroke: C.line }} domain={[0, 'auto']} />
-                                                <Tooltip contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }} formatter={(v) => [`${fmt(Number(v), 1)} kW`, 'kW']} />
-                                                <Line type="monotone" dataKey="kw" stroke={C.accent} strokeWidth={2} dot={false} isAnimationActive={false} />
-                                            </LineChart>
+                                                <YAxis yAxisId="kwh" tick={{ fontSize: 10, fill: C.sub, fontFamily: MONO }} width={70} tickLine={false} axisLine={{ stroke: C.line }} domain={['dataMin', 'dataMax']} />
+                                                <YAxis yAxisId="readings" orientation="right" tick={{ fontSize: 10, fill: C.sub, fontFamily: MONO }} width={42} tickLine={false} axisLine={{ stroke: C.line }} allowDecimals={false} />
+                                                <Tooltip
+                                                    contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }}
+                                                    formatter={(v, name) => {
+                                                        if (name === 'readings') return [`${fmt(Number(v))} records`, 'records'];
+                                                        if (name === 'kwh') return [`${fmt(Number(v), 3)} kWh`, 'kWh'];
+                                                        return [`${fmt(Number(v), 1)} kW`, 'kW'];
+                                                    }}
+                                                />
+                                                <Bar yAxisId="readings" dataKey="readings" fill={C.green} opacity={0.24} isAnimationActive={false} />
+                                                <Line yAxisId="kwh" type="monotone" dataKey="kwh" stroke={C.accent} strokeWidth={2} dot={{ r: 2, fill: C.accent, strokeWidth: 0 }} isAnimationActive={false} />
+                                            </ComposedChart>
                                         </ResponsiveContainer>
                                     </div>
                                     <div style={{ padding: '3px 14px 8px', fontFamily: MONO, fontSize: 9.5, color: C.sub, letterSpacing: 0.5 }}>
-                                        {t('← ย้อนหลัง ~1 ชั่วโมง · ดึงข้อมูลใหม่ทุก 10 วินาที · รีเซ็ตเมื่อเปลี่ยนขอบเขต', '← Last ~1 hour · Refreshed every 10 sec · Resets on scope change')}
+                                        {t('← ย้อนหลัง 24 ชั่วโมง · bucket ทุก 15 นาที · แท่ง=จำนวนข้อมูลที่ได้รับ · เส้น=kWh', '← Last 24 hours · 15-min buckets · bars=received records · line=kWh')}
                                     </div>
                                 </div>
                             );
