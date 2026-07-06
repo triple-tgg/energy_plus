@@ -64,6 +64,7 @@ interface ParsedMeter {
     roomName: string;
     loop: number | null;
     meterModel: string;
+    siteEl: number | null;
     portNumber: number | null;
     ipAddress: string;
     phase: number | null;
@@ -539,6 +540,7 @@ const MetersPage: React.FC = () => {
                         loop: row[12] != null ? Number(row[12]) : null,            // M: Loop
                         meterModel: row[13] != null ? String(row[13]).trim() : '', // N: Meter Model
                         siteName: row[14] != null ? String(row[14]).trim() : '',    // O: Project / Site
+                        siteEl: row[15] != null && row[15] !== '' ? Number(row[15]) : null, // P: (Site EL)
                         portNumber: null,
                         ipAddress: '',
                         phase: row[16] != null ? Number(row[16]) : null,           // Q: Phase

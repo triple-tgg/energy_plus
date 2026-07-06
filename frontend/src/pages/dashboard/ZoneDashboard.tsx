@@ -73,7 +73,7 @@ const getModeInfo = (m: string, C: Theme) => {
     }
 };
 
-const STALE_MS = 30000;
+const STALE_MS = 120000;
 
 // ── Types ──
 interface MeterData {
@@ -82,6 +82,7 @@ interface MeterData {
     channel: string;
     site_id: number;
     address_id: number;
+    source_site_id?: number;
     device: string;
     type: string;
     loop: number;
@@ -92,6 +93,7 @@ interface MeterData {
     inputMode: string;
     periodStart_kwhr: number;
     import_kwhr: number;
+    data_source?: string;
     _pf: number;
     _v: number;
     kw_3ph: number;
@@ -140,6 +142,7 @@ interface ZoneDashboardPayload {
 }
 
 const period = (m: MeterData) => Math.max(0, m.import_kwhr - m.periodStart_kwhr);
+const isRealtime = (m: MeterData) => m.data_source === 'realtime';
 function meterStatus(m: MeterData, now: number): string {
     if (m.disabled) return 'offline';
     if (now - m.received_at > STALE_MS) return 'offline';
@@ -155,6 +158,11 @@ function aggStatus(list: MeterData[], now: number): string {
         if (s === 'normal') n = true;
     }
     return n ? 'normal' : 'offline';
+}
+function latestAge(list: MeterData[], now: number): number | null {
+    const active = list.filter((m) => !m.disabled && m.received_at > 0);
+    if (!active.length) return null;
+    return Math.round((now - Math.max(...active.map((m) => m.received_at))) / 1000);
 }
 const fmt = (v: number, d = 0) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const LEVEL_TH = ['สาขา', 'อาคาร', 'ชั้น', 'โซน', 'ห้อง'];
@@ -408,7 +416,11 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                                     return (
                                         <tr key={it.node.id} className="ec-row" onClick={() => onPick(m)} style={{ borderTop: `1px solid ${C.line}`, opacity: off ? 0.6 : 1 }}>
                                             <td style={{ ...tdx(), textAlign: 'left', color: C.sub }}>{String(i + 1).padStart(2, '0')}</td>
-                                            <td style={{ ...tdx(), textAlign: 'left', whiteSpace: 'nowrap' }}><b>{m.code}</b> <span style={{ color: C.sub }}>{m.device}</span></td>
+                                            <td style={{ ...tdx(), textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                                <b>{m.code}</b>
+                                                {isRealtime(m) && <span style={{ marginLeft: 6, color: C.green, fontSize: 10, fontWeight: 700 }}>RT</span>}
+                                                <span style={{ color: C.sub }}> {m.device}</span>
+                                            </td>
                                             <td style={{ ...tdx(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
                                             <td style={{ ...tdx(), textAlign: 'center', color: md.color, fontSize: 10 }}>{md.label}</td>
                                             <td style={{ ...tdx(), fontWeight: 700 }}>{dash(it.kwh)}</td>
@@ -455,6 +467,7 @@ function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
                         <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 15, letterSpacing: 0.5 }}>{m.code}<span style={{ fontSize: 11, color: C.barSub, fontWeight: 400 }}> · {m.device}</span></div>
                         <div style={{ fontSize: 11, color: C.barSub }}>{m.pathNames.map(p => formatNodeName(p, t)).join('  ›  ')}</div>
                     </div>
+                    {isRealtime(m) && <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: C.green, border: `1px solid ${C.green}`, padding: '3px 7px' }}>REALTIME</span>}
                     <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: '#fff', border: `1px solid ${md.color}`, padding: '3px 7px' }}>
                         {m.inputMode === 'manual' ? '✎ ' : m.inputMode === 'disabled' ? '⏻ ' : '⚡ '}{md.label}
                     </span>
@@ -489,7 +502,7 @@ function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
                     </div>
 
                     <div style={{ marginTop: 14, fontFamily: MONO, fontSize: 10.5, color: C.sub, lineHeight: 1.8, background: C.panel2, border: `1px solid ${C.line}`, padding: '10px 12px' }}>
-                        site_id={m.site_id} · address_id={m.address_id} · channel={m.channel} · type={m.type} ·
+                        source={m.data_source || 'actual'} · site_id={m.source_site_id || m.site_id} · address_id={m.address_id} · channel={m.channel} · type={m.type} ·
                         device_dt={new Date(m.device_datetime).toLocaleTimeString(t('th-TH', 'en-US'))} · received={new Date(m.received_at).toLocaleTimeString(t('th-TH', 'en-US'))}
                     </div>
                 </div>
@@ -724,7 +737,7 @@ const ZoneDashboard: React.FC = () => {
             }
         };
         load();
-        const a = setInterval(load, 60000);
+        const a = setInterval(load, 10000);
         const b = setInterval(() => setClock(Date.now()), 1000);
         return () => { mounted = false; clearInterval(a); clearInterval(b); };
     }, [language]);
@@ -1035,11 +1048,17 @@ const ZoneDashboard: React.FC = () => {
                                         </thead>
                                         <tbody>
                                             {sorted.map((it, i) => {
-                                                const ago = it.m ? Math.round((now - it.m.received_at) / 1000) : null;
+                                                const scopedMeters = it.m ? [it.m] : metersUnder([...path, it.node.id]);
+                                                const ago = latestAge(scopedMeters, now);
+                                                const hasRealtime = scopedMeters.some(isRealtime);
                                                 return (
                                                     <tr key={it.node.id} className="ec-row" onClick={() => openItem(it)} style={{ borderTop: `1px solid ${C.line}` }}>
                                                         <td style={{ ...td(), color: C.sub, fontFamily: MONO }}>{String(i + 1).padStart(2, '0')}</td>
-                                                        <td style={{ ...td(), color: C.ink }}>{formatNodeName(it.node.name, t)}{it.node.level === 'room' && <span style={{ color: C.sub, fontFamily: MONO, fontSize: 10.5 }}> {it.m!.channel}</span>}</td>
+                                                        <td style={{ ...td(), color: C.ink }}>
+                                                            {formatNodeName(it.node.name, t)}
+                                                            {hasRealtime && <span style={{ marginLeft: 6, color: C.green, fontFamily: MONO, fontSize: 10, fontWeight: 700 }}>RT</span>}
+                                                            {it.node.level === 'room' && <span style={{ color: C.sub, fontFamily: MONO, fontSize: 10.5 }}> {it.m!.channel}</span>}
+                                                        </td>
                                                         <td style={{ ...td(), textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</td>
                                                         <td style={{ ...td(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
                                                         <td style={{ ...td(), textAlign: 'right', color: C.sub, fontFamily: MONO, fontSize: 10.5 }}>{ago === null ? '—' : ago > 30 ? `${ago}s!` : `${ago}s`}</td>
@@ -1085,7 +1104,7 @@ const ZoneDashboard: React.FC = () => {
                                         </ResponsiveContainer>
                                     </div>
                                     <div style={{ padding: '3px 14px 8px', fontFamily: MONO, fontSize: 9.5, color: C.sub, letterSpacing: 0.5 }}>
-                                        {t('← ย้อนหลัง ~1 ชั่วโมง · อัปเดตทุก 1 นาที · รีเซ็ตเมื่อเปลี่ยนขอบเขต', '← Last ~1 hour · Updated every 1 min · Resets on scope change')}
+                                        {t('← ย้อนหลัง ~1 ชั่วโมง · ดึงข้อมูลใหม่ทุก 10 วินาที · รีเซ็ตเมื่อเปลี่ยนขอบเขต', '← Last ~1 hour · Refreshed every 10 sec · Resets on scope change')}
                                     </div>
                                 </div>
                             );

@@ -17,6 +17,14 @@ const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
+const buildRealtimeChannel = (project, siteEl, loopNo) => {
+  const projectKey = String(project || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  return `${projectKey || 'project'}_${siteEl}_${loopNo || 1}`;
+};
+
 const readRows = () => {
   const workbook = XLSX.readFile(workbookPath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -36,6 +44,7 @@ const readRows = () => {
       loop: Number(row[12]),
       model: String(row[13]).trim(),
       siteName: String(row[14]).trim(),
+      siteEl: Number(row[15] || 0),
       phase: Number(row[16]),
       floor: Number(row[17]),
       previousKwh: Number(row[18] || 0),
@@ -214,6 +223,41 @@ const main = async () => {
       }
 
       importedMeterIds.push(meterId);
+      if (row.siteEl > 0) {
+        const realtimeChannel = buildRealtimeChannel(row.siteName, row.siteEl, row.loop);
+        await client.query(
+          `UPDATE realtime_meter_map
+           SET is_active = false, updated_at = NOW()
+           WHERE meter_id = $1
+             AND NOT (realtime_site_id = $2 AND realtime_address_id = $3 AND channel = $4)`,
+          [meterId, row.siteEl, Number(row.address), realtimeChannel]
+        );
+        const existingMap = await client.query(
+          `SELECT id FROM realtime_meter_map
+           WHERE realtime_site_id = $1
+             AND realtime_address_id = $2
+             AND channel = $3
+           LIMIT 1`,
+          [row.siteEl, Number(row.address), realtimeChannel]
+        );
+        if (existingMap.rows.length > 0) {
+          await client.query(
+            `UPDATE realtime_meter_map
+             SET meter_id = $1, is_active = true, updated_at = NOW()
+             WHERE id = $2`,
+            [meterId, existingMap.rows[0].id]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO realtime_meter_map (
+              channel, realtime_site_id, realtime_address_id, meter_id, is_active, created_at, updated_at
+            )
+            VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
+            [realtimeChannel, row.siteEl, Number(row.address), meterId]
+          );
+        }
+      }
+
       const reading = row.currentKwh > 0 ? row.currentKwh : row.previousKwh;
       await client.query('DELETE FROM actual_meter_data WHERE meter_id = $1', [meterId]);
       await client.query('DELETE FROM actual_meter_data_daily WHERE meter_id = $1', [meterId]);

@@ -1,4 +1,5 @@
 import { query } from '../../config/database';
+import { aggregationConfig } from '../../config/aggregation';
 
 const numberOrNull = (value: any): number | null => {
     if (value === undefined || value === null || value === '') return null;
@@ -35,7 +36,11 @@ export class DashboardService {
             latest_realtime AS (
                 SELECT DISTINCT ON (COALESCE(rmm.meter_id, mapped_meter.meter_id))
                     COALESCE(rmm.meter_id, mapped_meter.meter_id) AS meter_id,
-                    r.received_at, r.import_kwhr, r.kva_3ph, r.kw_3ph, r.kvar_3ph, r.hz,
+                    r.channel, r.site_id AS realtime_site_id, r.address_id AS realtime_address_id,
+                    r.device_datetime, r.received_at, r.import_kwhr,
+                    r.kva1, r.kva2, r.kva3, r.kva_3ph,
+                    r.kw1, r.kw2, r.kw3, r.kw_3ph,
+                    r.kvar1, r.kvar2, r.kvar3, r.kvar_3ph, r.hz,
                     r.vl1, r.vl2, r.vl3, r.vl12, r.vl23, r.vl31,
                     r.il1, r.il2, r.il3, r.pf1, r.pf2, r.pf3
                 FROM meter_data_realtime r
@@ -68,31 +73,40 @@ export class DashboardService {
                 m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name, m.address,
                 m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status,
                 s.site_name, b.building_name, z.zone_name,
-                COALESCE(latest.date_keep, latest_realtime.received_at) AS date_keep,
-                COALESCE(NULLIF(latest.energy_kwh, 0), latest_realtime.import_kwhr, latest.energy_kwh, 0) AS energy_kwh,
-                COALESCE(NULLIF(latest.energy_kva, 0), latest_realtime.kva_3ph, latest.energy_kva, 0) AS energy_kva,
-                COALESCE(NULLIF(latest.energy_kw, 0), latest_realtime.kw_3ph, latest.energy_kw, 0) AS energy_kw,
-                COALESCE(NULLIF(latest.energy_kvar, 0), latest_realtime.kvar_3ph, latest.energy_kvar, 0) AS energy_kvar,
-                COALESCE(NULLIF(latest.energy_frequency, 0), latest_realtime.hz, latest.energy_frequency, 0) AS energy_frequency,
-                COALESCE(NULLIF(latest.energy_volt_p1, 0), latest_realtime.vl1, latest.energy_volt_p1, 0) AS energy_volt_p1,
-                COALESCE(NULLIF(latest.energy_volt_p2, 0), latest_realtime.vl2, latest.energy_volt_p2, 0) AS energy_volt_p2,
-                COALESCE(NULLIF(latest.energy_volt_p3, 0), latest_realtime.vl3, latest.energy_volt_p3, 0) AS energy_volt_p3,
-                COALESCE(NULLIF(latest.energy_volt_l1, 0), latest_realtime.vl12, latest.energy_volt_l1, 0) AS energy_volt_l1,
-                COALESCE(NULLIF(latest.energy_volt_l2, 0), latest_realtime.vl23, latest.energy_volt_l2, 0) AS energy_volt_l2,
-                COALESCE(NULLIF(latest.energy_volt_l3, 0), latest_realtime.vl31, latest.energy_volt_l3, 0) AS energy_volt_l3,
-                COALESCE(NULLIF(latest.energy_amp1, 0), latest_realtime.il1, latest.energy_amp1, 0) AS energy_amp1,
-                COALESCE(NULLIF(latest.energy_amp2, 0), latest_realtime.il2, latest.energy_amp2, 0) AS energy_amp2,
-                COALESCE(NULLIF(latest.energy_amp3, 0), latest_realtime.il3, latest.energy_amp3, 0) AS energy_amp3,
-                COALESCE(NULLIF(latest.energy_pf1, 0), latest_realtime.pf1, latest.energy_pf1, 0) AS energy_pf1,
-                COALESCE(NULLIF(latest.energy_pf2, 0), latest_realtime.pf2, latest.energy_pf2, 0) AS energy_pf2,
-                COALESCE(NULLIF(latest.energy_pf3, 0), latest_realtime.pf3, latest.energy_pf3, 0) AS energy_pf3,
+                latest_realtime.received_at AS date_keep,
+                COALESCE(latest_realtime.device_datetime, latest_realtime.received_at) AS device_datetime,
+                latest_realtime.channel AS realtime_channel,
+                latest_realtime.realtime_site_id,
+                latest_realtime.realtime_address_id,
+                CASE WHEN latest_realtime.meter_id IS NULL THEN 'none' ELSE 'realtime' END AS data_source,
+                COALESCE(latest_realtime.import_kwhr, 0) AS energy_kwh,
+                COALESCE(latest_realtime.kva_3ph, 0) AS energy_kva,
+                COALESCE(latest_realtime.kw_3ph, 0) AS energy_kw,
+                COALESCE(latest_realtime.kvar_3ph, 0) AS energy_kvar,
+                COALESCE(latest_realtime.hz, 0) AS energy_frequency,
+                COALESCE(latest_realtime.vl1, 0) AS energy_volt_p1,
+                COALESCE(latest_realtime.vl2, 0) AS energy_volt_p2,
+                COALESCE(latest_realtime.vl3, 0) AS energy_volt_p3,
+                COALESCE(latest_realtime.vl12, 0) AS energy_volt_l1,
+                COALESCE(latest_realtime.vl23, 0) AS energy_volt_l2,
+                COALESCE(latest_realtime.vl31, 0) AS energy_volt_l3,
+                COALESCE(latest_realtime.il1, 0) AS energy_amp1,
+                COALESCE(latest_realtime.il2, 0) AS energy_amp2,
+                COALESCE(latest_realtime.il3, 0) AS energy_amp3,
+                COALESCE(latest_realtime.pf1, 0) AS energy_pf1,
+                COALESCE(latest_realtime.pf2, 0) AS energy_pf2,
+                COALESCE(latest_realtime.pf3, 0) AS energy_pf3,
+                COALESCE(latest_realtime.kw1, 0) AS kw1,
+                COALESCE(latest_realtime.kw2, 0) AS kw2,
+                COALESCE(latest_realtime.kw3, 0) AS kw3,
+                COALESCE(latest_realtime.kva1, 0) AS kva1,
+                COALESCE(latest_realtime.kva2, 0) AS kva2,
+                COALESCE(latest_realtime.kva3, 0) AS kva3,
+                COALESCE(latest_realtime.kvar1, 0) AS kvar1,
+                COALESCE(latest_realtime.kvar2, 0) AS kvar2,
+                COALESCE(latest_realtime.kvar3, 0) AS kvar3,
                 latest.status AS data_status,
-                CASE
-                    WHEN COALESCE(day_counts.reading_count, 0) > 1
-                     AND COALESCE(day_start.period_start_kwh, 0) < COALESCE(latest.energy_kwh, 0)
-                    THEN COALESCE(day_start.period_start_kwh, 0)
-                    ELSE 0
-                END AS period_start_kwh
+                0 AS period_start_kwh
             FROM meter m
             LEFT JOIN sites s ON m.site_id = s.site_id
             LEFT JOIN buildings b ON m.building_id = b.building_id
@@ -106,21 +120,17 @@ export class DashboardService {
             params
         );
 
+        const trendParams = siteId ? [aggregationConfig.intervalMinutes, siteId] : [aggregationConfig.intervalMinutes];
+        const trendSiteFilter = siteId ? 'AND m.site_id = $2' : '';
+        const bucketExpr = (source: string) => `
+            date_trunc('hour', ${source})
+              + (floor(extract(minute from ${source}) / $1::int) * $1::int) * interval '1 minute'
+        `;
+        const realtimeBucketExpr = bucketExpr('r.received_at');
+
         const trendResult = await query(
-            `WITH actual_scoped AS (
-                SELECT d.date_keep, SUM(COALESCE(d.energy_kw, 0)) AS kw
-                FROM actual_meter_data d
-                JOIN meter m ON m.meter_id = d.meter_id
-                WHERE d.date_keep >= NOW() - INTERVAL '1 hour'
-                  AND m.is_active IS DISTINCT FROM false
-                  ${siteId ? 'AND m.site_id = $1' : ''}
-                GROUP BY d.date_keep
-            ),
-            actual_total AS (
-                SELECT COALESCE(SUM(kw), 0) AS kw FROM actual_scoped
-            ),
-            realtime_scoped AS (
-                SELECT date_trunc('minute', r.received_at) AS date_keep, SUM(COALESCE(r.kw_3ph, 0)) AS kw
+            `WITH realtime_scoped AS (
+                SELECT ${realtimeBucketExpr} AS date_keep, SUM(COALESCE(r.kw_3ph, 0)) AS kw
                 FROM meter_data_realtime r
                 LEFT JOIN realtime_meter_map rmm
                   ON rmm.realtime_site_id = r.site_id
@@ -134,24 +144,34 @@ export class DashboardService {
                 JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, mapped_meter.meter_id)
                 WHERE r.received_at >= NOW() - INTERVAL '1 hour'
                   AND m.is_active IS DISTINCT FROM false
-                  ${siteId ? 'AND m.site_id = $1' : ''}
-                GROUP BY date_trunc('minute', r.received_at)
+                  ${trendSiteFilter}
+                GROUP BY ${realtimeBucketExpr}
             )
             SELECT date_keep AS t, kw
-            FROM actual_scoped
-            WHERE (SELECT kw FROM actual_total) <> 0
-            UNION ALL
-            SELECT date_keep AS t, kw
             FROM realtime_scoped
-            WHERE (SELECT kw FROM actual_total) = 0
             ORDER BY t`,
-            siteId ? [siteId] : []
+            trendParams
         );
 
         const comparisonResult = await query(
-            `WITH meter_scope AS (
+            `WITH realtime_meter_ids AS (
+                SELECT DISTINCT COALESCE(rmm.meter_id, mapped_meter.meter_id) AS meter_id
+                FROM meter_data_realtime r
+                LEFT JOIN realtime_meter_map rmm
+                  ON rmm.realtime_site_id = r.site_id
+                 AND rmm.realtime_address_id = r.address_id
+                 AND rmm.is_active = true
+                 AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+                LEFT JOIN meter mapped_meter
+                  ON mapped_meter.site_id = r.site_id
+                 AND mapped_meter.address::text = r.address_id::text
+                 AND rmm.id IS NULL
+                WHERE COALESCE(rmm.meter_id, mapped_meter.meter_id) IS NOT NULL
+            ),
+            meter_scope AS (
                 SELECT m.meter_id, m.site_id, m.building_id, s.site_name, b.building_name
                 FROM meter m
+                JOIN realtime_meter_ids rmi ON rmi.meter_id = m.meter_id
                 LEFT JOIN sites s ON m.site_id = s.site_id
                 LEFT JOIN buildings b ON m.building_id = b.building_id
                 WHERE m.is_active IS DISTINCT FROM false
@@ -314,9 +334,10 @@ export class DashboardService {
         return {
             id: `meter-${row.meter_id}`,
             code: row.room_code || row.meter_code || `M${row.meter_id}`,
-            channel: row.meter_code || '',
+            channel: row.realtime_channel || row.meter_code || '',
             site_id: row.site_id,
-            address_id: row.address || row.meter_id,
+            address_id: row.realtime_address_id || row.address || row.meter_id,
+            source_site_id: row.realtime_site_id || row.site_id,
             device: row.meter_name || row.meter_code || `Meter ${row.meter_id}`,
             type: '3P4W',
             loop: row.loop_id || 1,
@@ -337,23 +358,24 @@ export class DashboardService {
             inputMode: isActive ? 'auto' : 'disabled',
             periodStart_kwhr: toNumber(row.period_start_kwh),
             import_kwhr: toNumber(row.energy_kwh),
+            data_source: row.data_source || 'actual',
             _pf: 1,
             _v: 0,
             kw_3ph: toNumber(row.energy_kw),
-            kw1: 0,
-            kw2: 0,
-            kw3: 0,
+            kw1: toNumber(row.kw1),
+            kw2: toNumber(row.kw2),
+            kw3: toNumber(row.kw3),
             pf1: toNumber(row.energy_pf1, 1),
             pf2: toNumber(row.energy_pf2, 1),
             pf3: toNumber(row.energy_pf3, 1),
             kva_3ph: toNumber(row.energy_kva),
             kvar_3ph: toNumber(row.energy_kvar),
-            kva1: 0,
-            kva2: 0,
-            kva3: 0,
-            kvar1: 0,
-            kvar2: 0,
-            kvar3: 0,
+            kva1: toNumber(row.kva1),
+            kva2: toNumber(row.kva2),
+            kva3: toNumber(row.kva3),
+            kvar1: toNumber(row.kvar1),
+            kvar2: toNumber(row.kvar2),
+            kvar3: toNumber(row.kvar3),
             vl1: toNumber(row.energy_volt_p1),
             vl2: toNumber(row.energy_volt_p2),
             vl3: toNumber(row.energy_volt_p3),
@@ -365,7 +387,7 @@ export class DashboardService {
             il3: toNumber(row.energy_amp3),
             hz: toNumber(row.energy_frequency),
             received_at: row.date_keep ? new Date(row.date_keep).getTime() : 0,
-            device_datetime: row.date_keep ? new Date(row.date_keep).getTime() : 0,
+            device_datetime: row.device_datetime ? new Date(row.device_datetime).getTime() : (row.date_keep ? new Date(row.date_keep).getTime() : 0),
         };
     }
 

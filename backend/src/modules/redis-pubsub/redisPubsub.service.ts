@@ -85,6 +85,7 @@ export const isAutoSubscribeEnabled = (): boolean => {
 const saveMeterDataToDb = async (channel: string, message: string): Promise<void> => {
     try {
         const data = JSON.parse(message);
+        const dataChannel = data.channel ?? data.Channel ?? channel;
 
         await pool.query(
             `INSERT INTO meter_data_realtime (
@@ -109,7 +110,7 @@ const saveMeterDataToDb = async (channel: string, message: string): Promise<void
                 $33, $34
             )`,
             [
-                channel,
+                dataChannel,
                 data.siteID ?? null,
                 data.addressID ?? null,
                 data.device ?? null,
@@ -184,4 +185,3 @@ export const getLatestRealtimeData = async (): Promise<any[]> => {
     );
     return result.rows;
 };
-

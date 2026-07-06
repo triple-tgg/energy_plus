@@ -2,6 +2,15 @@ import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 
+const buildRealtimeChannel = (project: string, siteEl: number, loopNo: number | null | undefined): string => {
+    const projectKey = String(project || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '');
+    const loopKey = loopNo || 1;
+    return `${projectKey || 'project'}_${siteEl}_${loopKey}`;
+};
+
 export class MetersService {
     async getMeters(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
@@ -374,6 +383,8 @@ export class MetersService {
                         }
                     }
 
+                    let savedMeterId: number | null = existingId;
+
                     if (existingId) {
                         // UPDATE existing meter
                         await client.query(
@@ -404,11 +415,12 @@ export class MetersService {
                         results.updated++;
                     } else {
                         // INSERT new meter
-                        await client.query(
+                        const inserted = await client.query(
                             `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
                              site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
                              phase, circuit, floor, created_by, created_on)
-                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,NOW())`,
+                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+                             RETURNING meter_id`,
                             [
                                 meterCode,
                                 row.meterName || '',
@@ -429,7 +441,49 @@ export class MetersService {
                                 createdBy,
                             ]
                         );
+                        savedMeterId = inserted.rows[0]?.meter_id || null;
                         results.imported++;
+                    }
+
+                    if (savedMeterId && row.siteEl && modbusAddr !== null) {
+                        const realtimeSiteId = Number(row.siteEl);
+                        const realtimeAddressId = Number(modbusAddr);
+                        const realtimeChannel = buildRealtimeChannel(siteName, realtimeSiteId, row.loop);
+                        if (Number.isFinite(realtimeSiteId) && Number.isFinite(realtimeAddressId)) {
+                            await client.query(
+                                `UPDATE realtime_meter_map
+                                 SET is_active = false, updated_at = NOW()
+                                 WHERE meter_id = $1
+                                   AND NOT (realtime_site_id = $2 AND realtime_address_id = $3 AND channel = $4)`,
+                                [savedMeterId, realtimeSiteId, realtimeAddressId, realtimeChannel]
+                            );
+
+                            const existingMap = await client.query(
+                                `SELECT id FROM realtime_meter_map
+                                 WHERE realtime_site_id = $1
+                                   AND realtime_address_id = $2
+                                   AND channel = $3
+                                 LIMIT 1`,
+                                [realtimeSiteId, realtimeAddressId, realtimeChannel]
+                            );
+
+                            if (existingMap.rows.length > 0) {
+                                await client.query(
+                                    `UPDATE realtime_meter_map
+                                     SET meter_id = $1, is_active = true, updated_at = NOW()
+                                     WHERE id = $2`,
+                                    [savedMeterId, existingMap.rows[0].id]
+                                );
+                            } else {
+                                await client.query(
+                                    `INSERT INTO realtime_meter_map (
+                                        channel, realtime_site_id, realtime_address_id, meter_id, is_active, created_at, updated_at
+                                     )
+                                     VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
+                                    [realtimeChannel, realtimeSiteId, realtimeAddressId, savedMeterId]
+                                );
+                            }
+                        }
                     }
 
                     const readingValue = row.currentKwh && Number(row.currentKwh) > 0
@@ -437,22 +491,24 @@ export class MetersService {
                         : row.previousKwh && Number(row.previousKwh) > 0
                             ? Number(row.previousKwh)
                             : null;
-                    if (readingValue !== null) {
-                        const meterResult = await client.query(
-                            `SELECT meter_id FROM meter WHERE meter_code = $1`,
-                            [meterCode]
+                    if (savedMeterId && readingValue !== null) {
+                        await client.query(
+                            `INSERT INTO actual_meter_data (meter_id, date_keep, energy_kwh, status)
+                             VALUES ($1, NOW(), $2, 'online')`,
+                            [savedMeterId, readingValue]
                         );
-                        const meterId = meterResult.rows[0]?.meter_id;
-                        if (meterId) {
-                            await client.query(
-                                `INSERT INTO actual_meter_data (meter_id, date_keep, energy_kwh, status)
-                                 VALUES ($1, NOW(), $2, 'online')
-                                 ON CONFLICT (meter_id, date_keep) DO UPDATE SET
-                                    energy_kwh = EXCLUDED.energy_kwh,
-                                    status = EXCLUDED.status`,
-                                [meterId, readingValue]
-                            );
-                        }
+                        await client.query(
+                            `INSERT INTO actual_meter_data_daily (meter_id, date_keep, total_kwh, max_kw, min_kw, avg_kw)
+                             VALUES ($1, CURRENT_DATE, $2, 0, 0, 0)
+                             ON CONFLICT (meter_id, date_keep) DO UPDATE SET total_kwh = EXCLUDED.total_kwh`,
+                            [savedMeterId, readingValue]
+                        );
+                        await client.query(
+                            `INSERT INTO actual_meter_data_monthly (meter_id, year_month, total_kwh, max_kw, avg_kw)
+                             VALUES ($1, to_char(CURRENT_DATE, 'YYYY-MM'), $2, 0, 0)
+                             ON CONFLICT (meter_id, year_month) DO UPDATE SET total_kwh = EXCLUDED.total_kwh`,
+                            [savedMeterId, readingValue]
+                        );
                     }
                 } catch (err: any) {
                     results.errors.push({ row: i + 1, message: err.message });
