@@ -29,9 +29,6 @@ export const subClient: RedisClientType = createClient(REDIS_CONFIG);
 
 
 
-// Auto-subscribe on startup (true/false)
-export const AUTO_SUBSCRIBE = process.env.REDIS_AUTO_SUBSCRIBE === 'true';
-
 // Master toggle — skip Redis entirely if false
 export const REDIS_ENABLED = process.env.REDIS_ENABLED !== 'false';
 

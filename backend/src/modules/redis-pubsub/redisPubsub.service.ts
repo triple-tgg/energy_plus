@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { pubClient, subClient, AUTO_SUBSCRIBE } from '../../config/redis';
+import { pubClient, subClient } from '../../config/redis';
 import pool from '../../config/database';
 
 // Track SSE clients per channel
@@ -67,12 +67,6 @@ export const getActiveChannels = async (): Promise<string[]> => {
 
 
 
-/**
- * Check if auto-subscribe is enabled
- */
-export const isAutoSubscribeEnabled = (): boolean => {
-    return AUTO_SUBSCRIBE;
-};
 
 /**
  * Save meter data from Redis message to database
