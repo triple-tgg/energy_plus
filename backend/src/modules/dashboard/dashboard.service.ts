@@ -15,11 +15,16 @@ const toNumber = (value: any, fallback = 0): number => {
 export class DashboardService {
     async getZoneDashboardData(queryParams: any) {
         const siteId = numberOrNull(queryParams.siteId);
+        const buildingId = numberOrNull(queryParams.buildingId);
         const params: any[] = [];
         let meterFilter = 'WHERE m.is_active IS DISTINCT FROM false';
         if (siteId) {
             params.push(siteId);
             meterFilter += ` AND m.site_id = $${params.length}`;
+        }
+        if (buildingId) {
+            params.push(buildingId);
+            meterFilter += ` AND m.building_id = $${params.length}`;
         }
 
         const metersResult = await query(
@@ -50,7 +55,7 @@ export class DashboardService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter mapped_meter
-                  ON mapped_meter.site_id = r.site_id
+                  ON mapped_meter.site_el = r.site_id
                  AND mapped_meter.address::text = r.address_id::text
                  AND rmm.id IS NULL
                 WHERE COALESCE(rmm.meter_id, mapped_meter.meter_id) IS NOT NULL
@@ -120,8 +125,18 @@ export class DashboardService {
             params
         );
 
-        const trendParams = siteId ? [aggregationConfig.intervalMinutes, siteId] : [aggregationConfig.intervalMinutes];
-        const trendSiteFilter = siteId ? 'AND m.site_id = $2' : '';
+        // Build trend filter params: $1 = interval, then optional $2 = siteId, $3 = buildingId
+        const trendParams: any[] = [aggregationConfig.intervalMinutes];
+        const trendFilters: string[] = [];
+        if (siteId) {
+            trendParams.push(siteId);
+            trendFilters.push(`m.site_id = $${trendParams.length}`);
+        }
+        if (buildingId) {
+            trendParams.push(buildingId);
+            trendFilters.push(`m.building_id = $${trendParams.length}`);
+        }
+        const trendSiteFilter = trendFilters.length > 0 ? 'AND ' + trendFilters.join(' AND ') : '';
         const bucketExpr = (source: string) => `
             date_trunc('hour', ${source})
               + (floor(extract(minute from ${source}) / $1::int) * $1::int) * interval '1 minute'
@@ -129,9 +144,10 @@ export class DashboardService {
         const realtimeBucketExpr = bucketExpr('r.received_at');
 
         const trendResult = await query(
-            `WITH realtime_scoped AS (
+            `WITH realtime_per_meter AS (
                 SELECT
                     ${realtimeBucketExpr} AS date_keep,
+                    m.meter_id,
                     SUM(COALESCE(r.kw_3ph, 0)) AS kw,
                     MAX(COALESCE(r.import_kwhr, 0)) AS kwh,
                     COUNT(*)::int AS readings
@@ -142,20 +158,36 @@ export class DashboardService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter mapped_meter
-                  ON mapped_meter.site_id = r.site_id
+                  ON mapped_meter.site_el = r.site_id
                  AND mapped_meter.address::text = r.address_id::text
                  AND rmm.id IS NULL
                 JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, mapped_meter.meter_id)
                 WHERE r.received_at >= NOW() - INTERVAL '24 hours'
                   AND m.is_active IS DISTINCT FROM false
                   ${trendSiteFilter}
-                GROUP BY ${realtimeBucketExpr}
+                GROUP BY ${realtimeBucketExpr}, m.meter_id
+            ),
+            realtime_scoped AS (
+                SELECT
+                    date_keep,
+                    SUM(kw) AS kw,
+                    SUM(kwh) AS kwh,
+                    SUM(readings) AS readings
+                FROM realtime_per_meter
+                GROUP BY date_keep
             )
             SELECT date_keep AS t, kw, kwh, readings
             FROM realtime_scoped
             ORDER BY t`,
             trendParams
         );
+
+        // Build comparison params
+        const compParams: any[] = [];
+        if (siteId) compParams.push(siteId);
+        if (buildingId) compParams.push(buildingId);
+        const compSiteFilter = siteId ? `AND m.site_id = $${compParams.indexOf(siteId) + 1}` : '';
+        const compBuildingFilter = buildingId ? `AND m.building_id = $${compParams.indexOf(buildingId) + 1}` : '';
 
         const comparisonResult = await query(
             `WITH realtime_meter_ids AS (
@@ -167,7 +199,7 @@ export class DashboardService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter mapped_meter
-                  ON mapped_meter.site_id = r.site_id
+                  ON mapped_meter.site_el = r.site_id
                  AND mapped_meter.address::text = r.address_id::text
                  AND rmm.id IS NULL
                 WHERE COALESCE(rmm.meter_id, mapped_meter.meter_id) IS NOT NULL
@@ -179,7 +211,8 @@ export class DashboardService {
                 LEFT JOIN sites s ON m.site_id = s.site_id
                 LEFT JOIN buildings b ON m.building_id = b.building_id
                 WHERE m.is_active IS DISTINCT FROM false
-                  ${siteId ? 'AND m.site_id = $1' : ''}
+                  ${compSiteFilter}
+                  ${compBuildingFilter}
             ),
             hourly_meter AS (
                 SELECT
@@ -276,8 +309,9 @@ export class DashboardService {
             WHERE building_id IS NOT NULL
             GROUP BY gran, bucket, building_id, building_name
             ORDER BY gran, bucket, entity_type, entity_name`,
-            siteId ? [siteId] : []
+            compParams
         );
+
 
         const tree = this.buildZoneTree(metersResult.rows);
         const meters = metersResult.rows.map((row: any) => this.mapZoneMeter(row));

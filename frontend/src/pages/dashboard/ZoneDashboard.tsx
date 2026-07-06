@@ -166,7 +166,7 @@ function latestAge(list: MeterData[], now: number): number | null {
     if (!active.length) return null;
     return Math.round((now - Math.max(...active.map((m) => m.received_at))) / 1000);
 }
-const fmt = (v: number, d = 0) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmt = (v: number, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const LEVEL_TH = ['สาขา', 'อาคาร', 'ชั้น', 'โซน', 'ห้อง'];
 const LEVEL_EN = ['BRANCH', 'BUILDING', 'FLOOR', 'ZONE', 'ROOM'];
 
@@ -715,11 +715,18 @@ const ZoneDashboard: React.FC = () => {
     const histRef = useRef<TrendPoint[]>([]); // บัฟเฟอร์กราฟ Realtime history
     const [, setHistVer] = useState(0);
 
+    // Extract siteId and buildingId from path to filter trend/comparison data
+    const currentSiteId = path[0] ? path[0].replace(/^\D+/, '') : undefined;
+    const currentBuildingId = path[1] ? path[1].replace(/^\D+/, '') : undefined;
+
     useEffect(() => {
         let mounted = true;
         const load = async () => {
             try {
-                const res = await dashboardApi.getZoneDashboard();
+                const params: any = {};
+                if (currentSiteId) params.siteId = currentSiteId;
+                if (currentBuildingId) params.buildingId = currentBuildingId;
+                const res = await dashboardApi.getZoneDashboard(params);
                 if (!mounted) return;
                 const next = res.data.data as ZoneDashboardPayload;
                 setDashboardData({
@@ -742,7 +749,7 @@ const ZoneDashboard: React.FC = () => {
         const a = setInterval(load, 10000);
         const b = setInterval(() => setClock(Date.now()), 1000);
         return () => { mounted = false; clearInterval(a); clearInterval(b); };
-    }, [language]);
+    }, [language, currentSiteId, currentBuildingId]);
 
     const now = clock;
     const metersUnder = (p: string[]) => meters.filter((m) => p.every((id, i) => m.pathIds[i] === id));
@@ -1097,9 +1104,9 @@ const ZoneDashboard: React.FC = () => {
                                         <span style={{ fontSize: 12, color: C.sub }}>{t('ข้อมูลย้อนหลัง 24 ชม. · ', 'Last 24h history · ')}{level === 0 ? t('ทุกสาขา', 'All Branches') : formatNodeName(currentName || '', t)}</span>
                                         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
                                             <StatusDot s="normal" size={8} pulse C={C} />
-                                            <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 700, color: C.accent }}>{fmt(curKwh, 1)}</span>
+                                            <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 700, color: C.accent }}>{fmt(curKwh, 2)}</span>
                                             <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
-                                            <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub, marginLeft: 8 }}>{fmt(totalReadings)} REC · {fmt(curKw, 1)} kW · PEAK {fmt(peak, 1)}</span>
+                                            <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub, marginLeft: 8 }}>{fmt(totalReadings, 0)} REC · {fmt(curKw, 2)} kW · PEAK {fmt(peak, 2)}</span>
                                         </span>
                                     </div>
                                     <div style={{ height: 190, padding: '8px 8px 0' }}>
@@ -1112,9 +1119,9 @@ const ZoneDashboard: React.FC = () => {
                                                 <Tooltip
                                                     contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }}
                                                     formatter={(v, name) => {
-                                                        if (name === 'readings') return [`${fmt(Number(v))} records`, 'records'];
-                                                        if (name === 'kwh') return [`${fmt(Number(v), 3)} kWh`, 'kWh'];
-                                                        return [`${fmt(Number(v), 1)} kW`, 'kW'];
+                                                        if (name === 'readings') return [`${fmt(Number(v), 0)} records`, 'records'];
+                                                        if (name === 'kwh') return [`${fmt(Number(v), 2)} kWh`, 'kWh'];
+                                                        return [`${fmt(Number(v), 2)} kW`, 'kW'];
                                                     }}
                                                 />
                                                 <Bar yAxisId="readings" dataKey="readings" fill={C.green} opacity={0.24} isAnimationActive={false} />
