@@ -4,16 +4,35 @@
 
 ---
 
+## ✅ สถานะการ implement (sync กับ code ณ `2026-07-07`)
+
+Phase 1–5 สร้างครบทุกหน้าแล้วใน `frontend/src/pages` — mapping:
+
+| Phase | สถานะ | ไฟล์จริง |
+|-------|:--:|---------|
+| **1 — Shared Components & API Client** | ✅ | `components/` (FilterBar, ExportButtons, StatusBadge, DataTable, Modal), `api/client.ts` |
+| **2 — Dashboard Pages** | ✅ | `pages/dashboard/`: `ZoneDashboard`, `MdbDashboard`, `DemandDashboard`, `ConsumptionTable` |
+| **3 — Monitoring Pages** | ✅ / 🟡 | `pages/monitoring/`: `RealtimePage` ✅, `DemandPeakPage` ✅, `LayoutViewPage` 🟡 (Single Line Diagram ยังเป็น placeholder) |
+| **4 — Report Pages** | ✅ | `pages/reports/`: `EnergyReportPage`, `HistoryReportPage`, `ComparisonReportPage`, `AlarmReportPage` |
+| **5 — Settings Pages** | ✅ | `pages/settings/`: `AlarmConfigsPage`, `AlarmGroupsPage`, `BillingPage`, `DemandPage`, `ExportSettingsPage`, `LayoutSettingsPage` |
+| **6 — UX/UI Improvements** | ✅ | Route guard (`AccessDeniedPage`), default route, sidebar active state, error handling |
+| **7 — Advanced Features** | 🔮 | ยังไม่ทำ: realtime push backend (ใช้ Redis pub/sub + poll แทน), dark mode toggle, i18n, notification center — ดู `project_documentation.md` §11 |
+
+> Admin (`Company`, `Groups`, `Users`, `Sites`, `Buildings`) และ Master (`Brands`, `Loops`, `MeterTypes`, `Meters`) pages มีครบเช่นกัน
+> รายละเอียด step ด้านล่างเก็บไว้เป็น reference ของการออกแบบเดิม
+
+---
+
 ## ภาพรวม
 
 ```
-Phase 1 → Shared Components & API Client
-Phase 2 → Dashboard Pages (3 หน้า)
-Phase 3 → Monitoring Pages (3 ฟีเจอร์)
-Phase 4 → Report Pages (4 หน้า)
-Phase 5 → Settings Pages (2 หน้าใหม่)
-Phase 6 → UX/UI Improvements
-Phase 7 → Advanced Features
+Phase 1 → Shared Components & API Client      ✅
+Phase 2 → Dashboard Pages (3 หน้า)             ✅ (จริง 4 หน้า)
+Phase 3 → Monitoring Pages (3 ฟีเจอร์)          ✅ / 🟡 LayoutView placeholder
+Phase 4 → Report Pages (4 หน้า)                ✅
+Phase 5 → Settings Pages (2 หน้าใหม่)           ✅
+Phase 6 → UX/UI Improvements                  ✅
+Phase 7 → Advanced Features                   🔮 ยังไม่ทำ
 ```
 
 ---

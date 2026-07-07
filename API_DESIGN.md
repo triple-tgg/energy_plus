@@ -1,10 +1,12 @@
 # EnergyPlus API Design Document
 
-> **Version**: 1.1  
-> **Date**: February 22, 2026  
-> **Database**: PostgreSQL (DigitalOcean Managed Database — `energy_plus`)  
+> **Version**: 1.2  
+> **Date**: February 22, 2026 (แก้ให้ตรงโค้ดจริง: 4 ก.ค. 2026)  
+> **Database**: PostgreSQL (**Railway** Managed — db `railway`) + Redis (Railway)  
 > **Existing Frontend**: ASP.NET MVC (C#) — hosted at `energyplus.kegroup.co.th:5500`  
-> **New Backend**: Node.js + Express + TypeScript (`new-energy-plus/backend`)
+> **New Backend**: Node.js + Express + TypeScript (`backend/`)
+
+> ⚠️ **หมายเหตุความตรงกับโค้ด:** เอกสารนี้เป็น *design intent* บางส่วนต่างจาก implementation จริง — ยึด [project_documentation.md](project_documentation.md) เป็น source of truth. จุดที่ต่าง: (1) DB ย้ายจาก DigitalOcean → **Railway**, driver = `pg` ล้วน (ไม่ใช้ Knex/mysql2); (2) realtime ใช้ **Redis pub/sub + PostgreSQL LATERAL** แทน Socket.IO; (3) validation = **zod**; (4) aggregation job ใช้ 15-minute snapshot + daily/monthly snapshot + retention cleanup; (5) endpoint มิเตอร์ย่อยเป็น nested (`/meters/types/list`, `/meters/brands/list`, `/meters/loops/list`); (6) JWT = **HS256** access 24h / refresh 7d; (7) port backend **3003**, frontend **5175**.
 
 ---
 
@@ -27,6 +29,7 @@
    - [5.10 Dashboard & Analytics](#510-dashboard--analytics)
    - [5.11 Reports & Export](#511-reports--export)
    - [5.12 User & Permission Management](#512-user--permission-management)
+   - [5.13 Redis Pub/Sub (Realtime Transport)](#413-redis-pubsub-realtime-transport)
 6. [Data Models](#6-data-models)
 7. [Error Handling](#7-error-handling)
 8. [Security](#8-security)
@@ -81,10 +84,10 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                      DATA LAYER                                  │
 │  ┌─────────────────────────────────────────────┐                │
-│  │      PostgreSQL (DigitalOcean Managed)       │                │
-│  │         Database: energy_plus                │                │
-│  │         Host: *.c.db.ondigitalocean.com      │                │
-│  │         Port: 25060 (SSL)                    │                │
+│  │      PostgreSQL (Railway Managed)             │                │
+│  │         Database: railway                    │                │
+│  │         Host: zephyr.proxy.rlwy.net          │                │
+│  │         Port: 23594 (SSL)                    │                │
 │  │                                              │                │
 │  │  Core:     meter, actual_meter_data,         │                │
 │  │            actual_meter_data_daily,           │                │
@@ -108,27 +111,37 @@
 
 | Parameter | Value |
 |-----------|-------|
-| **Provider** | DigitalOcean Managed PostgreSQL |
-| **Host** | `db-postgresql-sgp1-56999-do-user-3547454-0.c.db.ondigitalocean.com` |
-| **Port** | `25060` |
-| **Database** | `energy_plus` |
-| **User** | `energyadmin` |
+| **Provider** | **Railway** Managed PostgreSQL |
+| **Host** | `zephyr.proxy.rlwy.net` (`DB_HOST`) |
+| **Port** | `23594` (`DB_PORT`) |
+| **Database** | `railway` (`DB_DATABASE`) |
+| **User** | `postgres` (`DB_USER`) |
 | **Password** | `<SET_IN_ENV>` |
-| **SSL** | Required (`sslmode=require`) |
-| **Region** | SGP1 (Singapore) |
+| **SSL** | Required (`rejectUnauthorized: false`) |
+
+> เดิมใช้ DigitalOcean (`...sgp1-56999...:25060`, db `energy_plus`, user `energyadmin`) — ย้ายมา Railway แล้ว ค่าจริงอยู่ใน `.env`
+
+### Redis (Railway) — Realtime Pub/Sub
+
+| Parameter | Value |
+|-----------|-------|
+| **Host** | `ballast.proxy.rlwy.net` (`REDIS_HOST`) |
+| **Port** | `13915` (`REDIS_PORT`) |
+| **Enabled** | `REDIS_ENABLED=true` |
+| **Default Channel** | `project1_1000_1` (`REDIS_DEFAULT_CHANNEL`) |
 
 ### Environment Variables (`.env`)
 
 ```bash
 # Server Configuration
 NODE_ENV=development
-PORT=3000
+PORT=3003
 
-# Database Configuration (DigitalOcean PostgreSQL)
-DB_HOST=db-postgresql-sgp1-56999-do-user-3547454-0.c.db.ondigitalocean.com
-DB_PORT=25060
-DB_DATABASE=energy_plus
-DB_USER=energyadmin
+# Database Configuration (Railway PostgreSQL)
+DB_HOST=zephyr.proxy.rlwy.net
+DB_PORT=23594
+DB_DATABASE=railway
+DB_USER=postgres
 DB_PASSWORD=<your_db_password>
 DB_SSL=true
 DB_SSL_REJECT_UNAUTHORIZED=false
@@ -136,9 +149,18 @@ DB_SSL_REJECT_UNAUTHORIZED=false
 # JWT Configuration
 JWT_SECRET=your_jwt_secret_key_here
 JWT_EXPIRES_IN=24h
+JWT_REFRESH_EXPIRES_IN=7d
 
 # CORS Configuration
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:5175
+
+# Redis Configuration (Railway)
+REDIS_ENABLED=true
+REDIS_HOST=ballast.proxy.rlwy.net
+REDIS_PORT=13915
+REDIS_PASSWORD=<your_redis_password>
+REDIS_DEFAULT_CHANNEL=project1_1000_1
+REDIS_AUTO_SUBSCRIBE=false
 
 # Logging
 LOG_LEVEL=debug
@@ -150,15 +172,15 @@ LOG_LEVEL=debug
 import { Pool, PoolConfig } from 'pg';
 
 const poolConfig: PoolConfig = {
-  user: process.env.DB_USER || 'energyadmin',
-  host: process.env.DB_HOST || 'db-postgresql-sgp1-56999-do-user-3547454-0.c.db.ondigitalocean.com',
-  database: process.env.DB_DATABASE || 'energy_plus',
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'zephyr.proxy.rlwy.net',
+  database: process.env.DB_DATABASE || 'railway',
   password: process.env.DB_PASSWORD || '',
-  port: parseInt(process.env.DB_PORT || '25060', 10),
+  port: parseInt(process.env.DB_PORT || '23594', 10),
   max: 20,                        // Max connections in pool
   idleTimeoutMillis: 30000,       // Close idle connections after 30s
   connectionTimeoutMillis: 2000,  // Fail if can't connect in 2s
-  ssl: { rejectUnauthorized: false },  // Required for DigitalOcean
+  ssl: { rejectUnauthorized: false },  // Required for Railway managed PostgreSQL
 };
 
 const pool = new Pool(poolConfig);
@@ -167,7 +189,7 @@ const pool = new Pool(poolConfig);
 ### Connection String (URI Format)
 
 ```
-postgresql://energyadmin:<your_db_password>@db-postgresql-sgp1-56999-do-user-3547454-0.c.db.ondigitalocean.com:25060/energy_plus?sslmode=require
+postgresql://postgres:<your_db_password>@zephyr.proxy.rlwy.net:23594/railway?sslmode=require
 ```
 
 ---
@@ -179,11 +201,11 @@ postgresql://energyadmin:<your_db_password>@db-postgresql-sgp1-56999-do-user-354
 | **Runtime** | Node.js 20 LTS | Event-driven, ideal for real-time meter data |
 | **Framework** | Express.js + TypeScript | Lightweight, type-safe, mature ecosystem |
 | **Database Driver** | pg (node-postgres) | Native PostgreSQL driver with pool management |
-| **Query Builder** | Knex.js | Flexible SQL building without heavy ORM overhead |
+| **Query Layer** | Raw SQL + `pg` | Direct PostgreSQL queries without ORM |
 | **Authentication** | JWT (jsonwebtoken) | Stateless auth, compatible with existing ASP.NET Identity |
-| **Validation** | Joi / Zod | Schema-based request validation |
-| **Real-time** | Socket.IO | WebSocket for live meter monitoring |
-| **Scheduler** | node-cron | Periodic data aggregation tasks |
+| **Validation** | Zod | Schema-based request validation |
+| **Real-time** | Redis pub/sub + PostgreSQL LATERAL | Realtime monitoring without Socket.IO |
+| **Scheduler** | node-cron | 15-minute / daily / monthly / retention jobs |
 | **Notifications** | node-telegram-bot-api | Existing Telegram alarm integration |
 | **Documentation** | Swagger / OpenAPI 3.0 | Auto-generated API docs |
 | **Logging** | Winston | Structured logging with file rotation |
@@ -199,11 +221,13 @@ company (1) ──────────────────────�
                                                                   
 sites (1) ──┬── buildings (N) ──┬── zones (N) ──── meter (N)    
              │                   │                    │            
+             │                   │                    ├── meter_data_realtime (N)
              │                   │                    ├── actual_meter_data (N)
              │                   │                    ├── actual_meter_data_daily (N)
              │                   │                    ├── actual_meter_data_monthly (N)
              │                   │                    ├── alarm_config (N)
-             │                   │                    └── child_meter (N)
+             │                   │                    ├── realtime_meter_map (N)
+             │                   │                    └── meter.parent_meter_id (self-ref)
              │                   │                                 
              └── site_user_map (N) ── app_user (1)               
                                         │                         
@@ -216,34 +240,38 @@ meter_type  (1) ──── meter (N)
 loop        (1) ──── meter (N)                                   
 energy_value (1) ──── alarm_config (N)                           
                                                                   
-layouts (1) ──┬── layout_position (N)                            
-              └── layout_meter_config (N)                        
+layouts (1) ──── layout_points (N)                               
                                                                   
 demand_peak_config (1) ──── demand_meter_config (N)              
                        ──── demand_peak_data (N)                 
                                                                   
 alarm_group (1) ──── alarm_group_mapping (N)                     
+aggregation_job_runs (aggregation job audit)                     
 billing_config                                                    
 energy_daily_usage                                                
 energy_save                                                       
 saving_meter_config                                               
 ```
+> หมายเหตุ: ตาราง `layout_position` / `layout_meter_config` / `child_meter` / `aspnetusers` ที่เคยระบุไว้ **ไม่มีจริง** ใน DB นี้ — layout points ใช้ตาราง `layout_points`, child meter ใช้ self-ref `meter.parent_meter_id`
 
 ### Key Tables by Domain
 
-| Domain | Tables | Records (approx) |
-|--------|--------|-------------------|
-| **Infrastructure** | `sites`, `buildings`, `zones` | ~3, ~5, ~12 |
-| **Meters** | `meter`, `meter_brand`, `meter_type`, `loop`, `protocol` | ~500+, ~10, ~3, ~16 |
-| **Meter Data** | `actual_meter_data`, `actual_meter_data_daily`, `actual_meter_data_monthly` | Large (221MB daily!) |
-| **Energy** | `energy_value`, `energy_daily_usage`, `energy_save` | ~39 value types |
-| **Alarms** | `alarm_config`, `alarm_group`, `alarm_group_mapping` | Config-based |
-| **Demand** | `demand_peak_config`, `demand_meter_config`, `demand_peak_data` | Config-based |
-| **Billing** | `billing_config` | ~4 rate configs |
-| **Users** | `app_user`, `group_user`, `user_permission`, `site_user_map`, `aspnetusers` | ~81 users |
-| **Layouts** | `layouts`, `layout_position`, `layout_meter_config` | ~50 layouts |
-| **Company** | `company` | 1 |
-| **Audit** | `auditlogs`, `write_log` | Growing |
+Records = จำนวนแถวจริงใน DB ณ `2026-07-07` (ดูรายละเอียดเต็มใน `DATABASE_TABLE_SUMMARY.md`)
+
+| Domain | Tables | Records |
+|--------|--------|---------|
+| **Infrastructure** | `sites`, `buildings`, `zones` | 7, 12, 32 |
+| **Meters** | `meter`, `meter_brand`, `meter_type`, `loop`, `protocol` | 4 (active), 19, 4, 16, 6 |
+| **Realtime** | `meter_data_realtime`, `realtime_meter_map`, `aggregation_job_runs` | 355, 8, 2,943 |
+| **Meter Data** | `actual_meter_data`, `actual_meter_data_daily`, `actual_meter_data_monthly` | 0, 0, 0 (truncated `2026-07-07`) |
+| **Energy** | `energy_value`, `energy_daily_usage`, `energy_save` | 42, 0, 0 |
+| **Alarms** | `alarm_config`, `alarm_group`, `alarm_group_mapping` | 0, 6, 0 |
+| **Demand** | `demand_peak_config`, `demand_meter_config`, `demand_peak_data` | 4, 0, 0 |
+| **Billing** | `billing_config` | 8 |
+| **Users** | `app_user`, `group_user`, `user_permission`, `site_user_map` | 5, 12, 20, 13 |
+| **Layouts** | `layouts`, `layout_points` | 6, 4 |
+| **Company** | `company` | 2 |
+| **Audit** | `auditlogs`, `write_log` | 0, 0 |
 
 ---
 
@@ -251,16 +279,21 @@ saving_meter_config
 
 **Base URL**: `https://api.energyplus.kegroup.co.th/api/v1`
 
+> **Implementation status** (sync กับ `backend/src` ณ `2026-07-07`):
+> - **Status** column: ✅ = implemented ในโค้ดจริง, 🔲 = planned (ยังไม่มีใน route)
+> - `Endpoint` แสดง path จริงที่โค้ด mount ไว้ (relative จาก base URL); path ที่ implement แล้วถูกแก้ให้ตรงกับ `*.routes.ts`
+> - Debug/health ที่มีจริง: ✅ `GET /health`, ✅ `GET /debug/tables`, ✅ `GET /debug/users`
+
 ### 4.1 Authentication
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/auth/login` | Login with username/email + password |
-| `POST` | `/auth/refresh` | Refresh JWT access token |
-| `POST` | `/auth/logout` | Invalidate refresh token |
-| `POST` | `/auth/change-password` | Change current user's password |
-| `POST` | `/auth/reset-password` | Admin reset user password |
-| `GET`  | `/auth/me` | Get current user profile |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `POST` | `/auth/login` | Login with username/email + password |
+| ✅ | `POST` | `/auth/refresh` | Refresh JWT access token |
+| ✅ | `POST` | `/auth/change-password` | Change current user's password |
+| ✅ | `GET`  | `/auth/me` | Get current user profile |
+| 🔲 | `POST` | `/auth/logout` | Invalidate refresh token |
+| 🔲 | `POST` | `/auth/reset-password` | Admin reset user password (ปัจจุบันใช้ `POST /users/:id/reset-password`) |
 
 **Login Request:**
 ```json
@@ -296,32 +329,37 @@ saving_meter_config
 
 ### 4.2 Company Management
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/company` | Get company info |
-| `PUT`    | `/company` | Update company info |
-| `POST`   | `/company/logo` | Upload company logo |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/company` | Get company info |
+| ✅ | `PUT`    | `/company` | Update company info |
+| 🔲 | `POST`   | `/company/logo` | Upload company logo |
 
 ---
 
 ### 4.3 Site & Location Hierarchy
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/sites` | List all sites |
-| `GET`    | `/sites/:siteId` | Get site detail |
-| `POST`   | `/sites` | Create new site |
-| `PUT`    | `/sites/:siteId` | Update site |
-| `DELETE` | `/sites/:siteId` | Delete site |
-| `GET`    | `/sites/:siteId/buildings` | List buildings in site |
-| `POST`   | `/sites/:siteId/buildings` | Create building |
-| `PUT`    | `/buildings/:buildingId` | Update building |
-| `DELETE` | `/buildings/:buildingId` | Delete building |
-| `GET`    | `/buildings/:buildingId/zones` | List zones in building |
-| `POST`   | `/buildings/:buildingId/zones` | Create zone |
-| `PUT`    | `/zones/:zoneId` | Update zone |
-| `DELETE` | `/zones/:zoneId` | Delete zone |
-| `GET`    | `/sites/:siteId/hierarchy` | Get full tree (Site → Buildings → Zones → Meters) |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/sites` | List all sites |
+| ✅ | `GET`    | `/sites/:siteId` | Get site detail |
+| ✅ | `POST`   | `/sites` | Create new site |
+| ✅ | `PUT`    | `/sites/:siteId` | Update site |
+| ✅ | `DELETE` | `/sites/:siteId` | Delete site |
+| ✅ | `GET`    | `/sites/:siteId/hierarchy` | Get full tree (Site → Buildings → Zones → Meters) |
+| ✅ | `GET`    | `/sites/:siteId/buildings` | List buildings in site |
+| ✅ | `GET`    | `/sites/:siteId/users` | List users mapped to site |
+| ✅ | `PUT`    | `/sites/:siteId/users` | Set (bulk) users mapped to site |
+| ✅ | `GET`    | `/sites/buildings/list` | List buildings (filterable by site) |
+| ✅ | `GET`    | `/sites/buildings/:id` | Get building detail |
+| ✅ | `POST`   | `/sites/buildings` | Create building (`siteId` in body) |
+| ✅ | `PUT`    | `/sites/buildings/:id` | Update building |
+| ✅ | `DELETE` | `/sites/buildings/:id` | Delete building |
+| ✅ | `GET`    | `/sites/zones/list` | List zones (filterable by building) |
+| ✅ | `GET`    | `/sites/zones/:id` | Get zone detail |
+| ✅ | `POST`   | `/sites/zones` | Create zone (`buildingId` in body) |
+| ✅ | `PUT`    | `/sites/zones/:id` | Update zone |
+| ✅ | `DELETE` | `/sites/zones/:id` | Delete zone |
 
 **Hierarchy Response Example:**
 ```json
@@ -352,26 +390,30 @@ saving_meter_config
 
 ### 4.4 Meter Management
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/meters` | List all meters (with filters) |
-| `GET`    | `/meters/:meterId` | Get meter detail |
-| `POST`   | `/meters` | Create new meter |
-| `PUT`    | `/meters/:meterId` | Update meter |
-| `DELETE` | `/meters/:meterId` | Delete meter |
-| `GET`    | `/meters/:meterId/children` | Get child meters |
-| `POST`   | `/meters/:meterId/children` | Add child meter |
-| `GET`    | `/meter-brands` | List meter brands |
-| `POST`   | `/meter-brands` | Create meter brand |
-| `PUT`    | `/meter-brands/:id` | Update meter brand |
-| `DELETE` | `/meter-brands/:id` | Delete meter brand |
-| `GET`    | `/meter-types` | List meter types (ไฟฟ้า, น้ำ, แก๊ส) |
-| `POST`   | `/meter-types` | Create meter type |
-| `PUT`    | `/meter-types/:id` | Update meter type |
-| `GET`    | `/loops` | List communication loops |
-| `POST`   | `/loops` | Create loop |
-| `PUT`    | `/loops/:loopId` | Update loop |
-| `GET`    | `/energy-values` | List all energy value types |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/meters` | List all meters (with filters) |
+| ✅ | `GET`    | `/meters/:meterId` | Get meter detail |
+| ✅ | `POST`   | `/meters` | Create new meter |
+| ✅ | `PUT`    | `/meters/:meterId` | Update meter |
+| ✅ | `DELETE` | `/meters/:meterId` | Delete meter |
+| ✅ | `POST`   | `/meters/import` | Import meters (bulk) |
+| ✅ | `POST`   | `/meters/:meterId/manual-reading` | Submit manual meter reading |
+| ✅ | `GET`    | `/meters/energy-values` | List all energy value types |
+| ✅ | `GET`    | `/meters/brands/list` | List meter brands |
+| ✅ | `POST`   | `/meters/brands` | Create meter brand |
+| ✅ | `PUT`    | `/meters/brands/:id` | Update meter brand |
+| ✅ | `DELETE` | `/meters/brands/:id` | Delete meter brand |
+| ✅ | `GET`    | `/meters/types/list` | List meter types (ไฟฟ้า, น้ำ, แก๊ส) |
+| ✅ | `POST`   | `/meters/types` | Create meter type |
+| ✅ | `PUT`    | `/meters/types/:id` | Update meter type |
+| ✅ | `DELETE` | `/meters/types/:id` | Delete meter type |
+| ✅ | `GET`    | `/meters/loops/list` | List communication loops |
+| ✅ | `POST`   | `/meters/loops` | Create loop |
+| ✅ | `PUT`    | `/meters/loops/:id` | Update loop |
+| ✅ | `DELETE` | `/meters/loops/:id` | Delete loop |
+| 🔲 | `GET`    | `/meters/:meterId/children` | Get child meters (ปัจจุบันใช้ `parent_meter_id` filter) |
+| 🔲 | `POST`   | `/meters/:meterId/children` | Add child meter |
 
 **Meter Query Parameters:**
 ```
@@ -403,16 +445,16 @@ GET /meters?siteId=1&buildingId=1&zoneId=1&meterTypeId=1&isActive=true&page=1&li
 
 ### 4.5 Meter Data & Monitoring
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/meter-data/realtime` | Get latest readings for all meters |
-| `GET`    | `/meter-data/realtime/:meterId` | Get latest reading for specific meter |
-| `POST`   | `/meter-data` | Push new meter reading (IoT/Modbus) |
-| `GET`    | `/meter-data/history` | Get historical data with time range |
-| `GET`    | `/meter-data/daily` | Get daily aggregated data |
-| `GET`    | `/meter-data/monthly` | Get monthly aggregated data |
-| `GET`    | `/meter-data/compare` | Compare two time periods |
-| `WS`     | `/ws/meter-data` | WebSocket for real-time updates |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/meter-data/realtime` | Get latest readings for all meters |
+| ✅ | `GET`    | `/meter-data/history` | Get historical data with time range |
+| ✅ | `GET`    | `/meter-data/daily` | Get daily aggregated data |
+| ✅ | `GET`    | `/meter-data/monthly` | Get monthly aggregated data |
+| 🔲 | `GET`    | `/meter-data/realtime/:meterId` | Get latest reading for specific meter |
+| 🔲 | `POST`   | `/meter-data` | Push new meter reading (IoT/Modbus) |
+| 🔲 | `GET`    | `/meter-data/compare` | Compare two time periods |
+| 🔲 | `WS`     | `/ws/meter-data` | WebSocket for real-time updates (ปัจจุบัน realtime มาทาง Redis pub/sub — ดู §4.13) |
 
 **Realtime Query:**
 ```
@@ -488,20 +530,20 @@ socket.on('alarm-triggered', (data) => {
 
 ### 4.6 Alarm System
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/alarms/configs` | List all alarm configurations |
-| `GET`    | `/alarms/configs/:id` | Get alarm config detail |
-| `POST`   | `/alarms/configs` | Create alarm config |
-| `PUT`    | `/alarms/configs/:id` | Update alarm config |
-| `DELETE` | `/alarms/configs/:id` | Delete alarm config |
-| `GET`    | `/alarms/groups` | List alarm groups (for Telegram) |
-| `POST`   | `/alarms/groups` | Create alarm group |
-| `PUT`    | `/alarms/groups/:id` | Update alarm group |
-| `DELETE` | `/alarms/groups/:id` | Delete alarm group |
-| `GET`    | `/alarms/groups/:id/telegram-chatid` | Get Telegram Chat ID |
-| `GET`    | `/alarms/logs` | Get alarm history/logs |
-| `POST`   | `/alarms/test/:groupId` | Send test alarm to Telegram |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/alarms/configs` | List all alarm configurations |
+| ✅ | `POST`   | `/alarms/configs` | Create alarm config |
+| ✅ | `PUT`    | `/alarms/configs/:id` | Update alarm config |
+| ✅ | `DELETE` | `/alarms/configs/:id` | Delete alarm config |
+| ✅ | `GET`    | `/alarms/groups` | List alarm groups (for Telegram) |
+| ✅ | `POST`   | `/alarms/groups` | Create alarm group |
+| ✅ | `PUT`    | `/alarms/groups/:id` | Update alarm group |
+| ✅ | `DELETE` | `/alarms/groups/:id` | Delete alarm group |
+| 🔲 | `GET`    | `/alarms/configs/:id` | Get alarm config detail |
+| 🔲 | `GET`    | `/alarms/groups/:id/telegram-chatid` | Get Telegram Chat ID |
+| 🔲 | `GET`    | `/alarms/logs` | Get alarm history/logs |
+| 🔲 | `POST`   | `/alarms/test/:groupId` | Send test alarm to Telegram |
 
 **Alarm Config Request:**
 ```json
@@ -524,35 +566,36 @@ socket.on('alarm-triggered', (data) => {
 
 ### 4.7 Demand Peak & Energy Saving
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/demand/configs` | List demand peak configs |
-| `POST`   | `/demand/configs` | Create demand config |
-| `PUT`    | `/demand/configs/:id` | Update demand config |
-| `GET`    | `/demand/configs/:id/meters` | Get meters linked to demand config |
-| `POST`   | `/demand/configs/:id/meters` | Link meters to demand config |
-| `GET`    | `/demand/data` | Get demand peak data |
-| `GET`    | `/demand/current` | Get current demand reading |
-| `GET`    | `/saving/configs` | List saving meter configs |
-| `POST`   | `/saving/configs` | Create saving config |
-| `GET`    | `/saving/data` | Get energy saving data |
-| `GET`    | `/saving/summary` | Get saving summary/target vs actual |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/billing/demand` | List demand peak configs |
+| ✅ | `POST`   | `/billing/demand` | Create demand config |
+| ✅ | `PUT`    | `/billing/demand/:id` | Update demand config |
+| ✅ | `DELETE` | `/billing/demand/:id` | Delete demand config |
+| 🔲 | `GET`    | `/demand/configs/:id/meters` | Get meters linked to demand config |
+| 🔲 | `POST`   | `/demand/configs/:id/meters` | Link meters to demand config |
+| 🔲 | `GET`    | `/demand/data` | Get demand peak data |
+| 🔲 | `GET`    | `/demand/current` | Get current demand reading |
+| 🔲 | `GET`    | `/saving/configs` | List saving meter configs |
+| 🔲 | `POST`   | `/saving/configs` | Create saving config |
+| 🔲 | `GET`    | `/saving/data` | Get energy saving data |
+| 🔲 | `GET`    | `/saving/summary` | Get saving summary/target vs actual |
 
 ---
 
 ### 4.8 Billing & Usage
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/billing/configs` | List billing rate configs |
-| `POST`   | `/billing/configs` | Create billing rate |
-| `PUT`    | `/billing/configs/:id` | Update billing rate |
-| `DELETE` | `/billing/configs/:id` | Delete billing rate |
-| `GET`    | `/billing/current-rate` | Get current effective rate |
-| `GET`    | `/billing/calculate` | Calculate bill for meter/period |
-| `GET`    | `/usage/daily` | Get daily energy usage (tenant billing) |
-| `POST`   | `/usage/daily/import` | Import daily usage from Excel |
-| `GET`    | `/usage/daily/export` | Export daily usage to Excel |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/billing/configs` | List billing rate configs |
+| ✅ | `POST`   | `/billing/configs` | Create billing rate |
+| ✅ | `PUT`    | `/billing/configs/:id` | Update billing rate |
+| ✅ | `DELETE` | `/billing/configs/:id` | Delete billing rate |
+| 🔲 | `GET`    | `/billing/current-rate` | Get current effective rate |
+| 🔲 | `GET`    | `/billing/calculate` | Calculate bill for meter/period |
+| 🔲 | `GET`    | `/usage/daily` | Get daily energy usage (tenant billing) |
+| 🔲 | `POST`   | `/usage/daily/import` | Import daily usage from Excel |
+| 🔲 | `GET`    | `/usage/daily/export` | Export daily usage to Excel |
 
 **Bill Calculation:**
 ```
@@ -581,35 +624,38 @@ GET /billing/calculate?meterId=1&startDate=2025-12-01&endDate=2025-12-31
 
 ### 4.9 Layout & Floor Plans
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/layouts` | List all floor plan layouts |
-| `GET`    | `/layouts/:layoutId` | Get layout detail with positions |
-| `POST`   | `/layouts` | Create new layout |
-| `PUT`    | `/layouts/:layoutId` | Update layout |
-| `DELETE` | `/layouts/:layoutId` | Delete layout |
-| `POST`   | `/layouts/:layoutId/image` | Upload floor plan image |
-| `GET`    | `/layouts/:layoutId/positions` | Get meter positions on layout |
-| `POST`   | `/layouts/:layoutId/positions` | Set meter positions |
-| `PUT`    | `/layouts/:layoutId/positions/:posId` | Update position |
-| `GET`    | `/layouts/:layoutId/meter-configs` | Get meter display configs |
-| `POST`   | `/layouts/:layoutId/meter-configs` | Set meter display config |
-| `GET`    | `/layouts/:layoutId/live` | Get layout with live meter data |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/layouts` | List all floor plan layouts |
+| ✅ | `GET`    | `/layouts/:layoutId` | Get layout detail with points |
+| ✅ | `POST`   | `/layouts` | Create new layout |
+| ✅ | `PUT`    | `/layouts/:layoutId` | Update layout |
+| ✅ | `DELETE` | `/layouts/:layoutId` | Delete layout |
+| ✅ | `GET`    | `/layouts/:layoutId/points` | Get meter points on layout |
+| ✅ | `POST`   | `/layouts/:layoutId/points` | Add meter point |
+| ✅ | `PUT`    | `/layouts/:layoutId/points` | Bulk set/replace meter points |
+| ✅ | `PUT`    | `/layouts/:layoutId/points/:pointId` | Update point |
+| ✅ | `DELETE` | `/layouts/:layoutId/points/:pointId` | Delete point |
+| 🔲 | `POST`   | `/layouts/:layoutId/image` | Upload floor plan image |
+| 🔲 | `GET`    | `/layouts/:layoutId/meter-configs` | Get meter display configs |
+| 🔲 | `POST`   | `/layouts/:layoutId/meter-configs` | Set meter display config |
+| 🔲 | `GET`    | `/layouts/:layoutId/live` | Get layout with live meter data |
 
 ---
 
 ### 4.10 Dashboard & Analytics
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/dashboard/zone-consumption` | Energy consumption by zone |
-| `GET`    | `/dashboard/mdb-consumption` | MDB consumption data |
-| `GET`    | `/dashboard/demand` | Demand dashboard data |
-| `GET`    | `/dashboard/consumption-chart` | Consumption chart data (bar + pie) |
-| `GET`    | `/dashboard/overview` | Overall energy consumption overview |
-| `GET`    | `/dashboard/comparison` | Period comparison (week/month/year) |
-| `GET`    | `/dashboard/top-consumers` | Top N energy consuming meters |
-| `GET`    | `/dashboard/anomalies` | Unusual consumption patterns |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/dashboard/zone` | Zone dashboard data |
+| ✅ | `GET`    | `/dashboard/zone-consumption` | Energy consumption by zone |
+| ✅ | `GET`    | `/dashboard/mdb-consumption` | MDB consumption data |
+| ✅ | `GET`    | `/dashboard/demand` | Demand dashboard data |
+| ✅ | `GET`    | `/dashboard/consumption-table` | Consumption table data |
+| 🔲 | `GET`    | `/dashboard/overview` | Overall energy consumption overview |
+| 🔲 | `GET`    | `/dashboard/comparison` | Period comparison (week/month/year) |
+| 🔲 | `GET`    | `/dashboard/top-consumers` | Top N energy consuming meters |
+| 🔲 | `GET`    | `/dashboard/anomalies` | Unusual consumption patterns |
 
 **Zone Consumption Query:**
 ```
@@ -646,16 +692,18 @@ GET /dashboard/zone-consumption?siteId=1&zoneId=all&period=this_week
 
 ### 4.11 Reports & Export
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/reports/energy-consumption` | Energy consumption report |
-| `GET`    | `/reports/meter-status` | Meter status report |
-| `GET`    | `/reports/alarm-history` | Alarm history report |
-| `GET`    | `/reports/billing-summary` | Billing summary report |
-| `GET`    | `/reports/demand-peak` | Demand peak report |
-| `POST`   | `/reports/export` | Export report as Excel/PDF |
-| `GET`    | `/export/configs` | Get export configurations |
-| `POST`   | `/export/configs` | Create export config |
+> ⚠️ ทั้งโมดูล Reports & Export ยังเป็น **planned** — ยังไม่มี `reports.routes.ts` ในโค้ด
+
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| 🔲 | `GET`    | `/reports/energy-consumption` | Energy consumption report |
+| 🔲 | `GET`    | `/reports/meter-status` | Meter status report |
+| 🔲 | `GET`    | `/reports/alarm-history` | Alarm history report |
+| 🔲 | `GET`    | `/reports/billing-summary` | Billing summary report |
+| 🔲 | `GET`    | `/reports/demand-peak` | Demand peak report |
+| 🔲 | `POST`   | `/reports/export` | Export report as Excel/PDF |
+| 🔲 | `GET`    | `/export/configs` | Get export configurations |
+| 🔲 | `POST`   | `/export/configs` | Create export config |
 
 **Report Query:**
 ```
@@ -666,24 +714,26 @@ GET /reports/energy-consumption?siteId=1&startDate=2025-12-01&endDate=2025-12-31
 
 ### 4.12 User & Permission Management
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`    | `/users` | List all users |
-| `GET`    | `/users/:userId` | Get user detail |
-| `POST`   | `/users` | Create new user |
-| `PUT`    | `/users/:userId` | Update user |
-| `DELETE` | `/users/:userId` | Delete user (soft) |
-| `POST`   | `/users/:userId/reset-password` | Reset user password |
-| `GET`    | `/groups` | List user groups |
-| `POST`   | `/groups` | Create group |
-| `PUT`    | `/groups/:groupId` | Update group |
-| `DELETE` | `/groups/:groupId` | Delete group |
-| `GET`    | `/groups/:groupId/permissions` | Get group permissions |
-| `PUT`    | `/groups/:groupId/permissions` | Set group permissions |
-| `GET`    | `/sites/:siteId/users` | List users mapped to site |
-| `POST`   | `/sites/:siteId/users` | Map user to site |
-| `DELETE` | `/sites/:siteId/users/:userId` | Remove user from site |
-| `GET`    | `/audit-logs` | Get audit logs |
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `GET`    | `/users` | List all users |
+| ✅ | `GET`    | `/users/:userId` | Get user detail |
+| ✅ | `POST`   | `/users` | Create new user |
+| ✅ | `PUT`    | `/users/:userId` | Update user |
+| ✅ | `DELETE` | `/users/:userId` | Delete user (soft) |
+| ✅ | `POST`   | `/users/:userId/reset-password` | Reset user password |
+| ✅ | `GET`    | `/users/groups/list` | List user groups |
+| ✅ | `GET`    | `/users/groups/:groupId` | Get group detail |
+| ✅ | `POST`   | `/users/groups` | Create group |
+| ✅ | `PUT`    | `/users/groups/:groupId` | Update group |
+| ✅ | `DELETE` | `/users/groups/:groupId` | Delete group |
+| ✅ | `GET`    | `/users/groups/:groupId/permissions` | Get group permissions |
+| ✅ | `PUT`    | `/users/groups/:groupId/permissions` | Set group permissions |
+| ✅ | `GET`    | `/sites/:siteId/users` | List users mapped to site |
+| ✅ | `PUT`    | `/sites/:siteId/users` | Set (bulk) user↔site mapping |
+| 🔲 | `POST`   | `/sites/:siteId/users` | Map single user to site (ปัจจุบันใช้ `PUT` bulk) |
+| 🔲 | `DELETE` | `/sites/:siteId/users/:userId` | Remove user from site (ปัจจุบันใช้ `PUT` bulk) |
+| 🔲 | `GET`    | `/audit-logs` | Get audit logs |
 
 **User Create Request:**
 ```json
@@ -697,6 +747,19 @@ GET /reports/energy-consumption?siteId=1&startDate=2025-12-01&endDate=2025-12-31
   "siteIds": [1, 2]
 }
 ```
+
+---
+
+### 4.13 Redis Pub/Sub (Realtime Transport)
+
+โมดูล realtime transport ที่ implement จริง (mount ที่ `/redis`) — ใช้รับ/ส่ง realtime meter data ผ่าน Redis pub/sub แทน WebSocket ที่ยังเป็น planned ใน §4.5
+
+| Status | Method | Endpoint | Description |
+|:--:|--------|----------|-------------|
+| ✅ | `POST`   | `/redis/publish` | Publish message ไปยัง channel |
+| ✅ | `GET`    | `/redis/subscribe/:channel` | Subscribe channel (SSE stream) |
+| ✅ | `GET`    | `/redis/channels` | List active channels |
+| ✅ | `GET`    | `/redis/latest` | Get latest realtime payload |
 
 ---
 
@@ -963,7 +1026,7 @@ interface DemandPeakConfig {
 ### Security Measures
 
 - **Password Storage**: bcrypt with salt rounds = 12
-- **JWT**: RS256 algorithm, 1h access token, 7d refresh token
+- **JWT**: HS256 algorithm, 24h access token, 7d refresh token
 - **Rate Limiting**: 100 req/min per user, 1000 req/min per IP
 - **CORS**: Whitelist specific origins
 - **Input Sanitization**: SQL injection prevention via parameterized queries
@@ -976,7 +1039,7 @@ interface DemandPeakConfig {
 
 ### Phase 1: Foundation (Week 1-2) 🏗️
 - [ ] Project scaffolding (Express.js + TypeScript)
-- [ ] Database connection pool (mysql2)
+- [ ] Database connection pool (pg)
 - [ ] Authentication module (JWT)
 - [ ] Common middleware (error handling, validation, auth)
 - [ ] User & Group CRUD APIs
@@ -988,7 +1051,7 @@ interface DemandPeakConfig {
 - [ ] Meter Brand/Type/Loop APIs
 - [ ] Realtime meter data API
 - [ ] Historical meter data API (with pagination)
-- [ ] WebSocket for live meter monitoring
+- [ ] Redis pub/sub + polling for live meter monitoring
 
 ### Phase 3: Business Logic (Week 5-6) 📊
 - [ ] Alarm configuration APIs
@@ -996,7 +1059,7 @@ interface DemandPeakConfig {
 - [ ] Billing configuration & calculation APIs
 - [ ] Demand peak configuration APIs
 - [ ] Energy saving APIs
-- [ ] Daily/Monthly data aggregation scheduler
+- [ ] 15-minute / Daily / Monthly aggregation scheduler + retention cleanup
 
 ### Phase 4: Dashboard & Reports (Week 7-8) 📈
 - [ ] Zone consumption dashboard API
@@ -1021,8 +1084,8 @@ interface DemandPeakConfig {
 # Initial project setup
 mkdir energyplus-api && cd energyplus-api
 npm init -y
-npm install express mysql2 knex jsonwebtoken bcryptjs cors helmet
-npm install joi morgan winston socket.io node-cron
+npm install express pg jsonwebtoken bcryptjs cors helmet
+npm install zod morgan winston node-cron
 npm install -D typescript @types/express @types/node nodemon ts-node
 npm install -D @types/jsonwebtoken @types/bcryptjs @types/cors
 
@@ -1039,7 +1102,7 @@ npm run dev
 energyplus-api/
 ├── src/
 │   ├── config/
-│   │   ├── database.ts          # MySQL connection pool
+│   │   ├── database.ts          # PostgreSQL connection pool
 │   │   ├── jwt.ts               # JWT configuration
 │   │   └── app.ts               # Express app config
 │   ├── middleware/
@@ -1064,7 +1127,7 @@ energyplus-api/
 │   │   │   ├── meterData.controller.ts
 │   │   │   ├── meterData.service.ts
 │   │   │   ├── meterData.routes.ts
-│   │   │   └── meterData.websocket.ts
+│   │   │   └── meterData.realtime.ts
 │   │   ├── alarms/
 │   │   ├── sites/
 │   │   ├── buildings/

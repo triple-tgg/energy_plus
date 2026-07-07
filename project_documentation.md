@@ -43,7 +43,7 @@
 โปรเจคนี้เป็นการ **Rewrite** จากระบบเดิมที่เป็น **ASP.NET MVC (C#)** ที่โฮสต์อยู่ที่ `energyplus.kegroup.co.th:5500` โดยเปลี่ยนมาใช้ **Node.js + React (TypeScript)** เพื่อ:
 - ปรับปรุง Performance (Event-driven สำหรับ Real-time data)
 - ทำ Frontend ใหม่ให้ทันสมัย (React + Ant Design)
-- ใช้ Database เดิม (PostgreSQL บน DigitalOcean) ร่วมกันได้
+- ใช้ Database เดิม (PostgreSQL) ร่วมกันได้ — ปัจจุบัน host บน Railway
 
 ---
 
@@ -56,14 +56,17 @@
 | Runtime | Node.js | 20 LTS | JavaScript runtime |
 | Framework | Express.js | 4.21 | Web framework |
 | Language | TypeScript | 5.6 | Type safety |
-| Database | PostgreSQL | Managed | DigitalOcean Managed DB |
-| DB Driver | pg (node-postgres) | 8.13 | PostgreSQL client |
-| Auth | jsonwebtoken | 9.0 | JWT-based authentication |
+| Database | PostgreSQL | Managed | Railway Managed DB |
+| DB Driver | pg (node-postgres) | 8.13 | PostgreSQL client (ไม่ใช้ ORM/Knex — raw SQL) |
+| Cache/PubSub | redis | 5.12 | Realtime pub/sub (ค่าล่าสุดจากอุปกรณ์) |
+| Auth | jsonwebtoken | 9.0 | JWT-based authentication (HS256) |
 | Password | bcryptjs | 2.4 | Password hashing |
+| Validation | zod | 3.23 | Schema-based request validation |
+| File Upload | multer | 2.2 | Multipart upload (floor plan / logo) |
 | Security | helmet | 7.1 | HTTP security headers |
 | CORS | cors | 2.8 | Cross-origin resource sharing |
-| Rate Limit | express-rate-limit | 7.4 | API rate limiting |
-| Logging | morgan | 1.10 | HTTP request logging |
+| Rate Limit | express-rate-limit | 7.4 | API rate limiting (100/min per IP) |
+| Logging | winston + morgan | 3.13 / 1.10 | Structured + HTTP request logging |
 | Dev Server | nodemon + ts-node | — | Hot reload development |
 
 ### Frontend
@@ -87,11 +90,11 @@
 ```mermaid
 graph TB
     subgraph Client["🖥 Client Layer"]
-        FE["React Frontend<br/>localhost:5173"]
+        FE["React Frontend<br/>localhost:5175"]
     end
 
     subgraph API["⚡ API Layer"]
-        BE["Express.js Backend<br/>localhost:3000"]
+        BE["Express.js Backend<br/>localhost:3003"]
     end
 
     subgraph Middleware["🔒 Middleware"]
@@ -101,7 +104,7 @@ graph TB
         HELMET["Helmet Security"]
     end
 
-    subgraph Modules["📦 Business Modules"]
+    subgraph Modules["📦 Business Modules (11)"]
         M1["Auth"]
         M2["Users"]
         M3["Sites"]
@@ -111,23 +114,27 @@ graph TB
         M7["Alarms"]
         M8["Billing"]
         M9["Dashboard"]
+        M10["Redis PubSub"]
+        M11["Layouts"]
     end
 
     subgraph DB["🗄 Data Layer"]
-        PG["PostgreSQL<br/>DigitalOcean Managed<br/>Port 25060 SSL"]
+        PG["PostgreSQL<br/>Railway Managed<br/>SSL"]
+        RD["Redis<br/>Railway Managed<br/>(pub/sub realtime)"]
     end
 
-    FE -->|"Vite Proxy /api → :3000"| BE
+    FE -->|"Vite Proxy /api → :3003"| BE
     BE --> AUTH --> Modules
     BE --> RATE
     BE --> CORS
     BE --> HELMET
     Modules --> PG
+    M10 --> RD
 ```
 
 ### การสื่อสารระหว่าง Frontend ↔ Backend
 
-- Frontend (Vite) มี **Proxy Config** ที่ forward `/api/*` ไปยัง `http://localhost:3000`
+- Frontend (Vite) มี **Proxy Config** ที่ forward `/api/*` ไปยัง `http://localhost:3003`
 - ทุก API request ส่ง **JWT Bearer Token** ผ่าน Authorization header
 - Response format เป็น standard wrapper: `{ success, data, message, pagination, meta }`
 
@@ -150,7 +157,7 @@ energy_plus/
 │       ├── server.ts             # Entry point — register routes
 │       ├── config/               # App, Database, JWT configuration
 │       ├── middleware/            # Auth, Error handling, Validation
-│       ├── modules/              # 9 business modules (MVC pattern)
+│       ├── modules/              # 11 business modules (MVC pattern)
 │       ├── types/                # TypeScript interfaces
 │       ├── utils/                # Response helpers, Pagination
 │       └── scripts/              # Migration/seed scripts
@@ -186,9 +193,10 @@ energy_plus/
 backend/src/
 ├── server.ts                          # 85 lines — Entry point, route registration, health check
 ├── config/
-│   ├── app.ts                         # 43 lines — Express app config (CORS, Helmet, Rate limit, Morgan)
-│   ├── database.ts                    # 39 lines — PostgreSQL pool config (DigitalOcean, SSL)
-│   └── jwt.ts                         # ~15 lines — JWT secret & expiry config
+│   ├── app.ts                         # Express app config (CORS, Helmet, Rate limit, Morgan)
+│   ├── database.ts                    # PostgreSQL pool config (Railway, SSL, timeout 5s)
+│   ├── redis.ts                       # Redis pub/sub clients (Railway) + connect/disconnect
+│   └── jwt.ts                         # JWT secret & expiry config (24h / refresh 7d)
 ├── middleware/
 │   ├── auth.ts                        # 40 lines — JWT authenticate & optionalAuth middleware
 │   ├── errorHandler.ts                # 27 lines — AppError class, errorHandler, notFoundHandler
@@ -226,10 +234,18 @@ backend/src/
 │   │   ├── billing.routes.ts
 │   │   ├── billing.controller.ts
 │   │   └── billing.service.ts         # CRUD billing rates, demand peak configs
-│   └── dashboard/
-│       ├── dashboard.routes.ts
-│       ├── dashboard.controller.ts
-│       └── dashboard.service.ts       # 108 lines — Zone/MDB/Demand consumption, consumption table
+│   ├── dashboard/
+│   │   ├── dashboard.routes.ts
+│   │   ├── dashboard.controller.ts
+│   │   └── dashboard.service.ts       # Zone/MDB/Demand consumption, consumption table
+│   ├── redis-pubsub/
+│   │   ├── redisPubsub.routes.ts      # POST /publish, GET /subscribe/:channel, /channels, /latest
+│   │   ├── redisPubsub.controller.ts
+│   │   └── redisPubsub.service.ts      # Redis publish/subscribe realtime
+│   └── layouts/
+│       ├── layouts.routes.ts
+│       ├── layouts.controller.ts
+│       └── layouts.service.ts          # CRUD floor plan layouts + positions
 ├── types/
 │   └── index.ts                       # 297 lines — All TypeScript interfaces
 ├── utils/
@@ -323,7 +339,7 @@ Debug endpoints สำหรับ development:
 
 #### [app.ts](file:///Users/taeypro14/Triple-T/EnergyPlus/energy_plus/backend/src/config/app.ts) — Express App Factory
 - **Helmet** — HTTP security headers
-- **CORS** — Allow origin จาก `CORS_ORIGIN` env (default: `http://localhost:5173`)
+- **CORS** — Allow origin จาก `CORS_ORIGIN` env (default: `http://localhost:5175`)
 - **Rate Limiting** — 100 requests/minute per IP
 - **Body Parser** — JSON limit 10MB, URL encoded
 - **Morgan** — HTTP logging (dev mode only)
@@ -332,7 +348,7 @@ Debug endpoints สำหรับ development:
 - Connection pool สูงสุด **20 connections**
 - Idle timeout **30 seconds**
 - Connection timeout **5 seconds**
-- **SSL required** (DigitalOcean Managed Database)
+- **SSL required** (Railway Managed Database)
 - Export `pool`, `query()`, `getClient()`
 
 ### 5.3 Middleware
@@ -369,10 +385,12 @@ graph LR
 | **Alarms** | alarms.service.ts | CRUD alarm configs, alarm groups (Telegram) |
 | **Billing** | billing.service.ts | CRUD billing rates, demand peak configs |
 | **Dashboard** | [dashboard.service.ts](file:///Users/taeypro14/Triple-T/EnergyPlus/energy_plus/backend/src/modules/dashboard/dashboard.service.ts) | Zone consumption, MDB, Demand, Consumption table |
+| **Redis PubSub** | redisPubsub.service.ts | Publish/Subscribe realtime, list channels, latest value |
+| **Layouts** | layouts.service.ts | CRUD floor plan layouts + meter positions (upload ผ่าน multer) |
 
 ### 5.5 TypeScript Types — [types/index.ts](file:///Users/taeypro14/Triple-T/EnergyPlus/energy_plus/backend/src/types/index.ts)
 
-297 บรรทัดของ type definitions ครอบคลุม:
+296 บรรทัดของ type definitions ครอบคลุม:
 
 - **ApiResponse\<T\>** — Standard response wrapper
 - **JwtPayload** — userId, userName, groupId, groupName, siteIds
@@ -496,14 +514,27 @@ Axios instance กับ **10 API modules**:
 
 ### Connection
 
-| Parameter | Value |
+| Parameter | Value (จาก `.env` จริง — ปรับผ่าน env ได้) |
 |-----------|-------|
-| Provider | DigitalOcean Managed PostgreSQL |
-| Host | `db-postgresql-sgp1-56999-do-user-3547454-0.c.db.ondigitalocean.com` |
-| Port | `25060` |
-| Database | `energy_plus` |
-| User | `energyadmin` |
+| Provider | **Railway** Managed PostgreSQL |
+| Host | `zephyr.proxy.rlwy.net` (`DB_HOST`) |
+| Port | `23594` (`DB_PORT`) |
+| Database | `railway` (`DB_DATABASE`) |
+| User | `postgres` (`DB_USER`) |
 | SSL | Required (`rejectUnauthorized: false`) |
+
+> ⚠️ **หมายเหตุ:** เดิมโปรเจคใช้ DigitalOcean Managed PostgreSQL (`...sgp1-56999...:25060`, db `energy_plus`, user `energyadmin`) — ปัจจุบันย้ายมา **Railway** แล้ว ค่าจริงอ่านจาก `.env` เสมอ อย่า hardcode
+
+### Redis (Realtime Pub/Sub)
+
+| Parameter | Value (จาก `.env`) |
+|-----------|-------|
+| Provider | **Railway** Managed Redis |
+| Host | `ballast.proxy.rlwy.net` (`REDIS_HOST`) |
+| Port | `13915` (`REDIS_PORT`) |
+| Enabled | `REDIS_ENABLED=true` (ปิดได้ด้วย `false`) |
+| Default Channel | `project1_1000_1` (`REDIS_DEFAULT_CHANNEL`) |
+| Auto Subscribe | `REDIS_AUTO_SUBSCRIBE=false` |
 
 ### Entity Relationships
 
@@ -534,17 +565,21 @@ erDiagram
 
 ### Key Tables
 
-| Domain | Tables | ขนาดโดยประมาณ |
-|--------|--------|-------------|
-| **Infrastructure** | `sites`, `buildings`, `zones` | ~3 sites, ~5 buildings, ~12 zones |
-| **Meters** | `meter`, `meter_brand`, `meter_type`, `loop`, `protocol` | ~500+ meters |
-| **Meter Data** | `actual_meter_data`, `actual_meter_data_daily`, `actual_meter_data_monthly` | **221MB+ daily** (ข้อมูลหนัก!) |
-| **Energy** | `energy_value`, `energy_daily_usage`, `energy_save` | ~39 value types |
-| **Alarms** | `alarm_config`, `alarm_group`, `alarm_group_mapping` | Config-based |
-| **Demand** | `demand_peak_config`, `demand_meter_config`, `demand_peak_data` | Config-based |
-| **Billing** | `billing_config` | ~4 rate configs |
-| **Users** | `app_user`, `group_user`, `user_permission`, `site_user_map`, `aspnetusers` | ~81 users |
-| **Layouts** | `layouts`, `layout_position`, `layout_meter_config` | ~50 layouts |
+Records = จำนวนแถวจริงใน DB ณ `2026-07-07` (รายละเอียดเต็มใน `DATABASE_TABLE_SUMMARY.md`)
+
+| Domain | Tables | Records |
+|--------|--------|---------|
+| **Infrastructure** | `sites`, `buildings`, `zones` | 7 sites, 12 buildings, 32 zones |
+| **Meters** | `meter`, `meter_brand`, `meter_type`, `loop`, `protocol` | 4 meters (active), 19 brands, 4 types, 16 loops, 6 protocols |
+| **Realtime** | `meter_data_realtime` | 355 (ไหลเข้าใหม่หลัง truncate `2026-07-07`) |
+| **Meter Data** | `actual_meter_data`, `actual_meter_data_daily`, `actual_meter_data_monthly` | 0 / 0 / 0 (truncated `2026-07-07`) |
+| **Aggregation Ops** | `aggregation_job_runs`, `realtime_meter_map` | 2,943 / 8 — operational tables for scheduler + realtime mapping |
+| **Energy** | `energy_value`, `energy_daily_usage`, `energy_save` | 42 value types, 0, 0 |
+| **Alarms** | `alarm_config`, `alarm_group`, `alarm_group_mapping` | 0, 6, 0 |
+| **Demand** | `demand_peak_config`, `demand_meter_config`, `demand_peak_data` | 4, 0, 0 |
+| **Billing** | `billing_config` | 8 rate configs |
+| **Users** | `app_user`, `group_user`, `user_permission`, `site_user_map` | 5 users, 12 groups, 20 permissions, 13 mappings |
+| **Layouts** | `layouts`, `layout_points` | 6 layouts, 4 points |
 
 ---
 
@@ -577,10 +612,17 @@ erDiagram
 | | CRUD | `/alarms/groups/*` | ✅ Implemented |
 | **Billing** | CRUD | `/billing/configs/*` | ✅ Implemented |
 | | CRUD | `/billing/demand/*` | ✅ Implemented |
-| **Dashboard** | GET | `/dashboard/zone-consumption` | ✅ Implemented |
+| **Dashboard** | GET | `/dashboard/zone` | ✅ Implemented |
+| | GET | `/dashboard/zone-consumption` | ✅ Implemented |
 | | GET | `/dashboard/mdb-consumption` | ✅ Implemented |
 | | GET | `/dashboard/demand` | ✅ Implemented |
 | | GET | `/dashboard/consumption-table` | ✅ Implemented |
+| **Redis PubSub** | POST | `/redis/publish` | ✅ Implemented |
+| | GET | `/redis/subscribe/:channel` | ✅ Implemented |
+| | GET | `/redis/channels`, `/redis/latest` | ✅ Implemented |
+| **Layouts** | GET/POST | `/layouts` | ✅ Implemented |
+| | GET/PUT/DELETE | `/layouts/:id` (+ `/points`) | ✅ Implemented |
+| **Meters (extra)** | POST | `/meters/import`, `/meters/:id/manual-reading` | ✅ Implemented |
 
 ### Response Format
 
@@ -653,12 +695,16 @@ sequenceDiagram
 ```mermaid
 graph LR
     SM["Smart Meter<br/>(Modbus)"] -->|"Data Collector"| DB["PostgreSQL<br/>actual_meter_data"]
+    SM -.->|"push ค่าล่าสุด"| RD["Redis<br/>(pub/sub channel)"]
     DB -->|"LATERAL JOIN<br/>(latest per meter)"| BE["Backend API<br/>/meter-data/realtime"]
+    RD -.->|"/redis/subscribe/:channel<br/>/redis/latest"| BE
     BE -->|"JSON Response"| FE["Frontend<br/>RealtimePage"]
     FE -->|"Auto-refresh<br/>every 30s"| BE
 ```
 
-**SQL Pattern สำคัญ**: ใช้ `LEFT JOIN LATERAL` เพื่อดึงข้อมูลล่าสุดของแต่ละ meter ได้อย่างมีประสิทธิภาพ (แทนที่จะ subquery ทุก meter)
+**2 ช่องทางของ Realtime:**
+- **PostgreSQL LATERAL JOIN** — `/meter-data/realtime` ใช้ `LEFT JOIN LATERAL` ดึงแถวล่าสุดของแต่ละ meter จาก `actual_meter_data` ได้อย่างมีประสิทธิภาพ (แทน subquery ทุก meter) — Frontend poll ทุก 30s
+- **Redis pub/sub** — โมดูล `redis-pubsub` รับค่าล่าสุดที่อุปกรณ์ publish เข้ามาตาม channel (default `project1_1000_1`) สำหรับ push แบบสด
 
 ### 10.2 Dashboard Data Flow
 
@@ -699,6 +745,25 @@ Site → Buildings → Zones
 - เมื่อเลือก Building → fetch Zones ของ Building นั้น
 - เมื่อเปลี่ยน Site → reset Building & Zone
 
+### 10.5 Realtime Aggregation Flow
+
+```mermaid
+graph LR
+    RD["Redis / meter_data_realtime"] --> JOB1["15-Minute Aggregation"]
+    JOB1 --> AM["actual_meter_data"]
+    AM --> JOB2["Daily Aggregation"]
+    JOB2 --> AMD["actual_meter_data_daily"]
+    AMD --> JOB3["Monthly Aggregation"]
+    JOB3 --> AMM["actual_meter_data_monthly"]
+    RD --> JOB4["Retention Cleanup"]
+```
+
+- 15-minute job ใช้ `received_at` เป็นตัวตัด bucket และเลือก `Last row every field` ต่อ `meter_id + bucket`
+- Daily job เลือกแถวล่าสุดของแต่ละวันจาก `actual_meter_data` แล้วเขียนลง `actual_meter_data_daily`
+- Monthly job เลือกแถวล่าสุดของเดือนจาก `actual_meter_data_daily` แล้วเขียนลง `actual_meter_data_monthly`
+- Retention job ลบ `meter_data_realtime` ที่เก่ากว่า `AGGREGATION_RETENTION_MONTHS`
+- Cron ที่ใช้งานจริง: minute `*/15 * * * *`, daily `0 0 * * *`, monthly `0 0 20 * *`, retention `30 2 * * *`
+
 ---
 
 ## 11. สถานะการพัฒนา
@@ -707,8 +772,9 @@ Site → Buildings → Zones
 
 | ส่วน | รายละเอียด |
 |------|-----------|
-| **Backend — Core** | Express server, database connection, middleware stack |
-| **Backend — 9 Modules** | Auth, Users, Sites, Meters, Meter Data, Company, Alarms, Billing, Dashboard |
+| **Backend — Core** | Express server, PostgreSQL + Redis connection, middleware stack (zod validation, multer upload) |
+| **Backend — Aggregation** | 15-minute / daily / monthly / retention jobs, `realtime_meter_map`, `aggregation_job_runs` |
+| **Backend — 11 Modules** | Auth, Users, Sites, Meters, Meter Data, Company, Alarms, Billing, Dashboard, **Redis PubSub, Layouts** |
 | **Frontend — Auth** | Login page, AuthContext, JWT interceptor, auto-logout |
 | **Frontend — Layout** | MainLayout, Sidebar (collapsible, 27 items), Header |
 | **Frontend — UI Components** | DataTable, FilterBar, Modal, StatusBadge, ExportButtons |
@@ -730,22 +796,25 @@ Site → Buildings → Zones
 
 | Feature | รายละเอียด |
 |---------|-----------|
-| WebSocket (Socket.IO) | Real-time meter data push |
+| Realtime push backend | ยังไม่ได้ทำ (ปัจจุบัน realtime ใช้ Redis pub/sub + poll 30s แทน) |
 | Dark Mode Toggle | User preference toggle (ตอนนี้ dark เป็นค่าเริ่มต้น) |
 | i18n (ไทย/English) | Multi-language support |
 | Notification Center | In-app notification system |
 | Reports Export Backend | Backend endpoints for Excel/PDF generation |
 | Demand Peak Backend | Backend endpoints for demand peak data/current |
-| Layouts Backend | Backend endpoints for floor plan CRUD |
 | Export Config Backend | Backend endpoints for export schedule CRUD |
+
+> ✅ **อัปเดต:** **Redis pub/sub** (module `redis-pubsub`) และ **Layouts Backend** (floor plan CRUD) ทำเสร็จแล้ว — ย้ายออกจากรายการ "ยังไม่ได้ทำ"
 
 ### Code Size Summary
 
+นับจาก source จริง (`backend/src` = `.ts`, `frontend/src` = `.ts`/`.tsx`) ณ `2026-07-07`
+
 | ส่วน | จำนวนบรรทัด | จำนวนไฟล์ |
 |------|------------|----------|
-| Backend | ~3,082 | 39 files |
-| Frontend | ~7,225 | 40 files |
-| **รวม** | **~10,307** | **79 files** |
+| Backend (`backend/src`) | ~6,475 | 55 files |
+| Frontend (`frontend/src`) | ~10,549 | 45 files |
+| **รวม** | **~17,024** | **100 files** |
 
 ---
 
@@ -767,8 +836,8 @@ npm run build         # Compile TypeScript
 npm start             # Run compiled JS
 ```
 
-> Backend จะ run ที่ **http://localhost:3000**
-> Health check: **http://localhost:3000/api/v1/health**
+> Backend จะ run ที่ **http://localhost:3003**
+> Health check: **http://localhost:3003/api/v1/health**
 
 ### Frontend
 
@@ -780,8 +849,8 @@ npm run build         # Build for production
 npm run preview       # Preview production build
 ```
 
-> Frontend จะ run ที่ **http://localhost:5173**
-> Vite proxy จะ forward `/api` → `http://localhost:3000`
+> Frontend จะ run ที่ **http://localhost:5175**
+> Vite proxy จะ forward `/api` → `http://localhost:3003`
 
 ### ทั้งสองตัวพร้อมกัน
 
@@ -803,28 +872,44 @@ cd frontend && npm run dev
 | Variable | Default | หน้าที่ |
 |----------|---------|--------|
 | `NODE_ENV` | `development` | Environment mode |
-| `PORT` | `3000` | Server port |
-| `DB_HOST` | `db-postgresql-sgp1-...` | PostgreSQL host |
-| `DB_PORT` | `25060` | PostgreSQL port |
-| `DB_DATABASE` | `energy_plus` | Database name |
-| `DB_USER` | `energyadmin` | Database username |
+| `PORT` | `3003` | Server port |
+| `DB_HOST` | `zephyr.proxy.rlwy.net` | PostgreSQL host (Railway) |
+| `DB_PORT` | `23594` | PostgreSQL port |
+| `DB_DATABASE` | `railway` | Database name |
+| `DB_USER` | `postgres` | Database username |
 | `DB_PASSWORD` | (secret) | Database password |
 | `DB_SSL` | `true` | Enable SSL |
 | `DB_SSL_REJECT_UNAUTHORIZED` | `false` | Skip cert validation |
-| `JWT_SECRET` | `energy_plus_jwt_secret_2026` | JWT signing secret |
-| `JWT_EXPIRES_IN` | `24h` | JWT token expiry |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
+| `JWT_SECRET` | (secret) | JWT signing secret |
+| `JWT_EXPIRES_IN` | `24h` | JWT access token expiry |
+| `JWT_REFRESH_EXPIRES_IN` | `7d` | JWT refresh token expiry |
+| `CORS_ORIGIN` | `http://localhost:5175` | Allowed CORS origin |
+| `REDIS_ENABLED` | `true` | เปิด/ปิด Redis pub/sub |
+| `REDIS_HOST` | `ballast.proxy.rlwy.net` | Redis host (Railway) |
+| `REDIS_PORT` | `13915` | Redis port |
+| `REDIS_PASSWORD` | (secret) | Redis password |
+| `REDIS_DEFAULT_CHANNEL` | `project1_1000_1` | Default pub/sub channel |
+| `REDIS_AUTO_SUBSCRIBE` | `false` | Auto-subscribe ตอน startup |
+| `AGGREGATION_ENABLED` | `true` | เปิด/ปิด aggregation jobs |
+| `AGGREGATION_MINUTE_CRON` | `*/15 * * * *` | 15-minute aggregation schedule |
+| `AGGREGATION_DAILY_CRON` | `0 0 * * *` | Daily aggregation schedule (Thailand time) |
+| `AGGREGATION_MONTHLY_CRON` | `0 0 20 * *` | Monthly aggregation schedule (20th of month, Thailand time) |
+| `AGGREGATION_RETENTION_CRON` | `30 2 * * *` | Retention cleanup schedule |
+| `AGGREGATION_RETENTION_MONTHS` | `3` | Retain raw realtime data for N months |
+| `AGGREGATION_TIMEZONE` | `Asia/Bangkok` | Business timezone for bucket calculation |
+| `AGGREGATION_INTERVAL_MINUTES` | `15` | Bucket size for snapshot aggregation |
+| `AGGREGATION_LOOKBACK_MINUTES` | `30` | Reprocess recent window for late-arriving data |
 | `LOG_LEVEL` | `debug` | Logging level |
 
 ### Frontend ([vite.config.ts](file:///Users/taeypro14/Triple-T/EnergyPlus/energy_plus/frontend/vite.config.ts))
 
 | Config | Value | หน้าที่ |
 |--------|-------|--------|
-| `server.port` | `5173` | Dev server port |
-| `server.proxy./api` | `http://localhost:3000` | API proxy target |
+| `server.port` | `5175` | Dev server port |
+| `server.proxy./api` | `http://localhost:3003` | API proxy target |
 | `resolve.alias.@` | `./src` | Path alias for imports |
 
 ---
 
 > [!TIP]
-> เอกสารนี้สร้างอัตโนมัติจากการวิเคราะห์ source code — อัพเดทล่าสุด: 13 มิถุนายน 2569
+> เอกสารนี้สร้างอัตโนมัติจากการวิเคราะห์ source code — อัพเดทล่าสุด: 5 กรกฎาคม 2569

@@ -2,6 +2,18 @@
 
 แผนงานสำหรับทำ background job สรุปข้อมูลจาก `meter_data_realtime` ไปยังตารางราย 15 นาที/รายวัน/รายเดือน และลบ raw realtime data ตาม retention policy
 
+> ## ✅ สถานะ: Implemented (sync กับ code ณ `2026-07-07`)
+>
+> แผนนี้ถูก implement แล้วในโค้ดจริง — map ไปยังไฟล์:
+> - **Job logic**: `backend/src/modules/aggregation/aggregation.service.ts`
+> - **Scheduler (cron)**: `backend/src/modules/aggregation/aggregation.scheduler.ts`
+> - **Config**: `backend/src/config/aggregation.ts` — cron จริง: minute `*/15 * * * *`, daily `0 0 * * *`, monthly `0 0 20 * *`, retention `30 2 * * *`, `retentionMonths=3` (ปรับผ่าน env `AGGREGATION_*`)
+> - **Realtime mapping table**: `realtime_meter_map` (8 แถว), **Job audit table**: `aggregation_job_runs` (2,943 แถว)
+> - **Scripts**: `scripts/backfill-aggregation.ts`, `scripts/test-aggregation.ts`, `scripts/add-aggregation-indexes.ts`
+> - Granularity เป็นไปตามหมายเหตุด้านล่าง: minute snapshot → `actual_meter_data`, daily → `actual_meter_data_daily`, monthly → `actual_meter_data_monthly`
+>
+> หมายเหตุข้อมูล: 3 ตาราง snapshot ถูก truncate เมื่อ `2026-07-07` (ปัจจุบัน 0 แถว) และจะถูก populate ใหม่โดย job นี้
+
 ## เป้าหมาย
 
 1. ทุก 15 นาที สรุปข้อมูลจาก `meter_data_realtime` ลง `actual_meter_data`
