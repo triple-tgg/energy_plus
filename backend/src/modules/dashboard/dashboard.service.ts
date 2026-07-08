@@ -16,6 +16,8 @@ export class DashboardService {
     async getZoneDashboardData(queryParams: any) {
         const siteId = numberOrNull(queryParams.siteId);
         const buildingId = numberOrNull(queryParams.buildingId);
+        const floor = numberOrNull(queryParams.floor);
+        const zoneId = numberOrNull(queryParams.zoneId);
         const params: any[] = [];
         let meterFilter = 'WHERE m.is_active IS DISTINCT FROM false';
         if (siteId) {
@@ -25,6 +27,14 @@ export class DashboardService {
         if (buildingId) {
             params.push(buildingId);
             meterFilter += ` AND m.building_id = $${params.length}`;
+        }
+        if (floor !== null) {
+            params.push(floor);
+            meterFilter += ` AND m.floor = $${params.length}`;
+        }
+        if (zoneId) {
+            params.push(zoneId);
+            meterFilter += ` AND m.zone_id = $${params.length}`;
         }
 
         const metersResult = await query(
@@ -125,7 +135,7 @@ export class DashboardService {
             params
         );
 
-        // Build trend filter params: $1 = interval, then optional $2 = siteId, $3 = buildingId
+        // Build trend filter params: $1 = interval, then optional siteId, buildingId, floor, zoneId
         const trendParams: any[] = [aggregationConfig.intervalMinutes];
         const trendFilters: string[] = [];
         if (siteId) {
@@ -135,6 +145,14 @@ export class DashboardService {
         if (buildingId) {
             trendParams.push(buildingId);
             trendFilters.push(`m.building_id = $${trendParams.length}`);
+        }
+        if (floor !== null) {
+            trendParams.push(floor);
+            trendFilters.push(`m.floor = $${trendParams.length}`);
+        }
+        if (zoneId) {
+            trendParams.push(zoneId);
+            trendFilters.push(`m.zone_id = $${trendParams.length}`);
         }
         const trendSiteFilter = trendFilters.length > 0 ? 'AND ' + trendFilters.join(' AND ') : '';
         const bucketExpr = (source: string) => `
