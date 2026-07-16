@@ -183,22 +183,133 @@ export const autoSubscribeFromMeterTable = async (): Promise<void> => {
 };
 
 /**
- * Get the latest reading for each meter from meter_data_realtime
+ * Get the latest reading for each meter from meter_data_realtime,
+ * enriched with meter metadata (name, location, site, building, zone)
+ * via realtime_meter_map + meter table.
  */
-export const getLatestRealtimeData = async (): Promise<any[]> => {
+export const getLatestRealtimeData = async (filters?: { siteId?: number; buildingId?: number }): Promise<any[]> => {
+    const params: any[] = [];
+    let whereClause = '';
+
+    if (filters?.siteId) {
+        params.push(filters.siteId);
+        whereClause += ` AND m.site_id = $${params.length}`;
+    }
+    if (filters?.buildingId) {
+        params.push(filters.buildingId);
+        whereClause += ` AND m.building_id = $${params.length}`;
+    }
+
     const result = await pool.query(
-        `SELECT DISTINCT ON (site_id, address_id)
-            id, channel, site_id, address_id, device, code, type,
-            vl1, vl2, vl3, vl12, vl23, vl31,
-            il1, il2, il3,
-            kw1, kw2, kw3, kw_3ph,
-            kvar1, kvar2, kvar3, kvar_3ph,
-            kva1, kva2, kva3, kva_3ph,
-            pf1, pf2, pf3,
-            hz, import_kwhr,
-            device_datetime, received_at
-         FROM meter_data_realtime
-         ORDER BY site_id, address_id, device_datetime DESC`
+        `WITH latest_readings AS (
+            SELECT DISTINCT ON (r.site_id, r.address_id)
+                r.id, r.channel, r.site_id AS realtime_site_id, r.address_id AS realtime_address_id,
+                r.device, r.code, r.type,
+                r.vl1, r.vl2, r.vl3, r.vl12, r.vl23, r.vl31,
+                r.il1, r.il2, r.il3,
+                r.kw1, r.kw2, r.kw3, r.kw_3ph,
+                r.kvar1, r.kvar2, r.kvar3, r.kvar_3ph,
+                r.kva1, r.kva2, r.kva3, r.kva_3ph,
+                r.pf1, r.pf2, r.pf3,
+                r.hz, r.import_kwhr,
+                r.device_datetime, r.received_at
+            FROM meter_data_realtime r
+            WHERE r.received_at >= NOW() - INTERVAL '24 hours'
+            ORDER BY r.site_id, r.address_id, r.device_datetime DESC
+        )
+        SELECT
+            lr.*,
+            m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name,
+            m.site_id, m.building_id, m.zone_id, m.floor, m.loop_id,
+            m.status AS meter_status, m.is_active,
+            s.site_name,
+            b.building_name,
+            z.zone_name
+        FROM latest_readings lr
+        LEFT JOIN realtime_meter_map rmm
+            ON rmm.realtime_site_id = lr.realtime_site_id
+           AND rmm.realtime_address_id = lr.realtime_address_id
+           AND rmm.is_active = true
+        LEFT JOIN meter m_fallback
+            ON m_fallback.site_el = lr.realtime_site_id
+           AND m_fallback.address::text = lr.realtime_address_id::text
+           AND rmm.id IS NULL
+        JOIN meter m
+            ON m.meter_id = COALESCE(rmm.meter_id, m_fallback.meter_id)
+        LEFT JOIN sites s ON m.site_id = s.site_id
+        LEFT JOIN buildings b ON m.building_id = b.building_id
+        LEFT JOIN zones z ON m.zone_id = z.zone_id
+        WHERE m.is_active IS DISTINCT FROM false
+            ${whereClause}
+        ORDER BY s.site_name, b.building_name, COALESCE(m.floor, 0), m.meter_code`,
+        params
+    );
+    return result.rows;
+};
+
+/**
+ * Get realtime history data for chart display.
+ * Returns time-bucketed aggregated data from meter_data_realtime
+ * for the last N minutes (default 30).
+ */
+export const getRealtimeHistory = async (filters?: {
+    minutes?: number;
+    siteId?: number;
+    buildingId?: number;
+}): Promise<any[]> => {
+    const minutes = filters?.minutes || 30;
+    const params: any[] = [minutes];
+    let whereClause = '';
+
+    if (filters?.siteId) {
+        params.push(filters.siteId);
+        whereClause += ` AND m.site_id = $${params.length}`;
+    }
+    if (filters?.buildingId) {
+        params.push(filters.buildingId);
+        whereClause += ` AND m.building_id = $${params.length}`;
+    }
+
+    const result = await pool.query(
+        `WITH mapped_readings AS (
+            SELECT
+                date_trunc('minute', r.received_at) AS bucket,
+                COALESCE(rmm.meter_id, m_fallback.meter_id) AS meter_id,
+                r.kw_3ph, r.kva_3ph, r.kvar_3ph,
+                r.vl1, r.vl2, r.vl3,
+                r.il1, r.il2, r.il3,
+                r.pf1, r.pf2, r.pf3,
+                r.hz, r.import_kwhr
+            FROM meter_data_realtime r
+            LEFT JOIN realtime_meter_map rmm
+                ON rmm.realtime_site_id = r.site_id
+               AND rmm.realtime_address_id = r.address_id
+               AND rmm.is_active = true
+               AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+            LEFT JOIN meter m_fallback
+                ON m_fallback.site_el = r.site_id
+               AND m_fallback.address::text = r.address_id::text
+               AND rmm.id IS NULL
+            WHERE r.received_at >= NOW() - ($1 || ' minutes')::interval
+              AND COALESCE(rmm.meter_id, m_fallback.meter_id) IS NOT NULL
+        )
+        SELECT
+            mr.bucket AS t,
+            m.meter_id, m.meter_code, m.meter_name, m.room_code,
+            AVG(mr.kw_3ph) AS kw_3ph,
+            AVG(mr.kva_3ph) AS kva_3ph,
+            AVG((mr.vl1 + mr.vl2 + mr.vl3) / 3.0) AS avg_voltage,
+            AVG((mr.il1 + mr.il2 + mr.il3) / 3.0) AS avg_current,
+            AVG((mr.pf1 + mr.pf2 + mr.pf3) / 3.0) AS avg_pf,
+            AVG(mr.hz) AS hz,
+            COUNT(*)::int AS readings
+        FROM mapped_readings mr
+        JOIN meter m ON m.meter_id = mr.meter_id
+        WHERE m.is_active IS DISTINCT FROM false
+            ${whereClause}
+        GROUP BY mr.bucket, m.meter_id, m.meter_code, m.meter_name, m.room_code
+        ORDER BY mr.bucket, m.meter_code`,
+        params
     );
     return result.rows;
 };

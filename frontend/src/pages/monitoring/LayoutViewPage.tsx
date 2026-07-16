@@ -169,7 +169,7 @@ const LayoutViewPage: React.FC = () => {
                         {t('แผนผังตำแหน่งพื้นที่', 'Site Layout Plan')}
                     </span>
                     <span style={{ fontFamily: MONO, fontSize: 11, color: C.barSub || C.sub }}>
-                        {t('แผนภาพเส้นเดี่ยว / มุมมองแผนผัง', 'Single Line Diagram / Layout View')}
+                        {t('แผนภาพเส้นเดี่ยว / มุมมองแผนผัง', 'Layout Diagram / Layout View')}
                     </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

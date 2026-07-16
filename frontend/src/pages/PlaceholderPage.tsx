@@ -54,8 +54,8 @@ const PlaceholderPage: React.FC<{ title: string; icon?: string }> = ({ title, ic
                         <Cpu size={16} />
                     </div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('การเฝ้าระวัง // แผนผังระบบไฟฟ้า', 'MONITORING // SINGLE LINE DIAGRAM')}</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ผังระบบไฟฟ้าและเส้นทางการจ่ายพลังงาน (Single Line Diagram)', 'Electrical single line diagram and energy distribution paths')}</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('การเฝ้าระวัง // แผนผังระบบไฟฟ้า', 'MONITORING // LAYOUT DIAGRAM')}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ผังระบบไฟฟ้าและเส้นทางการจ่ายพลังงาน (Layout Diagram)', 'Electrical layout diagram and energy distribution paths')}</div>
                     </div>
                 </div>
             </div>
@@ -89,7 +89,7 @@ const PlaceholderPage: React.FC<{ title: string; icon?: string }> = ({ title, ic
                     }}>
                         <div style={{ color: C.accent, fontWeight: 'bold' }}>{t('// ข้อมูลระบบ:', '// SYSTEM SPECIFICATIONS:')}</div>
                         <div>PATH: /monitoring/layout</div>
-                        <div>{t('ส่วนประกอบ: เครื่องมือแสดงผังทางเดินไฟฟ้า', 'COMPONENT: Single Line Diagram Visualizer')}</div>
+                        <div>{t('ส่วนประกอบ: เครื่องมือแสดงผังทางเดินไฟฟ้า', 'COMPONENT: Layout Diagram Visualizer')}</div>
                         <div>{t('สถานะ: กำลังออกแบบ / เชื่อมโยงแผนผัง', 'STATUS: DRAFTING / LAYOUT INTEGRATION')}</div>
                         <div>{t('เวอร์ชัน: 2.0.0-BETA', 'VERSION: 2.0.0-BETA')}</div>
                     </div>

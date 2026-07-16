@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { publish, subscribe, channels, latest } from './redisPubsub.controller';
+import { publish, subscribe, channels, latest, realtimeHistory } from './redisPubsub.controller';
 
 const router = Router();
 
@@ -12,7 +12,10 @@ router.get('/subscribe/:channel', subscribe);
 // GET /api/v1/redis/channels — List active channels
 router.get('/channels', channels);
 
-// GET /api/v1/redis/latest — Get latest real-time meter readings
+// GET /api/v1/redis/latest — Get latest real-time meter readings (enriched)
 router.get('/latest', latest);
+
+// GET /api/v1/redis/history — Get time-bucketed realtime history for charts
+router.get('/history', realtimeHistory);
 
 export default router;

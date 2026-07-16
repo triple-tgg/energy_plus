@@ -72,7 +72,7 @@ const navGroups: NavGroup[] = [
         icon: Radio,
         items: [
             { labelEn: 'Realtime Data', labelTh: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: Activity, permissionKey: 'monitoring' },
-            { labelEn: 'Single Line Diagram', labelTh: 'แผนผังระบบไฟฟ้า', path: '/monitoring/layout', icon: Network, permissionKey: 'monitoring' },
+            { labelEn: 'Layout Diagram', labelTh: 'แผนผังระบบไฟฟ้า', path: '/monitoring/layout', icon: Network, permissionKey: 'monitoring' },
             { labelEn: 'Demand Peak Forecast', labelTh: 'คาดการณ์ดีมานด์สูงสุด', path: '/monitoring/demand-peak', icon: Zap, permissionKey: 'monitoring' },
         ],
     },

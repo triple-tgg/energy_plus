@@ -974,8 +974,8 @@ const ZoneDashboard: React.FC = () => {
                     {/* Body */}
                     <div style={{ display: 'grid', gridTemplateColumns: level === 4 ? '1fr' : 'minmax(0,1.55fr) minmax(0,1fr)', gap: 14, padding: '0 16px 16px' }}>
                         <div>
-                            <Cap idx={`0${level + 1}`} en={level === 2 ? (bldgView === 'sld' ? 'SINGLE LINE' : 'FLOOR VIEW') : level === 3 ? 'ZONE PLAN' : level === 4 ? 'UNITS' : LEVEL_EN[level]}
-                                th={level === 2 ? `${formatNodeName(currentName || '', t)} · ${bldgView === 'sld' ? t('ไดอะแกรมเส้นเดียว', 'Single Line Diagram') : t('ผังด้านข้าง (บน→ล่าง)', 'Building Side View')}` : level === 3 ? `${formatNodeName(currentName || '', t)} · ${t('ผังพื้นที่', 'Floor Layout')}` : level === 4 ? `${formatNodeName(currentName || '', t)} · ${t('ตาราง Realtime (ทุกค่า)', 'Realtime Table')}` : t('เรียงมาก→น้อย', 'Sorted High → Low')}
+                            <Cap idx={`0${level + 1}`} en={level === 2 ? (bldgView === 'sld' ? 'LAYOUT DIAGRAM' : 'FLOOR VIEW') : level === 3 ? 'ZONE PLAN' : level === 4 ? 'UNITS' : LEVEL_EN[level]}
+                                th={level === 2 ? `${formatNodeName(currentName || '', t)} · ${bldgView === 'sld' ? t('ไดอะแกรมเส้นเดียว', 'Layout Diagram') : t('ผังด้านข้าง (บน→ล่าง)', 'Building Side View')}` : level === 3 ? `${formatNodeName(currentName || '', t)} · ${t('ผังพื้นที่', 'Floor Layout')}` : level === 4 ? `${formatNodeName(currentName || '', t)} · ${t('ตาราง Realtime (ทุกค่า)', 'Realtime Table')}` : t('เรียงมาก→น้อย', 'Sorted High → Low')}
                                 C={C}
                                 right={level === 2 && (
                                     <div style={{ display: 'flex', border: `1px solid ${C.line}` }}>

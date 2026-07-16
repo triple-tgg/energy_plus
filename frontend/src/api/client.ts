@@ -185,3 +185,11 @@ export const demandPeakApi = {
     getData: (params?: any) => api.get('/demand-peak', { params }),
     getCurrent: (params?: any) => api.get('/demand-peak/current', { params }),
 };
+
+// Realtime Monitoring
+export const realtimeApi = {
+    getLatest: (params?: any) => api.get('/redis/latest', { params }),
+    getHistory: (params?: any) => api.get('/redis/history', { params }),
+    getChannels: () => api.get('/redis/channels'),
+};
+

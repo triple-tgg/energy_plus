@@ -4,6 +4,8 @@ import {
     subscribeChannel,
     publishMessage,
     getActiveChannels,
+    getLatestRealtimeData,
+    getRealtimeHistory,
 } from './redisPubsub.service';
 
 /**
@@ -89,16 +91,37 @@ export const channels = async (req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /latest
- * Fetch the latest real-time reading for each meter from PostgreSQL
+ * Fetch the latest real-time reading for each meter from PostgreSQL,
+ * enriched with meter metadata (name, site, building, zone).
+ * Optional query params: siteId, buildingId
  */
 export const latest = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { getLatestRealtimeData } = require('./redisPubsub.service');
-        const data = await getLatestRealtimeData();
+        const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
+        const data = await getLatestRealtimeData({ siteId, buildingId });
         res.json(successResponse(data));
     } catch (error: any) {
         console.error('Latest real-time error:', error);
         res.status(500).json(errorResponse('LATEST_REALTIME_ERROR', error.message));
+    }
+};
+
+/**
+ * GET /history
+ * Fetch time-bucketed realtime history data for chart display.
+ * Optional query params: minutes (default 30), siteId, buildingId
+ */
+export const realtimeHistory = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const minutes = req.query.minutes ? parseInt(req.query.minutes as string) : 30;
+        const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
+        const data = await getRealtimeHistory({ minutes, siteId, buildingId });
+        res.json(successResponse(data));
+    } catch (error: any) {
+        console.error('Realtime history error:', error);
+        res.status(500).json(errorResponse('REALTIME_HISTORY_ERROR', error.message));
     }
 };
 
