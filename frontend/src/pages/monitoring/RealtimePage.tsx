@@ -4,6 +4,7 @@ import { Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, Layou
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { realtimeApi } from '../../api/client';
+import { LoadingScreen } from '../../components/ui/LoadingScreen';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -131,6 +132,7 @@ const RealtimePage: React.FC = () => {
     const [chartMetric, setChartMetric] = useState<ChartMetric>('kw');
     const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
     const [dbSyncStatus, setDbSyncStatus] = useState<'active' | 'syncing' | 'error'>('syncing');
+    const [initialLoading, setInitialLoading] = useState(true);
     const [alerts, setAlerts] = useState<{ id: string; time: string; msg: string; type: 'warning' | 'danger' }[]>([]);
     const [flashingRows, setFlashingRows] = useState<Record<string, boolean>>({});
     const [lastFetchTime, setLastFetchTime] = useState<string>('');
@@ -230,6 +232,7 @@ const RealtimePage: React.FC = () => {
 
                 setMeters(processedMeters);
                 setDbSyncStatus('active');
+                setInitialLoading(false);
                 setLastFetchTime(new Date().toLocaleTimeString());
 
                 // Flash detection
@@ -349,6 +352,8 @@ const RealtimePage: React.FC = () => {
 
     const syncColor = dbSyncStatus === 'active' ? C.green : dbSyncStatus === 'syncing' ? C.yellow : C.red;
     const selectedMetricInfo = CHART_METRICS.find(m => m.key === chartMetric)!;
+
+    if (initialLoading) return <LoadingScreen theme={theme} />;
 
     return (
         <div style={{ color: C.ink, padding: '10px 0' }}>

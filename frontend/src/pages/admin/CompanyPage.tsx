@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { companyApi } from '../../api/client';
+import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { Shield, Save, X, Pencil } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -38,7 +39,7 @@ const CompanyPage: React.FC = () => {
         } catch (e) { console.error(e); }
     };
 
-    if (loading) return <div className="text-center" style={{ padding: '40px' }}>{t('กำลังโหลด...', 'Loading...')}</div>;
+    if (loading) return <LoadingScreen />;
 
     return (
         <div>

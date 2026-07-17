@@ -10,6 +10,7 @@ import {
     PieChart, Pie, Cell, LineChart, Line, ComposedChart,
 } from 'recharts';
 import { dashboardApi } from '../../api/client';
+import { LoadingScreen } from '../../components/ui/LoadingScreen';
 
 /* ===========================================================================
    Energy Console — Dashboard พลังงาน
@@ -85,6 +86,7 @@ interface MeterData {
     source_site_id?: number;
     device: string;
     type: string;
+    meter_type_id: number;
     loop: number;
     pathIds: string[];
     pathNames: string[];
@@ -143,8 +145,17 @@ interface ZoneDashboardPayload {
 
 type TrendPoint = ZoneDashboardPayload['trend'][number];
 
+const METER_TYPE_INFO: Record<number, { icon: string; color: string }> = {
+    1: { icon: '⚡', color: '#F59E0B' },  // Electricity
+    2: { icon: '💧', color: '#3B82F6' },  // Water
+    3: { icon: '🔥', color: '#EF4444' },  // Gas
+    4: { icon: '☀️', color: '#10B981' },  // Solar
+    8: { icon: '⚡', color: '#F59E0B' },  // ELE
+};
+const getMeterTypeInfo = (id: number) => METER_TYPE_INFO[id] || METER_TYPE_INFO[1];
+
 const period = (m: MeterData) => Math.max(0, m.import_kwhr - m.periodStart_kwhr);
-const isRealtime = (m: MeterData) => m.data_source === 'realtime';
+const isRealtime = (m: MeterData) => m.data_source === 'realtime' || m.data_source === 'actual';
 function meterStatus(m: MeterData, now: number): string {
     if (m.disabled) return 'offline';
     if (now - m.received_at > STALE_MS) return 'offline';
@@ -244,9 +255,9 @@ function Readout({ label, value, unit, accent, C }: ReadoutProps) {
     return (
         <div style={{ background: C.panel2, border: `1px solid ${C.line}`, padding: '9px 11px' }}>
             <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 0.5, color: C.sub, marginBottom: 4, textTransform: 'uppercase' }}>{label}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 18, fontWeight: 600, color: accent || C.ink }}>{value}</span>
-                <span style={{ fontSize: 11, color: C.sub }}>{unit}</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, overflow: 'hidden' }}>
+                <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 600, color: accent || C.ink, whiteSpace: 'nowrap' }}>{value}</span>
+                <span style={{ fontSize: 10, color: C.sub, flexShrink: 0 }}>{unit}</span>
             </div>
         </div>
     );
@@ -378,26 +389,52 @@ interface MeterTableProps {
 }
 function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
     const { t } = useLanguage();
-    const avg = (a: number, b: number, c: number) => (a + b + c) / 3;
-    const thx = (): React.CSSProperties => ({ padding: '8px 9px', fontWeight: 700, fontSize: 10, letterSpacing: 0.8, textAlign: 'right', fontFamily: MONO });
-    const tdx = (): React.CSSProperties => ({ padding: '7px 9px', textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' });
+    const thx = (): React.CSSProperties => ({ padding: '8px 6px', fontWeight: 700, fontSize: 9.5, letterSpacing: 0.5, textAlign: 'right', fontFamily: MONO, whiteSpace: 'nowrap' });
+    const tdx = (): React.CSSProperties => ({ padding: '6px 6px', textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 11, whiteSpace: 'nowrap' });
+    const TOTAL_COLS = 30;
+    const sep = (extra?: React.CSSProperties): React.CSSProperties => ({ ...thx(), borderLeft: `2px solid rgba(255,255,255,0.15)`, ...extra });
 
     return (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div style={{ maxHeight: 600, overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+        <div style={{ background: C.panel, border: `1px solid ${C.line}`, overflow: 'hidden', width: '100%', maxWidth: '100%' }}>
+            <div style={{ maxHeight: 600, overflowX: 'auto', overflowY: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: 1800 }}>
                     <thead>
                         <tr style={{ position: 'sticky', top: 0, background: C.bar, color: '#fff', fontFamily: MONO, zIndex: 1 }}>
-                            <th style={{ ...thx(), textAlign: 'left' }}>#</th>
-                            <th style={{ ...thx(), textAlign: 'left' }}>METER</th>
+                            <th style={{ ...thx(), textAlign: 'left', position: 'sticky', left: 0, background: C.bar, zIndex: 2 }}>#</th>
+                            <th style={{ ...thx(), textAlign: 'left', position: 'sticky', left: 30, background: C.bar, zIndex: 2, minWidth: 140 }}>METER</th>
                             <th style={{ ...thx(), textAlign: 'center' }}>STS</th>
                             <th style={{ ...thx(), textAlign: 'center' }}>MODE</th>
-                            <th style={thx()}>kWh</th>
-                            <th style={thx()}>kW</th>
-                            <th style={thx()}>V</th>
-                            <th style={thx()}>A</th>
-                            <th style={thx()}>PF</th>
-                            <th style={thx()}>Hz</th>
+                            {/* ── Energy ── */}
+                            <th style={sep()}>kWh</th>
+                            <th style={thx()}>kW 3ph</th>
+                            <th style={thx()}>kW L1</th>
+                            <th style={thx()}>kW L2</th>
+                            <th style={thx()}>kW L3</th>
+                            {/* ── Power ── */}
+                            <th style={sep()}>kVA 3ph</th>
+                            <th style={thx()}>kVA L1</th>
+                            <th style={thx()}>kVA L2</th>
+                            <th style={thx()}>kVA L3</th>
+                            <th style={sep()}>kVAR 3ph</th>
+                            <th style={thx()}>kVAR L1</th>
+                            <th style={thx()}>kVAR L2</th>
+                            <th style={thx()}>kVAR L3</th>
+                            {/* ── Voltage ── */}
+                            <th style={sep()}>V L1</th>
+                            <th style={thx()}>V L2</th>
+                            <th style={thx()}>V L3</th>
+                            <th style={sep()}>V L12</th>
+                            <th style={thx()}>V L23</th>
+                            <th style={thx()}>V L31</th>
+                            {/* ── Current ── */}
+                            <th style={sep()}>A L1</th>
+                            <th style={thx()}>A L2</th>
+                            <th style={thx()}>A L3</th>
+                            {/* ── PF / Hz ── */}
+                            <th style={sep()}>PF L1</th>
+                            <th style={thx()}>PF L2</th>
+                            <th style={thx()}>PF L3</th>
+                            <th style={sep()}>Hz</th>
                             <th style={thx()}>AGE</th>
                         </tr>
                     </thead>
@@ -405,7 +442,7 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                         {groups.map((g) => (
                             <React.Fragment key={g.loop}>
                                 <tr style={{ background: C.panel2 }}>
-                                    <td colSpan={11} style={{ padding: '6px 11px', fontFamily: MONO, fontSize: 10.5, letterSpacing: 1, color: C.sub, borderTop: `1px solid ${C.line}` }}>
+                                    <td colSpan={TOTAL_COLS + 1} style={{ padding: '6px 11px', fontFamily: MONO, fontSize: 10.5, letterSpacing: 1, color: C.sub, borderTop: `1px solid ${C.line}` }}>
                                         <b style={{ color: C.ink }}>LOOP {g.loop}</b> · {g.items.length}/32 METER
                                     </td>
                                 </tr>
@@ -414,23 +451,52 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                                     const md = getModeInfo(m.inputMode, C);
                                     const off = m.inputMode === 'disabled' || it.status === 'offline';
                                     const ago = Math.round((now - m.received_at) / 1000);
-                                    const dash = (x: number, d = 0) => (off ? '—' : fmt(x, d));
+                                    const d = (x: number, dp = 2) => (off ? '—' : fmt(x, dp));
+                                    const sepTd = (extra?: React.CSSProperties): React.CSSProperties => ({ ...tdx(), borderLeft: `2px solid ${C.line}`, ...extra });
                                     return (
                                         <tr key={it.node.id} className="ec-row" onClick={() => onPick(m)} style={{ borderTop: `1px solid ${C.line}`, opacity: off ? 0.6 : 1 }}>
-                                            <td style={{ ...tdx(), textAlign: 'left', color: C.sub }}>{String(i + 1).padStart(2, '0')}</td>
-                                            <td style={{ ...tdx(), textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                            <td style={{ ...tdx(), textAlign: 'left', color: C.sub, position: 'sticky', left: 0, background: C.panel, zIndex: 1 }}>{String(i + 1).padStart(2, '0')}</td>
+                                            <td style={{ ...tdx(), textAlign: 'left', whiteSpace: 'nowrap', position: 'sticky', left: 30, background: C.panel, zIndex: 1 }}>
                                                 <b>{m.code}</b>
                                                 {isRealtime(m) && <span style={{ marginLeft: 6, color: C.green, fontSize: 10, fontWeight: 700 }}>RT</span>}
                                                 <span style={{ color: C.sub }}> {m.device}</span>
                                             </td>
                                             <td style={{ ...tdx(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
                                             <td style={{ ...tdx(), textAlign: 'center', color: md.color, fontSize: 10 }}>{md.label}</td>
-                                            <td style={{ ...tdx(), fontWeight: 700 }}>{dash(it.kwh)}</td>
-                                            <td style={tdx()}>{dash(m.kw_3ph, 2)}</td>
-                                            <td style={tdx()}>{dash(avg(m.vl1, m.vl2, m.vl3), 0)}</td>
-                                            <td style={tdx()}>{dash(avg(m.il1, m.il2, m.il3), 1)}</td>
-                                            <td style={tdx()}>{off ? '—' : avg(m.pf1, m.pf2, m.pf3).toFixed(2)}</td>
-                                            <td style={tdx()}>{dash(m.hz, 2)}</td>
+                                            {/* Energy */}
+                                            <td style={{ ...sepTd(), fontWeight: 700 }}>{d(it.kwh)}</td>
+                                            <td style={tdx()}>{d(m.kw_3ph)}</td>
+                                            <td style={tdx()}>{d(m.kw1)}</td>
+                                            <td style={tdx()}>{d(m.kw2)}</td>
+                                            <td style={tdx()}>{d(m.kw3)}</td>
+                                            {/* kVA */}
+                                            <td style={sepTd()}>{d(m.kva_3ph)}</td>
+                                            <td style={tdx()}>{d(m.kva1)}</td>
+                                            <td style={tdx()}>{d(m.kva2)}</td>
+                                            <td style={tdx()}>{d(m.kva3)}</td>
+                                            {/* kVAR */}
+                                            <td style={sepTd()}>{d(m.kvar_3ph)}</td>
+                                            <td style={tdx()}>{d(m.kvar1)}</td>
+                                            <td style={tdx()}>{d(m.kvar2)}</td>
+                                            <td style={tdx()}>{d(m.kvar3)}</td>
+                                            {/* Voltage L-N */}
+                                            <td style={sepTd()}>{d(m.vl1)}</td>
+                                            <td style={tdx()}>{d(m.vl2)}</td>
+                                            <td style={tdx()}>{d(m.vl3)}</td>
+                                            {/* Voltage L-L */}
+                                            <td style={sepTd()}>{d(m.vl12)}</td>
+                                            <td style={tdx()}>{d(m.vl23)}</td>
+                                            <td style={tdx()}>{d(m.vl31)}</td>
+                                            {/* Current */}
+                                            <td style={sepTd()}>{d(m.il1)}</td>
+                                            <td style={tdx()}>{d(m.il2)}</td>
+                                            <td style={tdx()}>{d(m.il3)}</td>
+                                            {/* PF */}
+                                            <td style={sepTd()}>{d(m.pf1)}</td>
+                                            <td style={tdx()}>{d(m.pf2)}</td>
+                                            <td style={tdx()}>{d(m.pf3)}</td>
+                                            {/* Hz & Age */}
+                                            <td style={sepTd()}>{d(m.hz)}</td>
                                             <td style={{ ...tdx(), color: C.sub, fontSize: 10 }}>{off ? '—' : ago > 30 ? `${ago}s!` : `${ago}s`}</td>
                                         </tr>
                                     );
@@ -441,7 +507,7 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                 </table>
             </div>
             <div style={{ padding: '7px 12px', borderTop: `1px solid ${C.line}`, fontFamily: MONO, fontSize: 10, color: C.sub, letterSpacing: 0.3 }}>
-                {t('คลิกแถวเพื่อดูค่า 3 เฟสเต็ม · V = เฉลี่ย L-N · A = เฉลี่ย L1–L3 · PF = เฉลี่ย', 'Click row for full 3-phase details · V = Avg L-N · A = Avg L1–L3 · PF = Avg')}
+                {t('เลื่อนตารางไปทางขวาเพื่อดูข้อมูลเพิ่มเติม · คลิกแถวเพื่อดูรายละเอียด', 'Scroll right for more data · Click row for details')}
             </div>
         </div>
     );
@@ -461,52 +527,122 @@ function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
     const md = getModeInfo(m.inputMode, C);
     const ago = Math.round((now - m.received_at) / 1000);
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: '#23261ECC', display: 'grid', placeItems: 'center', padding: 16, zIndex: 1050 }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, width: 'min(690px,100%)', maxHeight: '90vh', overflow: 'auto', border: `1px solid ${C.ink}` }}>
-                <div style={{ padding: '13px 16px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 11, background: C.bar, color: '#fff' }}>
-                    <StatusDot s={s} size={13} pulse C={C} />
-                    <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 15, letterSpacing: 0.5 }}>{m.code}<span style={{ fontSize: 11, color: C.barSub, fontWeight: 400 }}> · {m.device}</span></div>
-                        <div style={{ fontSize: 11, color: C.barSub }}>{m.pathNames.map(p => formatNodeName(p, t)).join('  ›  ')}</div>
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 1050 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, width: 480, maxHeight: '80vh', overflow: 'hidden', border: `1px solid ${C.line}`, borderRadius: 8, boxShadow: '0 12px 40px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column' }}>
+                {/* Header */}
+                <div style={{
+                    padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: C.bar, borderBottom: `2px solid ${getMeterTypeInfo(m.meter_type_id).color}`,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{
+                            width: 30, height: 30, borderRadius: '50%',
+                            background: getMeterTypeInfo(m.meter_type_id).color,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 14, color: '#fff',
+                        }}>{getMeterTypeInfo(m.meter_type_id).icon}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '0.5px' }}>
+                            {m.code}
+                        </span>
                     </div>
-                    {isRealtime(m) && <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: C.green, border: `1px solid ${C.green}`, padding: '3px 7px' }}>REALTIME</span>}
-                    <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: '#fff', border: `1px solid ${md.color}`, padding: '3px 7px' }}>
-                        {m.inputMode === 'manual' ? '✎ ' : m.inputMode === 'disabled' ? '⏻ ' : '⚡ '}{md.label}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: st.color, fontFamily: MONO, fontSize: 11.5, fontWeight: 700 }}>
-                        {s === 'offline' ? <WifiOff size={13} /> : <Wifi size={13} />} {t(st.labelTh, st.labelEn)}
-                    </span>
-                    <button onClick={onClose} style={{ background: 'transparent', border: `1px solid #ffffff33`, width: 28, height: 28, cursor: 'pointer', display: 'grid', placeItems: 'center', color: '#fff' }}><X size={15} /></button>
+                    <button onClick={onClose}
+                        style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}>
+                        <X size={20} />
+                    </button>
                 </div>
 
-                <div style={{ padding: 16 }}>
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-                        <div style={{ flex: 1, minWidth: 190, background: C.bar, color: '#fff', padding: 14 }}>
-                            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 0.5, color: C.barSub }}>{t('IMPORT_KWHR · สะสม', 'IMPORT_KWHR · Cumulative')}</div>
-                            <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 25, fontWeight: 700 }}>{fmt(m.import_kwhr, 1)} <span style={{ fontSize: 12 }}>kWh</span></div>
-                            <div style={{ fontFamily: MONO, fontSize: 11, color: C.barSub, marginTop: 6 }}>{t('งวดนี้', 'This Period')} <b style={{ color: '#8FBF9C' }}>{fmt(period(m), 1)}</b> / {t('เกณฑ์', 'Limit')} {fmt(m.threshold)}</div>
+                {/* Scrollable Body */}
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                {/* Meter Info */}
+                <div style={{
+                    padding: '12px 16px', background: C.panel2,
+                    borderBottom: `1px solid ${C.line}`,
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                    <div>
+                        <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 2 }}>{t('มิเตอร์', 'Meter')}</div>
+                        <div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: C.ink }}>
+                            [{m.code}] {m.device}
                         </div>
-                        <div style={{ flex: 1, minWidth: 190, background: C.panel2, border: `1px solid ${C.line}`, padding: 14 }}>
-                            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 0.5, color: C.accent }}>{t('KW_3PH · กำลังไฟ', 'KW_3PH · Power')}</div>
-                            <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 25, fontWeight: 700, color: C.ink }}>{fmt(m.kw_3ph, 2)} <span style={{ fontSize: 12 }}>kW</span></div>
-                            <div style={{ fontFamily: MONO, fontSize: 11, color: C.sub, marginTop: 6 }}>kVA {fmt(m.kva_3ph, 1)} · kVAR {fmt(m.kvar_3ph, 1)} · {ago}s</div>
-                        </div>
                     </div>
+                    <div style={{
+                        fontFamily: MONO, fontSize: 10, padding: '3px 10px',
+                        borderRadius: 12,
+                        background: s === 'offline' ? '#EF444420' : '#10B98120',
+                        color: s === 'offline' ? '#EF4444' : '#10B981',
+                        border: `1px solid ${s === 'offline' ? '#EF4444' : '#10B981'}40`,
+                        fontWeight: 600, textTransform: 'uppercase',
+                    }}>
+                        {s === 'offline' ? '🔴' : '🟢'} {s === 'offline' ? t('ออฟไลน์', 'offline') : t('ออนไลน์', 'online')}
+                    </div>
+                </div>
 
-                    <Cap en="3-PHASE" th={t('ค่าวัดแบบ 3 เฟส', '3-Phase Measurements')} C={C} />
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(120px,1fr))', gap: 8 }}>
-                        <Readout label="V L-N 1/2/3" value={`${fmt(m.vl1)}/${fmt(m.vl2)}/${fmt(m.vl3)}`} unit="V" C={C} />
-                        <Readout label="V L-L 12/23/31" value={`${fmt(m.vl12)}/${fmt(m.vl23)}/${fmt(m.vl31)}`} unit="V" C={C} />
-                        <Readout label="I L1/L2/L3" value={`${fmt(m.il1, 1)}/${fmt(m.il2, 1)}/${fmt(m.il3, 1)}`} unit="A" C={C} />
-                        <Readout label="kW L1/L2/L3" value={`${fmt(m.kw1, 1)}/${fmt(m.kw2, 1)}/${fmt(m.kw3, 1)}`} unit="kW" C={C} />
-                        <Readout label="PF L1/L2/L3" value={`${m.pf1.toFixed(2)}/${m.pf2.toFixed(2)}/${m.pf3.toFixed(2)}`} unit="" accent={C.accent} C={C} />
-                        <Readout label="FREQ" value={fmt(m.hz, 2)} unit="Hz" C={C} />
+                {/* Location info */}
+                <div style={{
+                    padding: '8px 16px', background: C.panel,
+                    borderBottom: `1px solid ${C.line}`,
+                    display: 'flex', gap: 20,
+                }}>
+                    <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>
+                        📍 {m.pathNames.map(p => formatNodeName(p, t)).join(' › ')}
                     </div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
+                        🕐 {new Date(m.received_at).toLocaleString(t('th-TH', 'en-US'))}
+                    </div>
+                </div>
 
-                    <div style={{ marginTop: 14, fontFamily: MONO, fontSize: 10.5, color: C.sub, lineHeight: 1.8, background: C.panel2, border: `1px solid ${C.line}`, padding: '10px 12px' }}>
-                        source={m.data_source || 'actual'} · site_id={m.source_site_id || m.site_id} · address_id={m.address_id} · channel={m.channel} · type={m.type} ·
-                        device_dt={new Date(m.device_datetime).toLocaleTimeString(t('th-TH', 'en-US'))} · received={new Date(m.received_at).toLocaleTimeString(t('th-TH', 'en-US'))}
-                    </div>
+                {/* Data Table */}
+                <div style={{ padding: '0' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: MONO, fontSize: 12 }}>
+                        <tbody>
+                            {([
+                                { labelTh: 'พลังงานไฟฟ้ารวม (KWh)', labelEn: 'KWh', value: m.import_kwhr, unit: 'kWh' },
+                                { labelTh: 'กำลังไฟฟ้าปรากฏ (Kva)', labelEn: 'Kva', value: m.kva_3ph, unit: 'kVA' },
+                                { labelTh: 'กำลังไฟฟ้าจริง (Kw)', labelEn: 'Kw', value: m.kw_3ph, unit: 'kW' },
+                                { labelTh: 'กำลังไฟฟ้ารีแอคทีฟ (Kvar)', labelEn: 'Kvar', value: m.kvar_3ph, unit: 'kVAR' },
+                                { labelTh: 'ความถี่ (Frequency)', labelEn: 'Frequency', value: m.hz, unit: 'Hz' },
+                                { labelTh: 'แรงดันไฟฟ้า L1 (VoltP1)', labelEn: 'VoltP1', value: m.vl1, unit: 'V' },
+                                { labelTh: 'แรงดันไฟฟ้า L2 (VoltP2)', labelEn: 'VoltP2', value: m.vl2, unit: 'V' },
+                                { labelTh: 'แรงดันไฟฟ้า L3 (VoltP3)', labelEn: 'VoltP3', value: m.vl3, unit: 'V' },
+                                { labelTh: 'แรงดันไฟฟ้า L1-L2 (VoltL1)', labelEn: 'VoltL1', value: m.vl12, unit: 'V' },
+                                { labelTh: 'แรงดันไฟฟ้า L2-L3 (VoltL2)', labelEn: 'VoltL2', value: m.vl23, unit: 'V' },
+                                { labelTh: 'แรงดันไฟฟ้า L3-L1 (VoltL3)', labelEn: 'VoltL3', value: m.vl31, unit: 'V' },
+                                { labelTh: 'กระแสไฟฟ้า L1 (Amp1)', labelEn: 'Amp1', value: m.il1, unit: 'A' },
+                                { labelTh: 'กระแสไฟฟ้า L2 (Amp2)', labelEn: 'Amp2', value: m.il2, unit: 'A' },
+                                { labelTh: 'กระแสไฟฟ้า L3 (Amp3)', labelEn: 'Amp3', value: m.il3, unit: 'A' },
+                                { labelTh: 'กำลังไฟฟ้า L1 (Kw1)', labelEn: 'Kw1', value: m.kw1, unit: 'kW' },
+                                { labelTh: 'กำลังไฟฟ้า L2 (Kw2)', labelEn: 'Kw2', value: m.kw2, unit: 'kW' },
+                                { labelTh: 'กำลังไฟฟ้า L3 (Kw3)', labelEn: 'Kw3', value: m.kw3, unit: 'kW' },
+                                { labelTh: 'Kva L1', labelEn: 'Kva1', value: m.kva1, unit: 'kVA' },
+                                { labelTh: 'Kva L2', labelEn: 'Kva2', value: m.kva2, unit: 'kVA' },
+                                { labelTh: 'Kva L3', labelEn: 'Kva3', value: m.kva3, unit: 'kVA' },
+                                { labelTh: 'Kvar L1', labelEn: 'Kvar1', value: m.kvar1, unit: 'kVAR' },
+                                { labelTh: 'Kvar L2', labelEn: 'Kvar2', value: m.kvar2, unit: 'kVAR' },
+                                { labelTh: 'Kvar L3', labelEn: 'Kvar3', value: m.kvar3, unit: 'kVAR' },
+                                { labelTh: 'ตัวประกอบกำลัง L1 (Pf1)', labelEn: 'Pf1', value: m.pf1, unit: '' },
+                                { labelTh: 'ตัวประกอบกำลัง L2 (Pf2)', labelEn: 'Pf2', value: m.pf2, unit: '' },
+                                { labelTh: 'ตัวประกอบกำลัง L3 (Pf3)', labelEn: 'Pf3', value: m.pf3, unit: '' },
+                            ] as { labelTh: string; labelEn: string; value: number; unit: string }[]).map((field, i) => (
+                                <tr key={i} style={{
+                                    borderBottom: `1px solid ${C.line}`,
+                                    background: i % 2 === 0 ? C.panel : C.panel2,
+                                }}>
+                                    <td style={{
+                                        padding: '8px 16px', fontWeight: 600, color: C.ink,
+                                        width: '50%',
+                                    }}>{t(field.labelTh, field.labelEn)}</td>
+                                    <td style={{
+                                        padding: '8px 16px', textAlign: 'right',
+                                        color: C.ink, fontWeight: 500,
+                                    }}>
+                                        {fmt(field.value)}
+                                        {field.unit && <span style={{ color: C.sub, fontSize: 10, marginLeft: 4 }}>{field.unit}</span>}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
                 </div>
             </div>
         </div>
@@ -906,17 +1042,19 @@ const ZoneDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {(loading || loadError || (!loading && meters.length === 0)) && (
+            {loading && (
+                <LoadingScreen inline theme={theme} />
+            )}
+
+            {!loading && (loadError || meters.length === 0) && (
                 <div style={{
                     margin: '0 16px 12px', padding: '10px 13px', background: C.panel,
                     border: `1px solid ${loadError ? C.red : C.line}`, borderLeft: `3px solid ${loadError ? C.red : C.accent}`,
                     fontFamily: MONO, fontSize: 11.5, color: C.ink
                 }}>
-                    {loading
-                        ? t('กำลังโหลดข้อมูลจากฐานข้อมูล...', 'Loading data from database...')
-                        : loadError
-                            ? `${t('โหลดข้อมูลไม่สำเร็จ', 'Unable to load data')}: ${loadError}`
-                            : t('ไม่พบข้อมูลมิเตอร์ในฐานข้อมูล', 'No meter data found in database')}
+                    {loadError
+                        ? `${t('โหลดข้อมูลไม่สำเร็จ', 'Unable to load data')}: ${loadError}`
+                        : t('ไม่พบข้อมูลมิเตอร์ในฐานข้อมูล', 'No meter data found in database')}
                 </div>
             )}
 
@@ -973,7 +1111,7 @@ const ZoneDashboard: React.FC = () => {
 
                     {/* Body */}
                     <div style={{ display: 'grid', gridTemplateColumns: level === 4 ? '1fr' : 'minmax(0,1.55fr) minmax(0,1fr)', gap: 14, padding: '0 16px 16px' }}>
-                        <div>
+                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
                             <Cap idx={`0${level + 1}`} en={level === 2 ? (bldgView === 'sld' ? 'LAYOUT DIAGRAM' : 'FLOOR VIEW') : level === 3 ? 'ZONE PLAN' : level === 4 ? 'UNITS' : LEVEL_EN[level]}
                                 th={level === 2 ? `${formatNodeName(currentName || '', t)} · ${bldgView === 'sld' ? t('ไดอะแกรมเส้นเดียว', 'Layout Diagram') : t('ผังด้านข้าง (บน→ล่าง)', 'Building Side View')}` : level === 3 ? `${formatNodeName(currentName || '', t)} · ${t('ผังพื้นที่', 'Floor Layout')}` : level === 4 ? `${formatNodeName(currentName || '', t)} · ${t('ตาราง Realtime (ทุกค่า)', 'Realtime Table')}` : t('เรียงมาก→น้อย', 'Sorted High → Low')}
                                 C={C}

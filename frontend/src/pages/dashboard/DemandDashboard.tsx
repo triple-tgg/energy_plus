@@ -6,6 +6,7 @@ import { Line } from 'react-chartjs-2';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import {
     Chart as ChartJS,
     CategoryScale, LinearScale, PointElement, LineElement,
@@ -184,9 +185,7 @@ const DemandDashboard: React.FC = () => {
             )}
 
             {loading && (
-                <div style={{ textAlign: 'center', padding: 60, fontFamily: MONO, color: C.sub }}>
-                    {t('⏳ กำลังโหลดข้อมูลดีมานด์...', '⏳ LOADING DEMAND TELEMETRY...')}
-                </div>
+                <LoadingScreen inline theme={theme} message={t('กำลังโหลดข้อมูลดีมานด์...', 'Loading demand data...')} />
             )}
         </div>
     );

@@ -3,6 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { layoutsApi, meterDataApi, metersApi } from '../../api/client';
 import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, X, Search, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { LoadingScreen } from '../../components/ui/LoadingScreen';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -311,10 +312,7 @@ const LayoutViewPage: React.FC = () => {
             </div>
 
             {loading ? (
-                <div style={{ textAlign: 'center', padding: 60, fontFamily: MONO, color: C.sub }}>
-                    <div style={{ fontSize: 24, marginBottom: 12 }}>⏳</div>
-                    {t('กำลังโหลด...', 'Loading...')}
-                </div>
+                <LoadingScreen inline theme={theme} />
             ) : layouts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '80px 24px', fontFamily: MONO, color: C.sub }}>
                     <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>🗺️</div>
