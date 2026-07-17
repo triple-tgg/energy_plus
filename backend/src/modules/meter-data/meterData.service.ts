@@ -18,8 +18,11 @@ export class MeterDataService {
         d.status, d.date_keep,
         d.energy_kwh, d.energy_kva, d.energy_kw, d.energy_kvar, d.energy_frequency,
         d.energy_volt_p1, d.energy_volt_p2, d.energy_volt_p3,
+        d.energy_volt_l1, d.energy_volt_l2, d.energy_volt_l3,
         d.energy_amp1, d.energy_amp2, d.energy_amp3,
         d.energy_pf1, d.energy_pf2, d.energy_pf3,
+        d.energy_thd_v1, d.energy_thd_a1,
+        d.water_value, d.gas_value,
         z.zone_name, b.building_name
        FROM meter m
        LEFT JOIN LATERAL (

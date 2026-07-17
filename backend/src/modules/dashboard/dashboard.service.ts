@@ -204,8 +204,12 @@ export class DashboardService {
         const compParams: any[] = [];
         if (siteId) compParams.push(siteId);
         if (buildingId) compParams.push(buildingId);
+        if (floor !== null) compParams.push(floor);
+        if (zoneId) compParams.push(zoneId);
         const compSiteFilter = siteId ? `AND m.site_id = $${compParams.indexOf(siteId) + 1}` : '';
         const compBuildingFilter = buildingId ? `AND m.building_id = $${compParams.indexOf(buildingId) + 1}` : '';
+        const compFloorFilter = floor !== null ? `AND m.floor = $${compParams.indexOf(floor) + 1}` : '';
+        const compZoneFilter = zoneId ? `AND m.zone_id = $${compParams.indexOf(zoneId) + 1}` : '';
 
         const comparisonResult = await query(
             `WITH realtime_meter_ids AS (
@@ -231,6 +235,8 @@ export class DashboardService {
                 WHERE m.is_active IS DISTINCT FROM false
                   ${compSiteFilter}
                   ${compBuildingFilter}
+                  ${compFloorFilter}
+                  ${compZoneFilter}
             ),
             hourly_meter AS (
                 SELECT

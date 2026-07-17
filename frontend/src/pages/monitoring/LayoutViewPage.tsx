@@ -93,6 +93,8 @@ const ZOOM_STEP = 0.25;
 
 /** Meter data fields to display in popup */
 const METER_FIELDS: { key: string; labelTh: string; labelEn: string; unit?: string }[] = [
+    { key: 'water_value', labelTh: 'ปริมาณน้ำสะสม (Water)', labelEn: 'Water Value', unit: 'm³' },
+    { key: 'gas_value', labelTh: 'ปริมาณแก๊สสะสม (Gas)', labelEn: 'Gas Value', unit: 'm³' },
     { key: 'energy_kva', labelTh: 'กำลังไฟฟ้าปรากฏ (Kva)', labelEn: 'Kva' },
     { key: 'energy_kw', labelTh: 'กำลังไฟฟ้าจริง (Kw)', labelEn: 'Kw' },
     { key: 'energy_kvar', labelTh: 'กำลังไฟฟ้ารีแอคทีฟ (Kvar)', labelEn: 'Kvar' },
@@ -101,12 +103,17 @@ const METER_FIELDS: { key: string; labelTh: string; labelEn: string; unit?: stri
     { key: 'energy_volt_p1', labelTh: 'แรงดันไฟฟ้า L1 (VoltP1)', labelEn: 'VoltP1', unit: 'V' },
     { key: 'energy_volt_p2', labelTh: 'แรงดันไฟฟ้า L2 (VoltP2)', labelEn: 'VoltP2', unit: 'V' },
     { key: 'energy_volt_p3', labelTh: 'แรงดันไฟฟ้า L3 (VoltP3)', labelEn: 'VoltP3', unit: 'V' },
+    { key: 'energy_volt_l1', labelTh: 'แรงดันไฟฟ้า L1-L2 (VoltL1)', labelEn: 'VoltL1', unit: 'V' },
+    { key: 'energy_volt_l2', labelTh: 'แรงดันไฟฟ้า L2-L3 (VoltL2)', labelEn: 'VoltL2', unit: 'V' },
+    { key: 'energy_volt_l3', labelTh: 'แรงดันไฟฟ้า L3-L1 (VoltL3)', labelEn: 'VoltL3', unit: 'V' },
     { key: 'energy_amp1', labelTh: 'กระแสไฟฟ้า L1 (Amp1)', labelEn: 'Amp1', unit: 'A' },
     { key: 'energy_amp2', labelTh: 'กระแสไฟฟ้า L2 (Amp2)', labelEn: 'Amp2', unit: 'A' },
     { key: 'energy_amp3', labelTh: 'กระแสไฟฟ้า L3 (Amp3)', labelEn: 'Amp3', unit: 'A' },
     { key: 'energy_pf1', labelTh: 'ตัวประกอบกำลัง L1 (Pf1)', labelEn: 'Pf1' },
     { key: 'energy_pf2', labelTh: 'ตัวประกอบกำลัง L2 (Pf2)', labelEn: 'Pf2' },
     { key: 'energy_pf3', labelTh: 'ตัวประกอบกำลัง L3 (Pf3)', labelEn: 'Pf3' },
+    { key: 'energy_thd_v1', labelTh: 'ความเพี้ยนฮาร์มอนิกแรงดัน (THD V1)', labelEn: 'THD V1', unit: '%' },
+    { key: 'energy_thd_a1', labelTh: 'ความเพี้ยนฮาร์มอนิกกระแส (THD A1)', labelEn: 'THD A1', unit: '%' },
 ];
 
 interface LayoutPoint {
@@ -736,7 +743,7 @@ const LayoutViewPage: React.FC = () => {
                                         )}
                                         {meterData.date_keep && (
                                             <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
-                                                🕐 {new Date(meterData.date_keep).toLocaleString(language === 'th' ? 'th-TH' : 'en-US')}
+                                                🕐 {new Date(typeof meterData.date_keep === 'string' ? meterData.date_keep.replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '') : meterData.date_keep).toLocaleString(language === 'th' ? 'th-TH' : 'en-US')}
                                             </div>
                                         )}
                                     </div>
