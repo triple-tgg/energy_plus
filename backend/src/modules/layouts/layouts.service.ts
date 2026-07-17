@@ -10,8 +10,17 @@ export class LayoutsService {
         const result = await query(
             `SELECT l.*,
                     COALESCE(
-                        (SELECT json_agg(json_build_object('label', lp.label, 'point_type', lp.point_type) ORDER BY lp.id)
-                         FROM layout_points lp WHERE lp.layout_id = l.id
+                        (SELECT json_agg(json_build_object(
+                            'label', lp.label,
+                            'point_type', lp.point_type,
+                            'meter_id', lp.meter_id,
+                            'meter_type_id', m.meter_type_id,
+                            'icon_name', mt.icon_name
+                         ) ORDER BY lp.id)
+                         FROM layout_points lp
+                         LEFT JOIN meter m ON lp.meter_id = m.meter_id
+                         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
+                         WHERE lp.layout_id = l.id
                         ), '[]'::json
                     ) AS point_labels
              FROM layouts l
@@ -82,18 +91,12 @@ export class LayoutsService {
         // Verify layout exists
         await this.getLayoutById(layoutId);
 
-        const result = await query(
-            `SELECT lp.*, m.meter_name, m.meter_code
-             FROM layout_points lp
-             LEFT JOIN meter m ON lp.meter_id = m.meter_id
-             ORDER BY lp.id ASC`,
-            []
-        );
         // Filter by layout_id in query for safety
         const filtered = await query(
-            `SELECT lp.*, m.meter_name, m.meter_code
+            `SELECT lp.*, m.meter_name, m.meter_code, m.meter_type_id, mt.icon_name
              FROM layout_points lp
              LEFT JOIN meter m ON lp.meter_id = m.meter_id
+             LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
              WHERE lp.layout_id = $1
              ORDER BY lp.id ASC`,
             [layoutId]

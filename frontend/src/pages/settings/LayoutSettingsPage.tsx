@@ -32,11 +32,21 @@ interface LayoutPoint {
 const emptyForm: LayoutForm = { name: '', imageName: '', position: '', imageFile: null };
 
 const POINT_TYPES = [
-    { key: 'meter', labelTh: 'มิเตอร์', labelEn: 'Meter', icon: '⚡', color: '#F59E0B' },
-    { key: 'sensor', labelTh: 'เซนเซอร์', labelEn: 'Sensor', icon: '📡', color: '#3B82F6' },
-    { key: 'gen', labelTh: 'เครื่องกำเนิดไฟฟ้า', labelEn: 'Generator', icon: '🔋', color: '#10B981' },
-    { key: 'ups', labelTh: 'เครื่องสำรองไฟ (UPS)', labelEn: 'UPS', icon: '🔌', color: '#EF4444' },
+    { key: 'power', labelTh: 'ไฟฟ้า (Power)', labelEn: 'Power', icon: 'fa fa-bolt', color: '#F59E0B', emoji: '⚡' },
+    { key: 'water', labelTh: 'น้ำ (Water)', labelEn: 'Water', icon: 'fa fa-tint', color: '#3B82F6', emoji: '💧' },
+    { key: 'gas', labelTh: 'แก๊ส (Gas)', labelEn: 'Gas', icon: 'fa fa-fire', color: '#EF4444', emoji: '🔥' },
+    { key: 'mdb', labelTh: 'MDB', labelEn: 'MDB', icon: 'fa fa-plug', color: '#8B5CF6', emoji: '🔌' },
 ];
+
+/** Resolve layout point type details safely with backward compatibility */
+const getPointTypeInfo = (type: string | null | undefined) => {
+    let key = type || 'power';
+    if (key === 'meter') key = 'power';
+    if (key === 'sensor') key = 'water';
+    if (key === 'gen') key = 'gas';
+    if (key === 'ups') key = 'mdb';
+    return POINT_TYPES.find(t => t.key === key) || POINT_TYPES[0];
+};
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -58,6 +68,36 @@ const parsePoint = (pt: any): LayoutPoint => ({
     y_percent: parseFloat(pt.y_percent) || 0,
     meter_id: pt.meter_id ? parseInt(pt.meter_id, 10) : null,
 });
+
+/** Check if value is a Font Awesome class */
+const isFaIcon = (v: string) => v && (v.startsWith('fa ') || v.startsWith('fa-') || v.startsWith('fas '));
+
+/** Render icon — supports FA class names and emoji */
+const renderPointIcon = (iconName: string | null | undefined, fallbackIcon: string, size: number = 14) => {
+    const active = iconName || fallbackIcon;
+    if (active && isFaIcon(active)) {
+        return <i className={active} style={{ fontSize: size }} />;
+    }
+    return <span style={{ fontSize: size, lineHeight: 1 }}>{active}</span>;
+};
+
+/** Get matching color for the icon */
+const getIconColor = (iconName: string | null | undefined, fallbackColor: string): string => {
+    if (!iconName) return fallbackColor;
+    if (iconName.includes('bolt')) return '#F59E0B'; // Power
+    if (iconName.includes('tint')) return '#3B82F6'; // Water
+    if (iconName.includes('fire')) return '#EF4444'; // Gas
+    if (iconName.includes('plug')) return '#8B5CF6'; // MDB
+    if (iconName.includes('satellite-dish')) return '#06B6D4'; // Sensor
+    if (iconName.includes('car-battery')) return '#10B981'; // Generator
+    if (iconName.includes('solar-panel')) return '#F97316'; // Solar
+    if (iconName.includes('snowflake')) return '#0EA5E9'; // HVAC
+    if (iconName.includes('industry')) return '#6366F1'; // Industrial
+    if (iconName.includes('building')) return '#64748B'; // Building
+    if (iconName.includes('chart-bar')) return '#14B8A6'; // Analytics
+    if (iconName.includes('exclamation-triangle')) return '#EAB308'; // Alert
+    return fallbackColor;
+};
 
 /* ═══════════════════════════════════════════════════════════════
    LayoutSettingsPage
@@ -90,7 +130,7 @@ const LayoutSettingsPage: React.FC = () => {
     const [editorOpen, setEditorOpen] = useState(false);
     const [editorLayout, setEditorLayout] = useState<any>(null);
     const [points, setPoints] = useState<LayoutPoint[]>([]);
-    const [activeType, setActiveType] = useState('meter');
+    const [activeType, setActiveType] = useState('power');
     const [pointSaving, setPointSaving] = useState(false);
     const [dragIdx, setDragIdx] = useState<number | null>(null);
     const [editingPoint, setEditingPoint] = useState<number | null>(null);
@@ -186,7 +226,7 @@ const LayoutSettingsPage: React.FC = () => {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = ((e.clientX - rect.left) / rect.width) * 100;
         const y = ((e.clientY - rect.top) / rect.height) * 100;
-        const typeInfo = POINT_TYPES.find(t => t.key === activeType)!;
+        const typeInfo = getPointTypeInfo(activeType);
         const newPoint: LayoutPoint = {
             point_type: activeType,
             label: `${t(typeInfo.labelTh, typeInfo.labelEn)} ${points.length + 1}`,
@@ -240,6 +280,7 @@ const LayoutSettingsPage: React.FC = () => {
                 config: p.config || {},
             })));
             setSuccessMsg(t('บันทึกจุดสำเร็จ!', 'Points saved successfully!'));
+            setEditingPoint(null); // Go back to Point List!
             const ptRes = await layoutsApi.getPoints(editorLayout.id);
             setPoints((ptRes.data.data || []).map(parsePoint));
         } catch (err: any) {
@@ -268,14 +309,15 @@ const LayoutSettingsPage: React.FC = () => {
                 return (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {pts.map((p: any, i: number) => {
-                            const typeInfo = POINT_TYPES.find(t => t.key === p.point_type) || POINT_TYPES[0];
+                            const typeInfo = getPointTypeInfo(p.point_type);
+                            const color = typeInfo.color;
                             return (
                                 <span key={i} style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
                                     padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: MONO, fontWeight: 600,
-                                    background: typeInfo.color + '20', color: typeInfo.color,
-                                    border: `1px solid ${typeInfo.color}40`,
-                                }}>{typeInfo.icon} {p.label}</span>
+                                    background: color + '20', color: color,
+                                    border: `1px solid ${color}40`,
+                                }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 10)} {p.label}</span>
                             );
                         })}
                     </div>
@@ -392,8 +434,9 @@ const LayoutSettingsPage: React.FC = () => {
                                     color: activeType === pt.key ? '#fff' : C.ink,
                                     border: `1.5px solid ${activeType === pt.key ? pt.color : C.line}`,
                                     transition: 'all 0.15s ease',
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
                                 }}>
-                                {pt.icon} {t(pt.labelTh, pt.labelEn)}
+                                {renderPointIcon(pt.icon, pt.emoji, 12)} {t(pt.labelTh, pt.labelEn)}
                             </button>
                         ))}
                         <div style={{ flex: 1 }} />
@@ -412,8 +455,9 @@ const LayoutSettingsPage: React.FC = () => {
                                     draggable={false} />
                                 {/* Points */}
                                 {points.map((pt, idx) => {
-                                    const typeInfo = POINT_TYPES.find(t => t.key === pt.point_type) || POINT_TYPES[0];
+                                    const typeInfo = getPointTypeInfo(pt.point_type);
                                     const isSelected = editingPoint === idx;
+                                    const color = typeInfo.color;
                                     return (
                                         <div key={idx}
                                             style={{
@@ -424,13 +468,13 @@ const LayoutSettingsPage: React.FC = () => {
                                             onClick={(e) => { e.stopPropagation(); setEditingPoint(isSelected ? null : idx); }}
                                             onMouseDown={(e) => handlePointDragStart(idx, e)}>
                                             <div style={{
-                                                width: 32, height: 32, borderRadius: '50%', background: typeInfo.color,
+                                                width: 32, height: 32, borderRadius: '50%', background: color,
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontSize: 16, lineHeight: 1,
+                                                fontSize: 16, lineHeight: 1, color: '#fff',
                                                 border: isSelected ? '3px solid #fff' : `2px solid ${theme === 'dark' ? '#000' : '#fff'}`,
-                                                boxShadow: isSelected ? `0 0 0 3px ${typeInfo.color}, 0 2px 8px rgba(0,0,0,0.4)` : '0 2px 6px rgba(0,0,0,0.3)',
+                                                boxShadow: isSelected ? `0 0 0 3px ${color}, 0 2px 8px rgba(0,0,0,0.4)` : '0 2px 6px rgba(0,0,0,0.3)',
                                                 transition: 'box-shadow 0.15s, border 0.15s', userSelect: 'none',
-                                            }}>{typeInfo.icon}</div>
+                                            }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 14)}</div>
                                             <div style={{
                                                 position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 2,
                                                 whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 9, fontWeight: 700,
@@ -467,7 +511,8 @@ const LayoutSettingsPage: React.FC = () => {
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         {points.map((pt, idx) => {
-                                            const typeInfo = POINT_TYPES.find(t => t.key === pt.point_type) || POINT_TYPES[0];
+                                            const typeInfo = getPointTypeInfo(pt.point_type);
+                                            const color = typeInfo.color;
                                             return (
                                                 <div key={idx} onClick={() => setEditingPoint(idx)}
                                                     style={{
@@ -476,9 +521,9 @@ const LayoutSettingsPage: React.FC = () => {
                                                         background: C.panel2, border: `1px solid ${C.line}`,
                                                         cursor: 'pointer', transition: 'border-color 0.15s',
                                                     }}
-                                                    onMouseEnter={e => (e.currentTarget.style.borderColor = typeInfo.color)}
+                                                    onMouseEnter={e => (e.currentTarget.style.borderColor = color)}
                                                     onMouseLeave={e => (e.currentTarget.style.borderColor = C.line)}>
-                                                    <span style={{ width: 26, height: 26, borderRadius: '50%', background: typeInfo.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>{typeInfo.icon}</span>
+                                                    <span style={{ width: 26, height: 26, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, color: '#fff' }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 11)}</span>
                                                     <div style={{ flex: 1, minWidth: 0 }}>
                                                         <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pt.label}</div>
                                                         <div style={{ fontFamily: MONO, fontSize: 9, color: C.sub }}>
@@ -510,12 +555,13 @@ const PointEditor: React.FC<{
     onChange: (updates: Partial<LayoutPoint>) => void;
     onDelete: () => void; onClose: () => void;
 }> = ({ point, meters, theme, C, t, onChange, onDelete, onClose }) => {
-    const typeInfo = POINT_TYPES.find(t => t.key === point.point_type) || POINT_TYPES[0];
+    const typeInfo = getPointTypeInfo(point.point_type);
+    const color = typeInfo.color;
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: typeInfo.color + '18', borderRadius: 6, border: `1px solid ${typeInfo.color}40` }}>
-                <span style={{ fontSize: 20 }}>{typeInfo.icon}</span>
-                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: typeInfo.color }}>{t(typeInfo.labelTh, typeInfo.labelEn)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: color + '18', borderRadius: 6, border: `1px solid ${color}40` }}>
+                <span style={{ fontSize: 20, color: color }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 18)}</span>
+                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: color }}>{t(typeInfo.labelTh, typeInfo.labelEn)}</span>
                 <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
                     ({Number(point.x_percent).toFixed(1)}%, {Number(point.y_percent).toFixed(1)}%)
                 </span>
@@ -527,10 +573,13 @@ const PointEditor: React.FC<{
             </div>
             <div>
                 <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{t('ประเภท', 'Type')}</label>
-                <select value={point.point_type} onChange={e => onChange({ point_type: e.target.value })}
-                    style={{ width: '100%', padding: '6px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none' }}>
-                    {POINT_TYPES.map(pt => (<option key={pt.key} value={pt.key}>{pt.icon} {t(pt.labelTh, pt.labelEn)}</option>))}
-                </select>
+                <div style={{
+                    width: '100%', padding: '6px 10px', fontFamily: MONO, fontSize: 12,
+                    background: C.panel2, color: C.sub, border: `1px solid ${C.line}`, borderRadius: 4,
+                    display: 'flex', alignItems: 'center', gap: 6, cursor: 'not-allowed', userSelect: 'none'
+                }}>
+                    {renderPointIcon(typeInfo.icon, typeInfo.emoji, 12)} {t(typeInfo.labelTh, typeInfo.labelEn)}
+                </div>
             </div>
             <div>
                 <label style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{t('เชื่อมต่อมิเตอร์', 'Link Meter')}</label>

@@ -3,6 +3,7 @@ import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { metersApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface TypeForm {
     meterTypeName: string;
@@ -12,8 +13,42 @@ interface TypeForm {
 
 const emptyForm: TypeForm = { meterTypeName: '', iconName: '', isActive: true };
 
+/** Predefined icon options for meter types (Font Awesome class names) */
+const ICON_OPTIONS = [
+    { icon: 'fa fa-bolt', label: 'Power', color: '#F59E0B', emoji: '⚡' },
+    { icon: 'fa fa-tint', label: 'Water', color: '#3B82F6', emoji: '💧' },
+    { icon: 'fa fa-fire', label: 'Gas', color: '#EF4444', emoji: '🔥' },
+    { icon: 'fa fa-plug', label: 'MDB', color: '#8B5CF6', emoji: '🔌' },
+    { icon: 'fa fa-satellite-dish', label: 'Sensor', color: '#06B6D4', emoji: '📡' },
+    { icon: 'fa fa-car-battery', label: 'Generator', color: '#10B981', emoji: '🔋' },
+    { icon: 'fa fa-solar-panel', label: 'Solar', color: '#F97316', emoji: '☀️' },
+    { icon: 'fa fa-snowflake', label: 'HVAC', color: '#0EA5E9', emoji: '❄️' },
+    { icon: 'fa fa-industry', label: 'Industrial', color: '#6366F1', emoji: '🏭' },
+    { icon: 'fa fa-building', label: 'Building', color: '#64748B', emoji: '🏢' },
+    { icon: 'fa fa-chart-bar', label: 'Analytics', color: '#14B8A6', emoji: '📊' },
+    { icon: 'fa fa-exclamation-triangle', label: 'Alert', color: '#EAB308', emoji: '⚠️' },
+];
+
+/** Get color for a given icon class */
+const getIconInfo = (iconName: string): { color: string; label: string } => {
+    const match = ICON_OPTIONS.find(o => o.icon === iconName);
+    return match ? { color: match.color, label: match.label } : { color: '#6B7280', label: '' };
+};
+
+/** Check if value is a Font Awesome class */
+const isFaIcon = (v: string) => v && (v.startsWith('fa ') || v.startsWith('fa-') || v.startsWith('fas '));
+
+/** Render icon — supports FA class names and emoji */
+const renderIconElement = (v: string, size: number = 20) => {
+    if (isFaIcon(v)) {
+        return <i className={v} style={{ fontSize: size }} />;
+    }
+    return <span style={{ fontSize: size, lineHeight: 1 }}>{v}</span>;
+};
+
 const MeterTypesPage: React.FC = () => {
     const { t } = useLanguage();
+    const { theme } = useTheme();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -117,7 +152,25 @@ const MeterTypesPage: React.FC = () => {
 
     const columns = [
         { key: 'meter_type_name', title: t('ชื่อประเภท', 'Type Name') },
-        { key: 'icon_name', title: t('ไอคอน', 'Icon') },
+        {
+            key: 'icon_name', title: t('ไอคอน', 'Icon'),
+            render: (v: string) => {
+                if (!v) return <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>;
+                const info = getIconInfo(v);
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                            width: 36, height: 36, borderRadius: '50%',
+                            background: `${info.color}20`,
+                            border: `2px solid ${info.color}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: info.color,
+                        }}>{renderIconElement(v, 18)}</span>
+                        {info.label && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{info.label}</span>}
+                    </div>
+                );
+            },
+        },
         {
             key: 'is_active', title: t('สถานะ', 'Status'),
             render: (v: boolean) => (
@@ -184,14 +237,56 @@ const MeterTypesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">{t('ชื่อไอคอน', 'Icon Name')}</label>
-                    <input
-                        type="text"
-                        className="form-control"
-                        placeholder={t('เช่น ⚡ หรือชื่อคลาสไอคอน', 'e.g. ⚡ or icon class name')}
-                        value={form.iconName}
-                        onChange={(e) => setForm({ ...form, iconName: e.target.value })}
-                    />
+                    <label className="form-label">{t('เลือกไอคอน', 'Select Icon')}</label>
+                    <div style={{
+                        display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)',
+                        gap: 8, padding: 8, borderRadius: 8,
+                        background: theme === 'dark' ? '#1C232E' : '#F1EFE3',
+                        border: `1px solid ${theme === 'dark' ? '#2A313C' : '#D4D1C0'}`,
+                    }}>
+                        {ICON_OPTIONS.map(opt => (
+                            <button
+                                key={opt.icon}
+                                type="button"
+                                onClick={() => setForm({ ...form, iconName: opt.icon })}
+                                title={opt.label}
+                                style={{
+                                    width: '100%', aspectRatio: '1', borderRadius: 8,
+                                    display: 'flex', flexDirection: 'column',
+                                    alignItems: 'center', justifyContent: 'center', gap: 2,
+                                    cursor: 'pointer', transition: 'all 0.15s',
+                                    fontSize: 22,
+                                    background: form.iconName === opt.icon ? `${opt.color}20` : 'transparent',
+                                    border: form.iconName === opt.icon ? `2px solid ${opt.color}` : `1px solid ${theme === 'dark' ? '#2A313C' : '#D4D1C0'}`,
+                                    boxShadow: form.iconName === opt.icon ? `0 0 8px ${opt.color}40` : 'none',
+                                }}
+                            >
+                                <span style={{ color: form.iconName === opt.icon ? opt.color : (theme === 'dark' ? '#E6EDF3' : '#23261E') }}>
+                                    <i className={opt.icon} style={{ fontSize: 20 }} />
+                                </span>
+                                <span style={{ fontSize: 8, fontWeight: 600, color: form.iconName === opt.icon ? opt.color : (theme === 'dark' ? '#8B98A6' : '#6E705F'), textTransform: 'uppercase', letterSpacing: '0.5px' }}>{opt.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                    {form.iconName && (
+                        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                            <span style={{
+                                width: 32, height: 32, borderRadius: '50%',
+                                background: `${getIconInfo(form.iconName).color}20`,
+                                border: `2px solid ${getIconInfo(form.iconName).color}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: getIconInfo(form.iconName).color,
+                            }}>{renderIconElement(form.iconName, 16)}</span>
+                            <span style={{ color: theme === 'dark' ? '#8B98A6' : '#6E705F', fontSize: 11 }}>
+                                {t('ไอคอนที่เลือก:', 'Selected icon:')} {form.iconName}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setForm({ ...form, iconName: '' })}
+                                style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 12 }}
+                            >✕ {t('ล้าง', 'Clear')}</button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="form-group">

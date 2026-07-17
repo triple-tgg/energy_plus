@@ -29,7 +29,7 @@ export class MetersService {
 
         params.push(limit, offset);
         const result = await query(
-            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, s.site_name,
+            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name,
               b.building_name, z.zone_name
        FROM meter m
        LEFT JOIN meter_brand mb ON m.meter_brand_id = mb.meter_brand_id
@@ -47,7 +47,7 @@ export class MetersService {
 
     async getMeterById(meterId: number) {
         const result = await query(
-            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, s.site_name, b.building_name, z.zone_name
+            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name, b.building_name, z.zone_name
        FROM meter m
        LEFT JOIN meter_brand mb ON m.meter_brand_id = mb.meter_brand_id
        LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
@@ -136,21 +136,48 @@ export class MetersService {
         return { data: result.rows, total, page, limit };
     }
     async createType(data: any) {
-        const result = await query(
-            `INSERT INTO meter_type (meter_type_name, icon_name, is_active, created_by, created_on)
+        try {
+            const result = await query(
+                `INSERT INTO meter_type (meter_type_name, icon_name, is_active, created_by, created_on)
        VALUES ($1,$2,$3,$4,NOW()) RETURNING *`,
-            [data.meterTypeName, data.iconName, true, data.createdBy]
-        );
-        return result.rows[0];
+                [data.meterTypeName, data.iconName || null, data.isActive !== false, data.createdBy || null]
+            );
+            return result.rows[0];
+        } catch (err: any) {
+            // Fallback: table might not have created_by/created_on columns
+            if (err.message?.includes('column') && (err.message?.includes('created_by') || err.message?.includes('created_on'))) {
+                const result = await query(
+                    `INSERT INTO meter_type (meter_type_name, icon_name, is_active)
+           VALUES ($1,$2,$3) RETURNING *`,
+                    [data.meterTypeName, data.iconName || null, data.isActive !== false]
+                );
+                return result.rows[0];
+            }
+            throw err;
+        }
     }
     async updateType(id: number, data: any) {
-        const result = await query(
-            `UPDATE meter_type SET meter_type_name=$1, icon_name=$2, is_active=$3,
+        try {
+            const result = await query(
+                `UPDATE meter_type SET meter_type_name=$1, icon_name=$2, is_active=$3,
        last_modified_by=$4, last_modified_on=NOW() WHERE meter_type_id=$5 RETURNING *`,
-            [data.meterTypeName, data.iconName, data.isActive, data.modifiedBy, id]
-        );
-        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Type not found');
-        return result.rows[0];
+                [data.meterTypeName, data.iconName || null, data.isActive, data.modifiedBy || null, id]
+            );
+            if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Type not found');
+            return result.rows[0];
+        } catch (err: any) {
+            // Fallback: table might not have last_modified_by/last_modified_on columns
+            if (err.message?.includes('column') && (err.message?.includes('last_modified') || err.message?.includes('modified'))) {
+                const result = await query(
+                    `UPDATE meter_type SET meter_type_name=$1, icon_name=$2, is_active=$3
+           WHERE meter_type_id=$4 RETURNING *`,
+                    [data.meterTypeName, data.iconName || null, data.isActive, id]
+                );
+                if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Type not found');
+                return result.rows[0];
+            }
+            throw err;
+        }
     }
     async deleteType(id: number) {
         const result = await query(`DELETE FROM meter_type WHERE meter_type_id=$1 RETURNING meter_type_id`, [id]);

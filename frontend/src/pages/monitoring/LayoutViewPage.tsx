@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { layoutsApi, meterDataApi } from '../../api/client';
-import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';
+import { layoutsApi, meterDataApi, metersApi } from '../../api/client';
+import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, X, Search, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
@@ -17,11 +17,74 @@ const THEMES = {
     },
 };
 
-const POINT_TYPES: Record<string, { icon: string; color: string; labelTh: string; labelEn: string }> = {
-    meter: { icon: '⚡', color: '#F59E0B', labelTh: 'มิเตอร์', labelEn: 'Meter' },
-    sensor: { icon: '📡', color: '#3B82F6', labelTh: 'เซนเซอร์', labelEn: 'Sensor' },
-    gen: { icon: '🔋', color: '#10B981', labelTh: 'เครื่องกำเนิดไฟฟ้า', labelEn: 'Generator' },
-    ups: { icon: '🔌', color: '#EF4444', labelTh: 'เครื่องสำรองไฟ (UPS)', labelEn: 'UPS' },
+const POINT_TYPES: Record<string, { icon: string; faIcon: string; color: string; labelTh: string; labelEn: string }> = {
+    power: { icon: '⚡', faIcon: 'fa fa-bolt', color: '#F59E0B', labelTh: 'ไฟฟ้า (Power)', labelEn: 'Power' },
+    water: { icon: '💧', faIcon: 'fa fa-tint', color: '#3B82F6', labelTh: 'น้ำ (Water)', labelEn: 'Water' },
+    gas: { icon: '🔥', faIcon: 'fa fa-fire', color: '#EF4444', labelTh: 'แก๊ส (Gas)', labelEn: 'Gas' },
+    mdb: { icon: '🔌', faIcon: 'fa fa-plug', color: '#8B5CF6', labelTh: 'MDB', labelEn: 'MDB' },
+    
+    // Fallback for old layout points stored in DB
+    meter: { icon: '⚡', faIcon: 'fa fa-bolt', color: '#F59E0B', labelTh: 'ไฟฟ้า (Power)', labelEn: 'Power' },
+    sensor: { icon: '💧', faIcon: 'fa fa-tint', color: '#3B82F6', labelTh: 'น้ำ (Water)', labelEn: 'Water' },
+    gen: { icon: '🔥', faIcon: 'fa fa-fire', color: '#EF4444', labelTh: 'แก๊ส (Gas)', labelEn: 'Gas' },
+    ups: { icon: '🔌', faIcon: 'fa fa-plug', color: '#8B5CF6', labelTh: 'MDB', labelEn: 'MDB' },
+};
+
+/** Meter type definitions: meter_type_id → display info (FA class from DB) */
+const METER_TYPES: Record<number, { faIcon: string; color: string; labelTh: string; labelEn: string }> = {
+    1: { faIcon: 'fa fa-bolt', color: '#F59E0B', labelTh: 'Power', labelEn: 'Power' },
+    2: { faIcon: 'fa fa-tint', color: '#3B82F6', labelTh: 'Water', labelEn: 'Water' },
+    3: { faIcon: 'fa fa-fire', color: '#EF4444', labelTh: 'Gas', labelEn: 'Gas' },
+    4: { faIcon: 'fa fa-plug', color: '#8B5CF6', labelTh: 'MDB', labelEn: 'MDB' },
+};
+
+const DEFAULT_TYPE = { faIcon: 'fa fa-chart-bar', color: '#6B7280', labelTh: 'อื่นๆ', labelEn: 'Other' };
+
+/** Get meter type info — dynamically categorizes types based on name/id for Power/Water/Gas/MDB matching */
+const getMeterTypeInfo = (typeId: number, iconName?: string, typeName?: string) => {
+    const name = (typeName || '').toLowerCase();
+    let category = 'power';
+    let color = '#F59E0B';
+    let label = 'Power';
+    let faIcon = iconName || 'fa fa-bolt';
+    
+    if (name.includes('น้ำ') || name.includes('water')) {
+        category = 'water';
+        color = '#3B82F6';
+        label = 'Water';
+        faIcon = iconName || 'fa fa-tint';
+    } else if (name.includes('แก๊ส') || name.includes('gas') || name.includes('fire')) {
+        category = 'gas';
+        color = '#EF4444';
+        label = 'Gas';
+        faIcon = iconName || 'fa fa-fire';
+    } else if (name.includes('mdb') || name.includes('plug')) {
+        category = 'mdb';
+        color = '#8B5CF6';
+        label = 'MDB';
+        faIcon = iconName || 'fa fa-plug';
+    } else if (name.includes('ele') || name.includes('volt') || name.includes('amp') || name.includes('power')) {
+        category = 'power';
+        color = '#F59E0B';
+        label = 'Power';
+        faIcon = iconName || 'fa fa-bolt';
+    } else {
+        // Fallback matching by typeId
+        if (typeId === 2) {
+            category = 'water'; color = '#3B82F6'; label = 'Water'; faIcon = iconName || 'fa fa-tint';
+        } else if (typeId === 3) {
+            category = 'gas'; color = '#EF4444'; label = 'Gas'; faIcon = iconName || 'fa fa-fire';
+        } else if (typeId === 4) {
+            category = 'mdb'; color = '#8B5CF6'; label = 'MDB'; faIcon = iconName || 'fa fa-plug';
+        }
+    }
+    
+    return { category, color, labelTh: label, labelEn: label, faIcon };
+};
+
+/** Render icon — supports FA class names */
+const renderMeterIcon = (faIcon: string, size: number = 14, color?: string) => {
+    return <i className={faIcon} style={{ fontSize: size, color: color || 'inherit' }} />;
 };
 
 const ZOOM_MIN = 0.3;
@@ -78,18 +141,77 @@ const LayoutViewPage: React.FC = () => {
     const [meterData, setMeterData] = useState<any>(null);
     const [meterLoading, setMeterLoading] = useState(false);
 
-    // Load all layouts
+    // Meter list sidebar state
+    const [allMeters, setAllMeters] = useState<any[]>([]);
+    const [meterSearch, setMeterSearch] = useState('');
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [meterTypeFilter, setMeterTypeFilter] = useState<string | null>(null);
+    const [activeLegendFilter, setActiveLegendFilter] = useState<string | null>(null);
+
+    // Load all layouts + all meters
     useEffect(() => {
         (async () => {
             try {
-                const res = await layoutsApi.getAll({ limit: 100 });
-                const items = res.data.data || [];
+                const [layoutRes, meterRes] = await Promise.all([
+                    layoutsApi.getAll({ limit: 100 }),
+                    metersApi.getAll({ limit: 500 }),
+                ]);
+                const items = layoutRes.data.data || [];
                 setLayouts(items);
                 if (items.length > 0) setSelectedId(items[0].id);
+                setAllMeters(meterRes.data?.data || []);
             } catch (err) { console.error(err); }
             setLoading(false);
         })();
     }, []);
+
+    // Check if a meter is linked to any point on the current layout
+    const linkedMeterIds = useMemo(() => {
+        const ids = new Set<string | number>();
+        points.forEach(p => {
+            if (p.meter_id) {
+                ids.add(p.meter_id);
+                ids.add(Number(p.meter_id));
+                ids.add(String(p.meter_id));
+            }
+        });
+        return ids;
+    }, [points]);
+
+    // Filtered meters for sidebar search + type filter
+    const filteredMeters = useMemo(() => {
+        // Only show meters that are linked to the current layout
+        let result = allMeters.filter((m: any) => m.meter_id && linkedMeterIds.has(m.meter_id));
+        
+        // Also filter by activeLegendFilter if selected
+        if (activeLegendFilter !== null) {
+            result = result.filter((m: any) => {
+                const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                if (!linkedPt) return false;
+                const ptMappedType = linkedPt.point_type === 'meter' ? 'power' : linkedPt.point_type === 'sensor' ? 'water' : linkedPt.point_type === 'gen' ? 'gas' : linkedPt.point_type === 'ups' ? 'mdb' : linkedPt.point_type;
+                return ptMappedType === activeLegendFilter;
+            });
+        }
+        
+        if (meterTypeFilter !== null) {
+            result = result.filter((m: any) => {
+                const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                if (!linkedPt) return false;
+                const ptMappedType = linkedPt.point_type === 'meter' ? 'power' : linkedPt.point_type === 'sensor' ? 'water' : linkedPt.point_type === 'gen' ? 'gas' : linkedPt.point_type === 'ups' ? 'mdb' : linkedPt.point_type;
+                return ptMappedType === meterTypeFilter;
+            });
+        }
+        if (meterSearch.trim()) {
+            const q = meterSearch.toLowerCase();
+            result = result.filter((m: any) =>
+                (m.meter_code || '').toLowerCase().includes(q) ||
+                (m.meter_name || '').toLowerCase().includes(q) ||
+                (m.room_code || '').toLowerCase().includes(q) ||
+                (m.room_name || '').toLowerCase().includes(q)
+            );
+        }
+        return result;
+    }, [allMeters, linkedMeterIds, activeLegendFilter, points, meterSearch, meterTypeFilter]);
 
     // Load points when layout changes
     useEffect(() => {
@@ -203,13 +325,37 @@ const LayoutViewPage: React.FC = () => {
                             flexWrap: 'wrap', minWidth: 0,
                         }}>
                             <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('อุปกรณ์:', 'Devices:')}</span>
-                            {Object.entries(POINT_TYPES).map(([key, info]) => (
-                                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: info.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{info.icon}</span>
-                                    <span style={{ fontFamily: MONO, fontSize: 11, color: C.ink }}>{t(info.labelTh, info.labelEn)}</span>
-                                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, background: C.panel2, padding: '1px 6px', borderRadius: 8, border: `1px solid ${C.line}` }}>{typeCounts[key] || 0}</span>
-                                </div>
-                            ))}
+                            {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb'].includes(k)).map(([key, info]) => {
+                                const isActive = activeLegendFilter === key;
+                                const count = (typeCounts[key] || 0) + (key === 'power' ? typeCounts.meter || 0 : key === 'water' ? typeCounts.sensor || 0 : key === 'gas' ? typeCounts.gen || 0 : key === 'mdb' ? typeCounts.ups || 0 : 0);
+                                return (
+                                    <div key={key}
+                                        onClick={() => setActiveLegendFilter(activeLegendFilter === key ? null : key)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                            padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                                            background: isActive ? info.color + '22' : 'transparent',
+                                            border: `1.5px solid ${isActive ? info.color : 'transparent'}`,
+                                            boxShadow: isActive ? `0 2px 6px ${info.color}30` : 'none',
+                                            transition: 'all 0.15s ease',
+                                            userSelect: 'none'
+                                        }}
+                                        title={isActive ? t('แสดงทั้งหมด', 'Show All') : `${t('แสดงเฉพาะ', 'Show Only')} ${t(info.labelTh, info.labelEn)}`}
+                                    >
+                                        <span style={{ width: 22, height: 22, borderRadius: '50%', background: info.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff' }}>
+                                            <i className={info.faIcon} />
+                                        </span>
+                                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.ink, fontWeight: isActive ? 700 : 500 }}>{t(info.labelTh, info.labelEn)}</span>
+                                        <span style={{
+                                            fontFamily: MONO, fontSize: 10, color: isActive ? '#fff' : C.sub,
+                                            background: isActive ? info.color : C.panel2, padding: '1px 6px',
+                                            borderRadius: 8, border: `1px solid ${isActive ? info.color : C.line}`,
+                                            fontWeight: isActive ? 700 : 500,
+                                            transition: 'all 0.15s ease'
+                                        }}>{count}</span>
+                                    </div>
+                                );
+                            })}
                             <div style={{ flex: 1 }} />
                             <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>{t('จุดทั้งหมด', 'Total')} {points.length} {t('จุด', 'points')}</span>
                         </div>
@@ -247,78 +393,257 @@ const LayoutViewPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Layout Image + Points — zoom contained in this box */}
-                    <div style={{
-                        flex: 1, overflow: 'auto', position: 'relative',
-                        background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6,
-                    }}>
+                    {/* Main content area: Canvas + Meter Sidebar */}
+                    <div style={{ flex: 1, display: 'flex', gap: 0, overflow: 'hidden', borderRadius: 6, border: `1px solid ${C.line}` }}>
+                        {/* Layout Image + Points — zoom contained in this box */}
                         <div style={{
-                            width: `${zoom * 100}%`,
-                            minHeight: zoom > 1 ? `${zoom * 100}%` : '100%',
-                            padding: 12,
-                            position: 'relative',
-                            transition: 'width 0.2s ease, min-height 0.2s ease',
+                            flex: 1, overflow: 'auto', position: 'relative',
+                            background: C.panel,
                         }}>
                             <div style={{
-                                position: 'relative', display: 'inline-block',
-                                width: '100%',
+                                width: `${zoom * 100}%`,
+                                minHeight: zoom > 1 ? `${zoom * 100}%` : '100%',
+                                padding: 12,
+                                position: 'relative',
+                                transition: 'width 0.2s ease, min-height 0.2s ease',
                             }}>
-                                <img src={selectedLayout.image_url} alt={selectedLayout.name}
-                                    style={{
-                                        width: '100%',
-                                        objectFit: 'contain', display: 'block',
-                                        border: `2px solid ${C.line}`, userSelect: 'none',
-                                    }}
-                                    draggable={false} />
+                                <div style={{
+                                    position: 'relative', display: 'inline-block',
+                                    width: '100%',
+                                }}>
+                                    <img src={selectedLayout.image_url} alt={selectedLayout.name}
+                                        style={{
+                                            width: '100%',
+                                            objectFit: 'contain', display: 'block',
+                                            border: `2px solid ${C.line}`, userSelect: 'none',
+                                        }}
+                                        draggable={false} />
 
-                                {/* Points */}
-                                {points.map((pt, idx) => {
-                                    const info = POINT_TYPES[pt.point_type] || POINT_TYPES.meter;
-                                    const isHovered = hoveredPoint === idx;
-                                    const isActive = popupPoint?.id === pt.id;
-                                    const pointScale = Math.max(0.5, Math.min(1.5, 1 / Math.sqrt(zoom)));
-                                    return (
-                                        <div key={pt.id}
-                                            style={{
-                                                position: 'absolute', left: `${pt.x_percent}%`, top: `${pt.y_percent}%`,
-                                                transform: `translate(-50%, -50%) scale(${pointScale})`,
-                                                zIndex: isHovered || isActive ? 20 : 10, cursor: 'pointer',
-                                            }}
-                                            onMouseEnter={() => setHoveredPoint(idx)}
-                                            onMouseLeave={() => setHoveredPoint(null)}
-                                            onClick={() => handlePointClick(pt)}>
-                                            {/* Pulse */}
-                                            {(isHovered || isActive) && (
+                                    {/* Points */}
+                                    {points.filter(pt => {
+                                        const ptMappedType = pt.point_type === 'meter' ? 'power' : pt.point_type === 'sensor' ? 'water' : pt.point_type === 'gen' ? 'gas' : pt.point_type === 'ups' ? 'mdb' : pt.point_type;
+                                        return activeLegendFilter === null || ptMappedType === activeLegendFilter;
+                                    }).map((pt, idx) => {
+                                        const info = POINT_TYPES[pt.point_type] || POINT_TYPES.power;
+                                        const isHovered = hoveredPoint === idx;
+                                        const isActive = popupPoint?.id === pt.id;
+                                        const pointScale = Math.max(0.5, Math.min(1.5, 1 / Math.sqrt(zoom)));
+                                        return (
+                                            <div key={pt.id}
+                                                style={{
+                                                    position: 'absolute', left: `${pt.x_percent}%`, top: `${pt.y_percent}%`,
+                                                    transform: `translate(-50%, -50%) scale(${pointScale})`,
+                                                    zIndex: isHovered || isActive ? 20 : 10, cursor: 'pointer',
+                                                }}
+                                                onMouseEnter={() => setHoveredPoint(idx)}
+                                                onMouseLeave={() => setHoveredPoint(null)}
+                                                onClick={() => handlePointClick(pt)}>
+                                                {/* Pulse */}
+                                                {(isHovered || isActive) && (
+                                                    <div style={{
+                                                        position: 'absolute', inset: -6, borderRadius: '50%',
+                                                        border: `2px solid ${info.color}`,
+                                                        animation: 'pulse-ring 1s ease-out infinite', opacity: 0.6,
+                                                    }} />
+                                                )}
+                                                {/* Circle */}
                                                 <div style={{
-                                                    position: 'absolute', inset: -6, borderRadius: '50%',
-                                                    border: `2px solid ${info.color}`,
-                                                    animation: 'pulse-ring 1s ease-out infinite', opacity: 0.6,
-                                                }} />
-                                            )}
-                                            {/* Circle */}
-                                            <div style={{
-                                                width: isHovered || isActive ? 38 : 32, height: isHovered || isActive ? 38 : 32,
-                                                borderRadius: '50%', background: info.color,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontSize: isHovered || isActive ? 18 : 16, lineHeight: 1,
-                                                border: isActive ? '3px solid #fff' : `2px solid ${theme === 'dark' ? '#000' : '#fff'}`,
-                                                boxShadow: isHovered || isActive
-                                                    ? `0 0 12px ${info.color}80, 0 4px 12px rgba(0,0,0,0.4)`
-                                                    : '0 2px 6px rgba(0,0,0,0.3)',
-                                                transition: 'all 0.2s ease', userSelect: 'none',
-                                            }}>{info.icon}</div>
-                                            {/* Label */}
-                                            <div style={{
-                                                position: 'absolute', top: '100%', left: '50%',
-                                                transform: 'translateX(-50%)', marginTop: 3,
-                                                whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 9, fontWeight: 700,
-                                                color: '#fff', background: 'rgba(0,0,0,0.75)',
-                                                padding: '2px 6px', borderRadius: 3, letterSpacing: '0.3px',
-                                            }}>{pt.label}</div>
-                                        </div>
-                                    );
-                                })}
+                                                    width: isHovered || isActive ? 38 : 32, height: isHovered || isActive ? 38 : 32,
+                                                    borderRadius: '50%', background: info.color,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    fontSize: isHovered || isActive ? 16 : 14, lineHeight: 1, color: '#fff',
+                                                    border: isActive ? '3px solid #fff' : `2px solid ${theme === 'dark' ? '#000' : '#fff'}`,
+                                                    boxShadow: isHovered || isActive
+                                                        ? `0 0 12px ${info.color}80, 0 4px 12px rgba(0,0,0,0.4)`
+                                                        : '0 2px 6px rgba(0,0,0,0.3)',
+                                                    transition: 'all 0.2s ease', userSelect: 'none',
+                                                }}><i className={info.faIcon} /></div>
+                                                {/* Label */}
+                                                <div style={{
+                                                    position: 'absolute', top: '100%', left: '50%',
+                                                    transform: 'translateX(-50%)', marginTop: 3,
+                                                    whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 9, fontWeight: 700,
+                                                    color: '#fff', background: 'rgba(0,0,0,0.75)',
+                                                    padding: '2px 6px', borderRadius: 3, letterSpacing: '0.3px',
+                                                }}>{pt.label}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
+                        </div>
+
+                        {/* ═══════════════════════════════════════════════════════
+                            Right Sidebar: Meter List
+                            ═══════════════════════════════════════════════════════ */}
+                        <div style={{
+                            width: sidebarCollapsed ? 36 : 300,
+                            background: C.panel,
+                            borderLeft: `1px solid ${C.line}`,
+                            display: 'flex', flexDirection: 'column',
+                            overflow: 'hidden',
+                            transition: 'width 0.2s ease',
+                            flexShrink: 0,
+                        }}>
+                            {/* Sidebar Header */}
+                            <div
+                                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                style={{
+                                    padding: sidebarCollapsed ? '10px 8px' : '10px 14px',
+                                    background: C.panel2, borderBottom: `1px solid ${C.line}`,
+                                    fontFamily: MONO, fontSize: 12, fontWeight: 700, color: C.ink,
+                                    textTransform: 'uppercase', letterSpacing: '1px',
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    cursor: 'pointer', userSelect: 'none',
+                                    justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                                }}>
+                                <ChevronRight size={14} style={{
+                                    transform: sidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    transition: 'transform 0.2s',
+                                }} />
+                                {!sidebarCollapsed && (
+                                    <>
+                                        <span>{t('📋 รายการมิเตอร์', '📋 Meter List')}</span>
+                                        <span style={{
+                                            marginLeft: 'auto', fontFamily: MONO, fontSize: 10,
+                                            color: C.sub, background: C.panel, padding: '1px 8px',
+                                            borderRadius: 8, border: `1px solid ${C.line}`,
+                                        }}>{filteredMeters.length}</span>
+                                    </>
+                                )}
+                            </div>
+
+                            {!sidebarCollapsed && (
+                                <>
+                                    {/* Type filter tabs */}
+                                    <div style={{
+                                        display: 'flex', gap: 4, padding: '6px 12px',
+                                        borderBottom: `1px solid ${C.line}`,
+                                        flexWrap: 'wrap',
+                                    }}>
+                                        <button
+                                            onClick={() => setMeterTypeFilter(null)}
+                                            style={{
+                                                padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
+                                                fontFamily: MONO, fontSize: 9, fontWeight: 700,
+                                                background: meterTypeFilter === null ? C.accent : 'transparent',
+                                                color: meterTypeFilter === null ? '#fff' : C.sub,
+                                                border: `1px solid ${meterTypeFilter === null ? C.accent : C.line}`,
+                                                transition: 'all 0.15s',
+                                            }}>
+                                            {t('ทั้งหมด', 'ALL')}
+                                        </button>
+                                        {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb'].includes(k)).map(([key, info]) => (
+                                            <button
+                                                key={key}
+                                                onClick={() => setMeterTypeFilter(meterTypeFilter === key ? null : key)}
+                                                style={{
+                                                    padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
+                                                    fontFamily: MONO, fontSize: 9, fontWeight: 700,
+                                                    background: meterTypeFilter === key ? info.color : 'transparent',
+                                                    color: meterTypeFilter === key ? '#fff' : C.sub,
+                                                    border: `1px solid ${meterTypeFilter === key ? info.color : C.line}`,
+                                                    transition: 'all 0.15s',
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                }}>
+                                                {renderMeterIcon(info.faIcon, 9)} {info.labelEn}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Search */}
+                                    <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.line}` }}>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                            background: C.panel2, border: `1px solid ${C.line}`,
+                                            borderRadius: 4, padding: '5px 8px',
+                                        }}>
+                                            <Search size={13} style={{ color: C.sub, flexShrink: 0 }} />
+                                            <input
+                                                type="text"
+                                                value={meterSearch}
+                                                onChange={e => setMeterSearch(e.target.value)}
+                                                placeholder={t('ค้นหามิเตอร์...', 'Search meters...')}
+                                                style={{
+                                                    flex: 1, background: 'transparent', border: 'none',
+                                                    outline: 'none', fontFamily: MONO, fontSize: 11,
+                                                    color: C.ink, padding: 0,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Meter list */}
+                                    <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+                                        {filteredMeters.length === 0 ? (
+                                            <div style={{
+                                                textAlign: 'center', padding: '30px 12px',
+                                                color: C.sub, fontFamily: MONO, fontSize: 11,
+                                            }}>
+                                                <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.4 }}>⚡</div>
+                                                <div>{meterSearch || meterTypeFilter !== null ? t('ไม่พบมิเตอร์ที่ค้นหา', 'No meters found') : t('ไม่มีมิเตอร์', 'No meters')}</div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                {filteredMeters.map((m: any) => {
+                                                    const isLinked = linkedMeterIds.has(m.meter_id);
+                                                    const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                                                    const ptType = linkedPt ? (linkedPt.point_type === 'meter' ? 'power' : linkedPt.point_type === 'sensor' ? 'water' : linkedPt.point_type === 'gen' ? 'gas' : linkedPt.point_type === 'ups' ? 'mdb' : linkedPt.point_type) : 'power';
+                                                    const mType = POINT_TYPES[ptType] || POINT_TYPES.power;
+                                                    return (
+                                                        <div key={m.meter_id}
+                                                            onClick={() => {
+                                                                const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                                                                if (linkedPt) handlePointClick(linkedPt);
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                                padding: '7px 10px', borderRadius: 4,
+                                                                background: C.panel2, border: `1px solid ${C.line}`,
+                                                                cursor: isLinked ? 'pointer' : 'default',
+                                                                transition: 'border-color 0.15s',
+                                                                opacity: isLinked ? 1 : 0.65,
+                                                            }}
+                                                            onMouseEnter={e => { if (isLinked) e.currentTarget.style.borderColor = mType.color; }}
+                                                            onMouseLeave={e => { e.currentTarget.style.borderColor = C.line; }}
+                                                        >
+                                                            <span style={{
+                                                                width: 26, height: 26, borderRadius: '50%',
+                                                                background: isLinked ? mType.color : C.line,
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                fontSize: 13, flexShrink: 0, color: '#fff',
+                                                            }}>{renderMeterIcon(mType.faIcon, 12, '#fff')}</span>
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{
+                                                                    fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.ink,
+                                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                                }}>{m.meter_name || m.meter_code}</div>
+                                                                <div style={{ fontFamily: MONO, fontSize: 9, color: C.sub }}>
+                                                                    [{m.meter_code}] {m.room_code ? `• ${m.room_code}` : ''}
+                                                                </div>
+                                                            </div>
+                                                            <span style={{
+                                                                fontFamily: MONO, fontSize: 8, padding: '2px 6px',
+                                                                borderRadius: 8, background: `${mType.color}20`,
+                                                                color: mType.color, border: `1px solid ${mType.color}40`,
+                                                                fontWeight: 700, textTransform: 'uppercase', flexShrink: 0,
+                                                            }}>{mType.labelEn}</span>
+                                                            {isLinked && (
+                                                                <span style={{
+                                                                    fontFamily: MONO, fontSize: 8, padding: '2px 6px',
+                                                                    borderRadius: 8, background: '#10B98120',
+                                                                    color: '#10B981', border: '1px solid #10B98140',
+                                                                    fontWeight: 700, textTransform: 'uppercase', flexShrink: 0,
+                                                                }}>{t('เชื่อม', '🔗')}</span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -345,15 +670,15 @@ const LayoutViewPage: React.FC = () => {
                         {/* Header */}
                         <div style={{
                             padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            background: C.bar, borderBottom: `2px solid ${(POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).color}`,
+                            background: C.bar, borderBottom: `2px solid ${(POINT_TYPES[popupPoint.point_type] || POINT_TYPES.power).color}`,
                         }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <span style={{
                                     width: 30, height: 30, borderRadius: '50%',
-                                    background: (POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).color,
+                                    background: (POINT_TYPES[popupPoint.point_type] || POINT_TYPES.power).color,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: 16,
-                                }}>{(POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).icon}</span>
+                                    fontSize: 14, color: '#fff',
+                                }}><i className={(POINT_TYPES[popupPoint.point_type] || POINT_TYPES.power).faIcon} /></span>
                                 <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '0.5px' }}>
                                     {popupPoint.label}
                                 </span>
@@ -459,7 +784,7 @@ const LayoutViewPage: React.FC = () => {
                                         {popupPoint.label}
                                     </div>
                                     <div style={{ fontSize: 11, color: C.sub }}>
-                                        {t((POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).labelTh, (POINT_TYPES[popupPoint.point_type] || POINT_TYPES.meter).labelEn)}
+                                        {t((POINT_TYPES[popupPoint.point_type] || POINT_TYPES.power).labelTh, (POINT_TYPES[popupPoint.point_type] || POINT_TYPES.power).labelEn)}
                                     </div>
                                     {!popupPoint.meter_id && (
                                         <div style={{ fontSize: 11, color: C.sub, marginTop: 12, padding: '8px 16px', background: C.panel2, borderRadius: 6, border: `1px solid ${C.line}`, display: 'inline-block' }}>

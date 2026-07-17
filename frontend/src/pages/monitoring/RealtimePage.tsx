@@ -104,6 +104,22 @@ const parseNum = (v: any, fallback = 0): number => {
     return isFinite(n) ? n : fallback;
 };
 
+/** Format device_datetime from DB — DB stores Bangkok time but PG sends as UTC.
+ *  Strip timezone suffix so JS treats it as local time (no double +7 offset). */
+const formatDeviceTime = (dt: string | null | undefined, mode: 'time' | 'full' = 'time'): string => {
+    if (!dt) return '—';
+    try {
+        // Strip Z, +00, +07 etc. so JS treats as local time (already Bangkok)
+        const stripped = dt.replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '').replace(/[+-]\d{4}$/, '');
+        const d = new Date(stripped);
+        if (isNaN(d.getTime())) return '—';
+        if (mode === 'full') {
+            return d.toLocaleString('th-TH');
+        }
+        return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch { return '—'; }
+};
+
 const RealtimePage: React.FC = () => {
     const { theme } = useTheme();
     const { t, language } = useLanguage();
@@ -113,6 +129,7 @@ const RealtimePage: React.FC = () => {
     const [meters, setMeters] = useState<RealtimeMeterData[]>([]);
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
     const [chartMetric, setChartMetric] = useState<ChartMetric>('kw');
+    const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
     const [dbSyncStatus, setDbSyncStatus] = useState<'active' | 'syncing' | 'error'>('syncing');
     const [alerts, setAlerts] = useState<{ id: string; time: string; msg: string; type: 'warning' | 'danger' }[]>([]);
     const [flashingRows, setFlashingRows] = useState<Record<string, boolean>>({});
@@ -251,7 +268,7 @@ const RealtimePage: React.FC = () => {
     const fetchChartHistory = useCallback(async () => {
         try {
             const res = await realtimeApi.getHistory({
-                minutes: 30,
+                minutes: 60,
                 siteId: selectedSiteId,
                 buildingId: selectedBuildingId,
             });
@@ -262,7 +279,8 @@ const RealtimePage: React.FC = () => {
                 const bucketMap = new Map<string, ChartDataPoint>();
 
                 rows.forEach((row: any) => {
-                    const time = new Date(row.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const rawT = String(row.t).replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '').replace(/[+-]\d{4}$/, '');
+                    const time = new Date(rawT).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                     const label = row.meter_name || row.meter_code || `M${row.meter_id}`;
 
                     if (!bucketMap.has(time)) {
@@ -504,7 +522,7 @@ const RealtimePage: React.FC = () => {
                                     <option key={m.key} value={m.key}>{t(m.labelTh, m.labelEn)}</option>
                                 ))}
                             </select>
-                            <span style={{ fontSize: '10px', fontFamily: MONO, color: C.sub, fontWeight: 600 }}>{t('ข้อมูล 30 นาที', '30-MIN DATA')}</span>
+                            <span style={{ fontSize: '10px', fontFamily: MONO, color: C.sub, fontWeight: 600 }}>{t('ข้อมูล 60 นาที', '60-MIN DATA')}</span>
                         </div>
                     </div>
 
@@ -527,8 +545,54 @@ const RealtimePage: React.FC = () => {
                                         contentStyle={{ backgroundColor: C.panel, borderColor: C.line, color: C.ink, borderRadius: 0, fontFamily: MONO }}
                                         itemStyle={{ fontSize: 11, fontWeight: 600 }}
                                         labelStyle={{ fontSize: 11, fontWeight: 'bold', color: C.sub, marginBottom: 4 }}
+                                        formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: 10, fontFamily: MONO, paddingTop: 10, fontWeight: 600, color: C.ink }} />
+                                    <Legend
+                                        content={() => (
+                                            <div style={{
+                                                display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
+                                                gap: '6px 14px', paddingTop: 14, paddingBottom: 4,
+                                            }}>
+                                                {chartMeterLabels.map((label, idx) => {
+                                                    const color = chartColors[idx % chartColors.length];
+                                                    const isHidden = hiddenSeries.has(label);
+                                                    return (
+                                                        <div
+                                                            key={label}
+                                                            onClick={() => {
+                                                                setHiddenSeries(prev => {
+                                                                    const next = new Set(prev);
+                                                                    if (next.has(label)) next.delete(label);
+                                                                    else next.add(label);
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 5,
+                                                                cursor: 'pointer', userSelect: 'none',
+                                                                opacity: isHidden ? 0.35 : 1,
+                                                                transition: 'opacity 0.2s',
+                                                            }}
+                                                        >
+                                                            <span style={{
+                                                                width: 10, height: 10, borderRadius: '50%',
+                                                                background: isHidden ? C.sub : color,
+                                                                border: isHidden ? `2px solid ${C.sub}` : `2px solid ${color}`,
+                                                                display: 'inline-block',
+                                                                transition: 'all 0.2s',
+                                                            }} />
+                                                            <span style={{
+                                                                fontFamily: MONO, fontSize: 10, fontWeight: 600,
+                                                                color: isHidden ? C.sub : C.ink,
+                                                                textDecoration: isHidden ? 'line-through' : 'none',
+                                                                transition: 'all 0.2s',
+                                                            }}>{label}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    />
                                     {chartMeterLabels.map((label, idx) => (
                                         <Area
                                             key={label}
@@ -541,6 +605,7 @@ const RealtimePage: React.FC = () => {
                                             strokeWidth={2}
                                             dot={false}
                                             activeDot={{ r: 4 }}
+                                            hide={hiddenSeries.has(label)}
                                         />
                                     ))}
                                 </AreaChart>
@@ -690,7 +755,7 @@ const RealtimePage: React.FC = () => {
                                                 {m.import_kwhr.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                                             </td>
                                             <td style={{ padding: '14px 8px', color: C.sub, fontSize: '12px', fontWeight: 600 }}>
-                                                {m.device_datetime ? new Date(m.device_datetime).toLocaleTimeString() : '—'}
+                                                {formatDeviceTime(m.device_datetime)}
                                             </td>
                                         </tr>
                                     );
@@ -775,7 +840,7 @@ const RealtimePage: React.FC = () => {
                                 </div>
                             )}
                             <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
-                                🕐 {selectedMeter.device_datetime ? new Date(selectedMeter.device_datetime).toLocaleString(language === 'th' ? 'th-TH' : 'en-US') : '—'}
+                                🕐 {formatDeviceTime(selectedMeter.device_datetime, 'full')}
                             </div>
                         </div>
 
