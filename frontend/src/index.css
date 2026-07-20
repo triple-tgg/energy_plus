@@ -278,37 +278,39 @@ body {
   margin-top: 2px;
 }
 
-/* Toggle Row */
-.sidebar-toggle-row {
-  display: flex;
-  justify-content: flex-end;
-  padding: 6px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.sidebar--collapsed .sidebar-toggle-row {
-  justify-content: center;
-  padding: 8px 0;
-}
-
-.sidebar-toggle {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  width: 28px;
-  height: 28px;
-  display: flex;
+.sidebar-hamburger {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.64);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
   cursor: pointer;
+  flex-shrink: 0;
   transition: all var(--transition);
 }
 
-.sidebar-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
+.sidebar-hamburger:hover {
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar--collapsed .sidebar-brand {
+  padding: 18px 0;
+  justify-content: center;
+}
+
+.sidebar--collapsed .sidebar-brand__icon {
+  display: none;
+}
+
+.sidebar--collapsed .sidebar-hamburger {
+  margin-left: 0;
 }
 
 .sidebar-brand {
@@ -443,6 +445,30 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.topbar__menu-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  margin-right: 12px;
+  transition: all var(--transition);
+}
+
+.topbar__menu-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.sidebar-backdrop {
+  display: none;
 }
 
 .topbar__breadcrumb {
@@ -1873,7 +1899,7 @@ body {
    ========================================= */
 @media (max-width: 768px) {
   .sidebar {
-    transform: translateX(-100%);
+    width: var(--sidebar-w);
   }
 
   .app__main {
@@ -1930,6 +1956,19 @@ body {
 
 .ec-theme-light .sidebar-brand__sub {
   color: #6E705F;
+}
+
+.ec-theme-light .sidebar-hamburger {
+  background: #FBFAF4;
+  border-color: #A6A892;
+  color: #2B4C7E;
+  box-shadow: 0 1px 2px rgba(35, 38, 30, 0.12);
+}
+
+.ec-theme-light .sidebar-hamburger:hover {
+  background: #2B4C7E;
+  border-color: #2B4C7E;
+  color: #FFFFFF;
 }
 
 .ec-theme-light .sidebar-toggle-row {

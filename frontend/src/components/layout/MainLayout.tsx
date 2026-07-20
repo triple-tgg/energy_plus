@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -8,6 +8,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 const MainLayout: React.FC = () => {
     const { isAuthenticated, isLoading } = useAuth();
     const location = useLocation();
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     if (isLoading) {
         return (
@@ -24,7 +25,12 @@ const MainLayout: React.FC = () => {
 
     return (
         <div className={`app ec-theme-${theme}`}>
-            <Sidebar />
+            <Sidebar
+                collapsed={sidebarCollapsed}
+                mobileOpen={false}
+                onToggle={() => setSidebarCollapsed(value => !value)}
+                onNavigate={() => undefined}
+            />
             <div className="app__main">
                 <Header />
                 <main className="app__content" key={location.pathname}>

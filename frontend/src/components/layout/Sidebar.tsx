@@ -100,7 +100,14 @@ const navGroups: NavGroup[] = [
     },
 ];
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+    collapsed: boolean;
+    mobileOpen: boolean;
+    onToggle: () => void;
+    onNavigate: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNavigate }) => {
     const location = useLocation();
     const { theme } = useTheme();
     const { user } = useAuth();
@@ -117,7 +124,6 @@ const Sidebar: React.FC = () => {
             }))
             .filter(group => group.items.length > 0);
     }, [user?.permissions]);
-    const [collapsed, setCollapsed] = useState(false);
 
     const toggleGroup = (titleEn: string) => {
         setOpenGroups(prev => {
@@ -129,7 +135,7 @@ const Sidebar: React.FC = () => {
     };
 
     return (
-        <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`}>
+        <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''} ${mobileOpen ? 'sidebar--mobile-open' : ''}`}>
             {/* Logo */}
             <div className="sidebar-brand">
                 <div className="sidebar-brand__icon">
@@ -141,17 +147,11 @@ const Sidebar: React.FC = () => {
                         <span className="sidebar-brand__sub">Energy Monitoring</span>
                     </div>
                 )}
-            </div>
-
-            {/* Toggle — separate row below brand */}
-            <div className="sidebar-toggle-row">
-                <button
-                    className="sidebar-toggle"
-                    onClick={() => setCollapsed(!collapsed)}
-                    title={collapsed ? t('ขยาย', 'Expand') : t('ยุบ', 'Collapse')}
-                >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }}>
-                        <polyline points="15 18 9 12 15 6" />
+                <button className="sidebar-hamburger" onClick={onToggle} title={collapsed ? t('เปิดเมนู', 'Open menu') : t('ยุบเมนู', 'Collapse menu')}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <line x1="4" y1="6" x2="20" y2="6" />
+                        <line x1="4" y1="12" x2="20" y2="12" />
+                        <line x1="4" y1="18" x2="20" y2="18" />
                     </svg>
                 </button>
             </div>
@@ -188,6 +188,7 @@ const Sidebar: React.FC = () => {
                                                 `sidebar-link ${isActive ? 'sidebar-link--active' : ''}`
                                             }
                                             title={itemLabel}
+                                            onClick={onNavigate}
                                         >
                                             <span className="sidebar-link__icon">
                                                 <IconComp size={18} strokeWidth={1.8} />
