@@ -1,14 +1,18 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
-import { reportsApi } from '../../api/client';
+import { dashboardApi, reportsApi } from '../../api/client';
+import * as XLSX from 'xlsx';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 const THEMES = {
     light: {
@@ -30,29 +34,40 @@ const HistoryReportPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
-    const [currentFilters, setCurrentFilters] = useState<FilterValues>({});
+    const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
+    const [meterOptions, setMeterOptions] = useState<any[]>([]);
 
-    const fetchData = useCallback(async (filters: FilterValues) => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
-        setCurrentFilters(filters);
         try {
-            const res = await reportsApi.getHistory({ ...filters, page, limit });
+            const res = await reportsApi.getHistory({ ...currentFilters, page, limit });
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit]);
+    }, [currentFilters, page, limit]);
 
-    const handleExport = async () => {
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        dashboardApi.getConsumptionMeters(currentFilters)
+            .then(res => setMeterOptions(res.data.data || []))
+            .catch(console.error);
+    }, [currentFilters.siteId, currentFilters.buildingId, currentFilters.zoneId,
+        currentFilters.meterTypeId, currentFilters.startDate, currentFilters.endDate]);
+
+    const handleFilterSubmit = (filters: FilterValues) => {
+        setPage(1);
+        setCurrentFilters(filters);
+    };
+
+    const handleExport = () => {
         try {
-            const res = await reportsApi.exportExcel('history', currentFilters);
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `history_${new Date().toISOString().substring(0, 10)}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            const exportRows = data.map(({ meter_id, ...row }) => row);
+            const sheet = XLSX.utils.json_to_sheet(exportRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, sheet, 'History');
+            XLSX.writeFile(workbook, `history_${today}_page_${page}.xlsx`);
         } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
     };
 
@@ -103,12 +118,13 @@ const HistoryReportPage: React.FC = () => {
                 </div>
             </div>
             <FilterBar
-                onSubmit={fetchData}
+                onSubmit={handleFilterSubmit}
                 loading={loading}
                 showSearchMeter
+                meterOptions={meterOptions}
                 actions={<ExportButtons onExportExcel={handleExport} />}
             />
-            <DataTable title={t('ข้อมูลพลังงานย้อนหลัง', 'Historical Energy Data')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('ข้อมูลพลังงานย้อนหลัง', 'Historical Energy Data')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />
         </div>
     );
 };

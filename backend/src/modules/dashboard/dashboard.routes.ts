@@ -10,5 +10,6 @@ router.get('/zone-consumption', authenticate, c.getZoneConsumption);
 router.get('/mdb-consumption', authenticate, c.getMdbConsumption);
 router.get('/demand', authenticate, c.getDemandData);
 router.get('/consumption-table', authenticate, c.getConsumptionTable);
+router.get('/consumption-meters', authenticate, c.getConsumptionMeters);
 
 export default router;

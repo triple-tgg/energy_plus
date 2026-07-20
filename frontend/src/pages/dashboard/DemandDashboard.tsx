@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
 import { dashboardApi } from '../../api/client';
@@ -14,6 +14,9 @@ import {
 } from 'chart.js';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 const THEMES = {
     light: {
@@ -32,21 +35,18 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const DemandDashboard: React.FC = () => {
     const { theme } = useTheme();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const C = THEMES[theme];
     const [loading, setLoading] = useState(false);
     const [chartData, setChartData] = useState<any>(null);
     const [summary, setSummary] = useState<any>(null);
+    const [filters, setFilters] = useState<FilterValues>({ startDate: today, endDate: today });
+    const [meterOptions, setMeterOptions] = useState<any[]>([]);
 
-    const fetchData = useCallback(async (filters: FilterValues) => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await dashboardApi.getDemand({
-                siteId: filters.siteId,
-                buildingId: filters.buildingId,
-                startDate: filters.startDate,
-                endDate: filters.endDate,
-            });
+            const res = await dashboardApi.getDemand(filters);
             const d = res.data.data || res.data;
 
             const summaryObj = {
@@ -54,14 +54,18 @@ const DemandDashboard: React.FC = () => {
                 peakDemand: d.peakDemand || d.peak_demand || 0,
                 setpoint: d.setpoint || d.demand_setpoint || 0,
                 warningLevel: d.warningLevel || d.warning_level || 0,
+                averageDemand: d.averageDemand || d.average_demand || 0,
+                meterCount: d.meterCount || d.meter_count || 0,
+                lastReceivedAt: d.lastReceivedAt || d.last_received_at,
             };
             setSummary(summaryObj);
 
             const history = d.history || d.timeseries || [];
+            setChartData(null);
             if (history.length > 0) {
                 const activeC = THEMES[localStorage.getItem('ec-theme') as 'light' | 'dark' || 'light'];
                 setChartData({
-                    labels: history.map((h: any) => h.time || h.timestamp),
+                    labels: history.map((h: any) => new Date(h.time || h.timestamp).toLocaleString(language === 'th' ? 'th-TH' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' })),
                     datasets: [
                         {
                             label: t('ดีมานด์จริง (kW)', 'Actual Demand (kW)'),
@@ -92,7 +96,15 @@ const DemandDashboard: React.FC = () => {
             console.error(err);
         }
         setLoading(false);
-    }, []);
+    }, [filters, language]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        dashboardApi.getConsumptionMeters(filters)
+            .then(res => setMeterOptions(res.data.data || []))
+            .catch(console.error);
+    }, [filters.siteId, filters.buildingId, filters.zoneId, filters.startDate, filters.endDate]);
 
     const gaugePercent = summary ? Math.min((summary.currentDemand / (summary.setpoint || 1)) * 100, 100) : 0;
     const gaugeColor = gaugePercent > 90 ? C.red : gaugePercent > 75 ? C.yellow : C.green;
@@ -110,7 +122,14 @@ const DemandDashboard: React.FC = () => {
                 </div>
             </div>
 
-            <FilterBar onSubmit={fetchData} loading={loading} showMeterType={false} showZone={false} />
+            <FilterBar
+                onSubmit={setFilters}
+                loading={loading}
+                showMeterType={false}
+                showZone
+                showSearchMeter
+                meterOptions={meterOptions}
+            />
 
             {/* Summary Cards */}
             {summary && (
@@ -128,6 +147,11 @@ const DemandDashboard: React.FC = () => {
                         <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.8px', marginBottom: 8 }}>{t('ดีมานด์พีคสูงสุด', 'Peak Demand')}</div>
                         <div style={{ fontSize: 32, fontWeight: 700, fontFamily: MONO, color: C.red }}>{Number(summary.peakDemand).toLocaleString()}</div>
                         <div style={{ fontSize: 12, fontFamily: MONO, color: C.sub }}>kW</div>
+                    </div>
+                    <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 0, padding: '20px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.8px', marginBottom: 8 }}>{t('ดีมานด์เฉลี่ย', 'Average Demand')}</div>
+                        <div style={{ fontSize: 32, fontWeight: 700, fontFamily: MONO, color: C.accent }}>{Number(summary.averageDemand).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                        <div style={{ fontSize: 12, fontFamily: MONO, color: C.sub }}>kW · {summary.meterCount} {t('มิเตอร์', 'meters')}</div>
                     </div>
                     <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 0, padding: '20px', textAlign: 'center' }}>
                         <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.8px', marginBottom: 8 }}>{t('ค่าเป้าหมาย (Setpoint)', 'Setpoint')}</div>

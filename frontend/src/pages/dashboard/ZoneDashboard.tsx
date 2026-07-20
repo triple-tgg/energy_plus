@@ -820,7 +820,11 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
 }
 
 /* ═══════════════════ MAIN DASHBOARD ═══════════════════ */
-const ZoneDashboard: React.FC = () => {
+interface ZoneDashboardProps {
+    // 'zone' = ตัดมิเตอร์ MDB ออก · 'mdb' = เอาเฉพาะมิเตอร์ชนิด MDB
+    variant?: 'zone' | 'mdb';
+}
+const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     const { t, language } = useLanguage();
     const [dashboardData, setDashboardData] = useState<ZoneDashboardPayload>({
         tree: [],
@@ -869,7 +873,7 @@ const ZoneDashboard: React.FC = () => {
         let mounted = true;
         const load = async () => {
             try {
-                const params: any = {};
+                const params: any = { mdb: variant === 'mdb' ? 'only' : 'exclude' };
                 if (currentSiteId) params.siteId = currentSiteId;
                 if (currentBuildingId) params.buildingId = currentBuildingId;
                 if (currentFloor) params.floor = currentFloor;
@@ -897,7 +901,7 @@ const ZoneDashboard: React.FC = () => {
         const a = setInterval(load, 10000);
         const b = setInterval(() => setClock(Date.now()), 1000);
         return () => { mounted = false; clearInterval(a); clearInterval(b); };
-    }, [language, currentSiteId, currentBuildingId, currentFloor, currentZoneId]);
+    }, [language, currentSiteId, currentBuildingId, currentFloor, currentZoneId, variant]);
 
     const now = clock;
     const metersUnder = (p: string[]) => meters.filter((m) => p.every((id, i) => m.pathIds[i] === id));
@@ -999,10 +1003,10 @@ const ZoneDashboard: React.FC = () => {
             {/* Command bar */}
             <div style={{ background: C.bar, color: '#fff', display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderRight: `1px solid #ffffff1a` }}>
-                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><Gauge size={16} /></div>
+                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}>{variant === 'mdb' ? <LayoutGrid size={16} /> : <Gauge size={16} />}</div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>ENERGY//CONSOLE</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ระบบติดตามการใช้พลังงาน', 'Energy Consumption Monitoring · Console')}</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{variant === 'mdb' ? 'MDB//CONSOLE' : 'ENERGY//CONSOLE'}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{variant === 'mdb' ? t('ติดตามการใช้พลังงานเฉพาะตู้ MDB', 'MDB Energy Monitoring · Console') : t('ระบบติดตามการใช้พลังงาน', 'Energy Consumption Monitoring · Console')}</div>
                     </div>
                 </div>
 

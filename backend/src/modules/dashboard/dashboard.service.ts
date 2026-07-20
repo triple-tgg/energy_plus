@@ -1,5 +1,6 @@
 import { query } from '../../config/database';
 import { aggregationConfig } from '../../config/aggregation';
+import { parsePagination } from '../../utils/pagination';
 
 const numberOrNull = (value: any): number | null => {
     if (value === undefined || value === null || value === '') return null;
@@ -18,6 +19,18 @@ export class DashboardService {
         const buildingId = numberOrNull(queryParams.buildingId);
         const floor = numberOrNull(queryParams.floor);
         const zoneId = numberOrNull(queryParams.zoneId);
+
+        // MDB scope: มิเตอร์ที่เป็นชนิด "MDB" ระบุจาก meter_type ชื่อ MDB (case-insensitive)
+        //   mdb=only    → เอาเฉพาะมิเตอร์ MDB (หน้า /dashboard/mdb)
+        //   mdb=exclude → ตัดมิเตอร์ MDB ออก (หน้า /dashboard/zone)
+        const mdbScope = String(queryParams.mdb || '').toLowerCase();
+        const MDB_MATCH = `EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%')`;
+        const mdbSql = mdbScope === 'only'
+            ? ` AND ${MDB_MATCH}`
+            : mdbScope === 'exclude'
+                ? ` AND NOT ${MDB_MATCH}`
+                : '';
+
         const params: any[] = [];
         let meterFilter = 'WHERE m.is_active IS DISTINCT FROM false';
         if (siteId) {
@@ -36,6 +49,7 @@ export class DashboardService {
             params.push(zoneId);
             meterFilter += ` AND m.zone_id = $${params.length}`;
         }
+        meterFilter += mdbSql;
 
         const metersResult = await query(
             `WITH latest AS (
@@ -155,7 +169,7 @@ export class DashboardService {
             trendParams.push(zoneId);
             trendFilters.push(`m.zone_id = $${trendParams.length}`);
         }
-        const trendSiteFilter = trendFilters.length > 0 ? 'AND ' + trendFilters.join(' AND ') : '';
+        const trendSiteFilter = (trendFilters.length > 0 ? 'AND ' + trendFilters.join(' AND ') : '') + mdbSql;
         const bucketExpr = (source: string) => `
             date_trunc('hour', ${source})
               + (floor(extract(minute from ${source}) / $1::int) * $1::int) * interval '1 minute'
@@ -238,6 +252,7 @@ export class DashboardService {
                   ${compBuildingFilter}
                   ${compFloorFilter}
                   ${compZoneFilter}
+                  ${mdbSql}
             ),
             hourly_meter AS (
                 SELECT
@@ -515,50 +530,210 @@ export class DashboardService {
     }
 
     async getDemandData(queryParams: any) {
-        const { siteId } = queryParams;
+        const { siteId, buildingId, zoneId, meterId, startDate, endDate } = queryParams;
         const params: any[] = [];
-        let whereClause = `WHERE d.date_keep >= NOW() - INTERVAL '30 days'`;
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
+        const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
+
+        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
+        if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
+        if (meterId) { params.push(parseInt(meterId)); filters.push(`m.meter_id = $${params.length}`); }
+        if (startDate) { params.push(startDate); filters.push(`r.received_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
+        else filters.push(`r.received_at >= date_trunc('day', NOW() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok'`);
+        if (endDate) { params.push(endDate); filters.push(`r.received_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
 
         const result = await query(
-            `SELECT DATE(d.date_keep) as date,
-              MAX(d.energy_kw) as peak_demand,
-              AVG(d.energy_kw) as avg_demand
-       FROM actual_meter_data d
-       JOIN meter m ON d.meter_id = m.meter_id
-       ${whereClause}
-       GROUP BY DATE(d.date_keep)
-       ORDER BY DATE(d.date_keep)`,
+            `WITH mapped AS (
+                SELECT r.*, COALESCE(rmm.meter_id, fallback_meter.meter_id) AS mapped_meter_id
+                FROM meter_data_realtime r
+                LEFT JOIN realtime_meter_map rmm
+                  ON rmm.realtime_site_id = r.site_id
+                 AND rmm.realtime_address_id = r.address_id
+                 AND rmm.is_active = true
+                 AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+                LEFT JOIN meter fallback_meter
+                  ON fallback_meter.site_el = r.site_id
+                 AND fallback_meter.address::text = r.address_id::text
+                 AND rmm.id IS NULL
+            ),
+            scoped AS (
+                SELECT r.*, m.meter_id, m.site_id AS meter_site_id, s.site_name,
+                    date_trunc('hour', r.received_at)
+                      + floor(extract(minute from r.received_at) / 15) * interval '15 minutes' AS bucket,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY m.meter_id,
+                            date_trunc('hour', r.received_at) + floor(extract(minute from r.received_at) / 15) * interval '15 minutes'
+                        ORDER BY r.received_at DESC, r.id DESC
+                    ) AS bucket_rank,
+                    ROW_NUMBER() OVER (PARTITION BY m.meter_id ORDER BY r.received_at DESC, r.id DESC) AS latest_rank
+                FROM mapped r
+                JOIN meter m ON m.meter_id = r.mapped_meter_id
+                LEFT JOIN sites s ON s.site_id = m.site_id
+                WHERE ${filters.join(' AND ')}
+            ),
+            history AS (
+                SELECT bucket AS time, SUM(COALESCE(kw_3ph, 0)) AS demand
+                FROM scoped WHERE bucket_rank = 1
+                GROUP BY bucket
+            ),
+            current_value AS (
+                SELECT SUM(COALESCE(kw_3ph, 0)) AS demand,
+                       MAX(received_at) AS last_received_at,
+                       COUNT(*)::int AS meter_count
+                FROM scoped WHERE latest_rank = 1
+            ),
+            selected_sites AS (
+                SELECT DISTINCT meter_site_id AS site_id, site_name FROM scoped
+            ),
+            latest_configs AS (
+                SELECT DISTINCT ON (display_name) display_name, warning_setpoint, peak_setpoint
+                FROM demand_peak_config
+                WHERE is_active = true
+                ORDER BY display_name, config_id DESC
+            ),
+            thresholds AS (
+                SELECT
+                    COALESCE(SUM(lc.warning_setpoint), 0) AS warning_level,
+                    COALESCE(SUM(lc.peak_setpoint), 0) AS setpoint
+                FROM selected_sites ss
+                LEFT JOIN LATERAL (
+                    SELECT warning_setpoint, peak_setpoint
+                    FROM latest_configs lc
+                    WHERE ss.site_name ILIKE '%' || split_part(lc.display_name, ' ', 1) || '%'
+                    ORDER BY length(lc.display_name) DESC
+                    LIMIT 1
+                ) lc ON true
+            )
+            SELECT
+                COALESCE(cv.demand, 0) AS current_demand,
+                COALESCE((SELECT MAX(demand) FROM history), 0) AS peak_demand,
+                COALESCE((SELECT AVG(demand) FROM history), 0) AS average_demand,
+                th.setpoint, th.warning_level,
+                cv.last_received_at, COALESCE(cv.meter_count, 0) AS meter_count,
+                COALESCE((SELECT json_agg(json_build_object('time', time, 'demand', demand) ORDER BY time) FROM history), '[]') AS history
+            FROM current_value cv CROSS JOIN thresholds th`,
             params
         );
-        return result.rows;
+        return result.rows[0] || {
+            current_demand: 0, peak_demand: 0, average_demand: 0,
+            setpoint: 0, warning_level: 0, meter_count: 0, history: [],
+        };
     }
 
     async getConsumptionTable(queryParams: any) {
-        const { siteId, zoneId, period } = queryParams;
+        const { page, limit, offset } = parsePagination(queryParams);
+        const { siteId, buildingId, zoneId, meterTypeId, meterId, startDate, endDate, searchMeter } = queryParams;
         const params: any[] = [];
-        let dateFilter = '';
+        const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
-        if (period === 'month') {
-            dateFilter = `AND d.date_keep >= NOW() - INTERVAL '30 days'`;
-        } else {
-            dateFilter = `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
+        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
+        if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
+        if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
+        if (meterId) { params.push(parseInt(meterId)); filters.push(`m.meter_id = $${params.length}`); }
+        if (startDate) {
+            params.push(startDate);
+            filters.push(`r.received_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`);
+        }
+        if (endDate) {
+            params.push(endDate);
+            filters.push(`r.received_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`);
+        }
+        if (searchMeter) {
+            params.push(`%${String(searchMeter).trim()}%`);
+            filters.push(`(m.meter_code ILIKE $${params.length} OR m.meter_name ILIKE $${params.length})`);
         }
 
-        let whereClause = `WHERE 1=1 ${dateFilter}`;
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
-        if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
+        const mappedReadings = `
+            SELECT
+                r.*,
+                COALESCE(rmm.meter_id, fallback_meter.meter_id) AS mapped_meter_id
+            FROM meter_data_realtime r
+            LEFT JOIN realtime_meter_map rmm
+              ON rmm.realtime_site_id = r.site_id
+             AND rmm.realtime_address_id = r.address_id
+             AND rmm.is_active = true
+             AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+            LEFT JOIN meter fallback_meter
+              ON fallback_meter.site_el = r.site_id
+             AND fallback_meter.address::text = r.address_id::text
+             AND rmm.id IS NULL
+        `;
+        const whereClause = `WHERE ${filters.join(' AND ')}`;
+        const baseCtes = `
+            WITH mapped_readings AS (${mappedReadings}),
+            scoped AS (
+                SELECT
+                    r.*,
+                    m.meter_id, m.meter_code, m.meter_name, m.room_name,
+                    b.building_name, z.zone_name,
+                    FIRST_VALUE(r.import_kwhr) OVER (
+                        PARTITION BY m.meter_id ORDER BY r.received_at, r.id
+                    ) AS first_kwh,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY m.meter_id ORDER BY r.received_at DESC, r.id DESC
+                    ) AS latest_rank
+                FROM mapped_readings r
+                JOIN meter m ON m.meter_id = r.mapped_meter_id
+                LEFT JOIN buildings b ON b.building_id = m.building_id
+                LEFT JOIN zones z ON z.zone_id = m.zone_id
+                ${whereClause}
+            )`;
+
+        const countResult = await query(
+            `${baseCtes} SELECT COUNT(*)::int AS total FROM scoped WHERE latest_rank = 1`,
+            params
+        );
+
+        const dataParams = [...params, limit, offset];
+        const result = await query(
+            `${baseCtes}
+             SELECT
+                meter_id, meter_code, meter_name, building_name, zone_name, room_name,
+                received_at, device_datetime,
+                import_kwhr AS kwh,
+                kw_3ph AS kw,
+                kva_3ph AS kva,
+                hz AS frequency,
+                GREATEST(COALESCE(import_kwhr, 0) - COALESCE(first_kwh, import_kwhr, 0), 0) AS consumption
+             FROM scoped
+             WHERE latest_rank = 1
+             ORDER BY received_at DESC, meter_code
+             LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+            dataParams
+        );
+
+        return { data: result.rows, total: Number(countResult.rows[0]?.total || 0), page, limit };
+    }
+
+    async getConsumptionMeters(queryParams: any) {
+        const { siteId, buildingId, zoneId, meterTypeId, startDate, endDate } = queryParams;
+        const params: any[] = [];
+        const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
+
+        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
+        if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
+        if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
+        if (startDate) { params.push(startDate); filters.push(`r.received_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
+        if (endDate) { params.push(endDate); filters.push(`r.received_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
 
         const result = await query(
-            `SELECT z.zone_name, DATE(d.date_keep) as date,
-              MAX(d.energy_kwh) as kwh,
-              MAX(d.energy_kwh) - MIN(d.energy_kwh) as consumption
-       FROM actual_meter_data d
-       JOIN meter m ON d.meter_id = m.meter_id
-       JOIN zones z ON m.zone_id = z.zone_id
-       ${whereClause}
-       GROUP BY z.zone_name, DATE(d.date_keep)
-       ORDER BY z.zone_name, DATE(d.date_keep) DESC`,
+            `SELECT DISTINCT m.meter_id, m.meter_code, m.meter_name,
+                    m.site_id, m.building_id, m.zone_id, m.meter_type_id
+             FROM meter_data_realtime r
+             LEFT JOIN realtime_meter_map rmm
+               ON rmm.realtime_site_id = r.site_id
+              AND rmm.realtime_address_id = r.address_id
+              AND rmm.is_active = true
+              AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+             LEFT JOIN meter fallback_meter
+               ON fallback_meter.site_el = r.site_id
+              AND fallback_meter.address::text = r.address_id::text
+              AND rmm.id IS NULL
+             JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, fallback_meter.meter_id)
+             WHERE ${filters.join(' AND ')}
+             ORDER BY m.meter_code, m.meter_name`,
             params
         );
         return result.rows;

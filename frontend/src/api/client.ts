@@ -143,6 +143,7 @@ export const dashboardApi = {
     getMdbConsumption: (params?: any) => api.get('/dashboard/mdb-consumption', { params }),
     getDemand: (params?: any) => api.get('/dashboard/demand', { params }),
     getConsumptionTable: (params?: any) => api.get('/dashboard/consumption-table', { params }),
+    getConsumptionMeters: (params?: any) => api.get('/dashboard/consumption-meters', { params }),
 };
 
 // Reports
@@ -192,4 +193,3 @@ export const realtimeApi = {
     getHistory: (params?: any) => api.get('/redis/history', { params }),
     getChannels: () => api.get('/redis/channels'),
 };
-

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
@@ -8,6 +8,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 const THEMES = {
     light: {
@@ -32,26 +35,32 @@ const AlarmReportPage: React.FC = () => {
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
+    const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
 
-    const fetchData = useCallback(async (filters: FilterValues) => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const res = await reportsApi.getAlarms({
-                startDate: filters.startDate,
-                endDate: filters.endDate,
+                ...currentFilters,
                 page, limit,
             });
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit]);
+    }, [currentFilters, page, limit]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const handleFilterSubmit = (filters: FilterValues) => {
+        setPage(1);
+        setCurrentFilters(filters);
+    };
 
     const handleAcknowledge = async (row: any) => {
         try {
             await reportsApi.acknowledgeAlarm(row.id);
             setSuccessMsg(t('ยืนยัน (Acknowledge) สำเร็จ!', 'Acknowledged successfully!'));
-            // Refresh current data
             setData(prev => prev.map(d => d.id === row.id ? { ...d, acknowledged: true, acknowledged_at: new Date().toISOString() } : d));
             setTimeout(() => setSuccessMsg(''), 3000);
         } catch (err) {
@@ -110,14 +119,14 @@ const AlarmReportPage: React.FC = () => {
                 </div>
             </div>
             <FilterBar
-                onSubmit={fetchData}
+                onSubmit={handleFilterSubmit}
                 loading={loading}
                 showMeterType={false}
                 showSite={false}
                 showBuilding={false}
                 showZone={false}
             />
-            <DataTable title={t('ข้อมูลการแจ้งเตือน', 'Alarm Logs')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('ข้อมูลการแจ้งเตือน', 'Alarm Logs')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />
         </div>
     );
 };

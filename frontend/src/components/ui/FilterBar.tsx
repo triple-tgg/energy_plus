@@ -10,6 +10,8 @@ export interface FilterValues {
     buildingId?: string;
     zoneId?: string;
     searchMeter?: string;
+    search?: string;
+    meterId?: string;
     month?: string;
     year?: string;
 }
@@ -25,9 +27,12 @@ interface FilterBarProps {
     showSearchMeter?: boolean;
     loading?: boolean;
     actions?: React.ReactNode;
+    meterOptions?: any[];
 }
 
-const today = new Date().toISOString().substring(0, 10);
+const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 const FilterBar: React.FC<FilterBarProps> = ({
     onSubmit,
@@ -40,6 +45,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     showSearchMeter = false,
     loading = false,
     actions,
+    meterOptions,
 }) => {
     const { language, t } = useLanguage();
     const [filters, setFilters] = useState<FilterValues>({
@@ -50,6 +56,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         buildingId: '',
         zoneId: '',
         searchMeter: '',
+        meterId: '',
         month: String(new Date().getMonth() + 1),
         year: String(new Date().getFullYear()),
     });
@@ -154,7 +161,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
                 {showMeterType && (
                     <div className="filter-bar__item">
-                        <select className="form-control form-control-sm" value={filters.meterTypeId} onChange={e => update('meterTypeId', e.target.value)}>
+                        <select className="form-control form-control-sm" value={filters.meterTypeId} onChange={e => { update('meterTypeId', e.target.value); update('meterId', ''); }}>
                             <option value="">{t('ประเภททั้งหมด', 'All Types')}</option>
                             {meterTypes.map((t: any) => (
                                 <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>
@@ -165,7 +172,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
                 {showSite && (
                     <div className="filter-bar__item">
-                        <select className="form-control form-control-sm" value={filters.siteId} onChange={e => { update('siteId', e.target.value); update('buildingId', ''); update('zoneId', ''); }}>
+                        <select className="form-control form-control-sm" value={filters.siteId} onChange={e => { update('siteId', e.target.value); update('buildingId', ''); update('zoneId', ''); update('meterId', ''); }}>
                             <option value="">{t('ไซต์ทั้งหมด', 'All Sites')}</option>
                             {sites.map((s: any) => (
                                 <option key={s.site_id} value={s.site_id}>{s.site_name}</option>
@@ -176,7 +183,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
                 {showBuilding && (
                     <div className="filter-bar__item">
-                        <select className="form-control form-control-sm" value={filters.buildingId} onChange={e => { update('buildingId', e.target.value); update('zoneId', ''); }}>
+                        <select className="form-control form-control-sm" value={filters.buildingId} onChange={e => { update('buildingId', e.target.value); update('zoneId', ''); update('meterId', ''); }}>
                             <option value="">{t('อาคารทั้งหมด', 'All Buildings')}</option>
                             {buildings.map((b: any) => (
                                 <option key={b.building_id} value={b.building_id}>{b.building_name}</option>
@@ -187,7 +194,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
                 {showZone && (
                     <div className="filter-bar__item">
-                        <select className="form-control form-control-sm" value={filters.zoneId} onChange={e => update('zoneId', e.target.value)}>
+                        <select className="form-control form-control-sm" value={filters.zoneId} onChange={e => { update('zoneId', e.target.value); update('meterId', ''); }}>
                             <option value="">{t('โซนทั้งหมด', 'All Zones')}</option>
                             {zones.map((z: any) => (
                                 <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>
@@ -198,13 +205,27 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
                 {showSearchMeter && (
                     <div className="filter-bar__item">
-                        <input
-                            type="text"
-                            className="form-control form-control-sm"
-                            placeholder={t('ค้นหามิเตอร์...', 'Search Meter...')}
-                            value={filters.searchMeter}
-                            onChange={e => update('searchMeter', e.target.value)}
-                        />
+                        {meterOptions ? (
+                            <select className="form-control form-control-sm" value={filters.meterId} onChange={e => update('meterId', e.target.value)}>
+                                <option value="">{t('มิเตอร์ทั้งหมดที่มีข้อมูล', 'All Meters With Data')}</option>
+                                {meterOptions.filter((m: any) =>
+                                    (!filters.siteId || String(m.site_id) === filters.siteId) &&
+                                    (!filters.buildingId || String(m.building_id) === filters.buildingId) &&
+                                    (!filters.zoneId || String(m.zone_id) === filters.zoneId) &&
+                                    (!filters.meterTypeId || String(m.meter_type_id) === filters.meterTypeId)
+                                ).map((m: any) => (
+                                    <option key={m.meter_id} value={m.meter_id}>{m.meter_code} — {m.meter_name}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                placeholder={t('ค้นหามิเตอร์...', 'Search Meter...')}
+                                value={filters.searchMeter}
+                                onChange={e => update('searchMeter', e.target.value)}
+                            />
+                        )}
                     </div>
                 )}
 

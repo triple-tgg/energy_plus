@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { DashboardService } from './dashboard.service';
-import { successResponse } from '../../utils/response';
+import { paginationHelper, successResponse } from '../../utils/response';
 
 const svc = new DashboardService();
 
@@ -18,6 +18,16 @@ export class DashboardController {
         try { res.json(successResponse(await svc.getDemandData(req.query))); } catch (e) { next(e); }
     }
     async getConsumptionTable(req: Request, res: Response, next: NextFunction) {
-        try { res.json(successResponse(await svc.getConsumptionTable(req.query))); } catch (e) { next(e); }
+        try {
+            const result = await svc.getConsumptionTable(req.query);
+            res.json(successResponse(
+                result.data,
+                undefined,
+                paginationHelper(result.page, result.limit, result.total)
+            ));
+        } catch (e) { next(e); }
+    }
+    async getConsumptionMeters(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await svc.getConsumptionMeters(req.query))); } catch (e) { next(e); }
     }
 }

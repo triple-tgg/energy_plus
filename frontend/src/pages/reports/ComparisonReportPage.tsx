@@ -1,14 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
 import { reportsApi } from '../../api/client';
+import * as XLSX from 'xlsx';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+const currentDate = new Date();
 
 const THEMES = {
     light: {
@@ -32,29 +34,40 @@ const ComparisonReportPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
-    const [currentFilters, setCurrentFilters] = useState<FilterValues>({});
+    const [currentFilters, setCurrentFilters] = useState<FilterValues>({
+        month: String(currentDate.getMonth() + 1), year: String(currentDate.getFullYear()),
+    });
 
-    const fetchData = useCallback(async (filters: FilterValues) => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
-        setCurrentFilters(filters);
         try {
-            const res = await reportsApi.getComparison({ ...filters, page, limit });
+            const res = await reportsApi.getComparison({ ...currentFilters, page, limit });
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit]);
+    }, [currentFilters, page, limit]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const handleFilterSubmit = (filters: FilterValues) => {
+        setPage(1);
+        setCurrentFilters(filters);
+    };
 
     const handleExport = async () => {
         try {
-            const res = await reportsApi.exportExcel('comparison', currentFilters);
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `comparison_${new Date().toISOString().substring(0, 10)}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            const first = await reportsApi.getComparison({ ...currentFilters, page: 1, limit: 100 });
+            const firstRows = first.data.data || [];
+            const pages = first.data.pagination?.totalPages || 1;
+            const remaining = pages > 1 ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) =>
+                reportsApi.getComparison({ ...currentFilters, page: i + 2, limit: 100 })
+            )) : [];
+            const rows = [...firstRows, ...remaining.flatMap(res => res.data.data || [])];
+            const sheet = XLSX.utils.json_to_sheet(rows.map(({ meter_id, ...row }: any) => row));
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Comparison');
+            XLSX.writeFile(workbook, `comparison_${currentFilters.year}-${String(currentFilters.month).padStart(2, '0')}.xlsx`);
         } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
     };
 
@@ -110,13 +123,13 @@ const ComparisonReportPage: React.FC = () => {
                 </div>
             </div>
             <FilterBar
-                onSubmit={fetchData}
+                onSubmit={handleFilterSubmit}
                 loading={loading}
                 showDateRange={false}
                 showMonthYear
                 actions={<ExportButtons onExportExcel={handleExport} />}
             />
-            <DataTable title={t('เปรียบเทียบการใช้พลังงาน', 'Energy Consumption Comparison')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('เปรียบเทียบการใช้พลังงาน', 'Energy Consumption Comparison')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />
         </div>
     );
 };

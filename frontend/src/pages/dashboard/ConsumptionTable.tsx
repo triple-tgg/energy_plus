@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
@@ -9,6 +9,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 const THEMES = {
     light: {
@@ -30,19 +33,14 @@ const ConsumptionTable: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
-    const [currentFilters, setCurrentFilters] = useState<FilterValues>({});
+    const [meterOptions, setMeterOptions] = useState<any[]>([]);
+    const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
 
-    const fetchData = useCallback(async (filters: FilterValues) => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
-        setCurrentFilters(filters);
         try {
             const res = await dashboardApi.getConsumptionTable({
-                siteId: filters.siteId,
-                buildingId: filters.buildingId,
-                zoneId: filters.zoneId,
-                startDate: filters.startDate,
-                endDate: filters.endDate,
-                meterTypeId: filters.meterTypeId,
+                ...currentFilters,
                 page, limit,
             });
             setData(res.data.data || []);
@@ -51,7 +49,25 @@ const ConsumptionTable: React.FC = () => {
             console.error(err);
         }
         setLoading(false);
-    }, [page, limit]);
+    }, [currentFilters, page, limit]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        const loadMeterOptions = async () => {
+            try {
+                const res = await dashboardApi.getConsumptionMeters(currentFilters);
+                setMeterOptions(res.data.data || []);
+            } catch (err) { console.error(err); }
+        };
+        loadMeterOptions();
+    }, [currentFilters.siteId, currentFilters.buildingId, currentFilters.zoneId,
+        currentFilters.meterTypeId, currentFilters.startDate, currentFilters.endDate]);
+
+    const handleFilterSubmit = (filters: FilterValues) => {
+        setPage(1);
+        setCurrentFilters(filters);
+    };
 
     const handleExportExcel = async () => {
         try {
@@ -76,6 +92,10 @@ const ConsumptionTable: React.FC = () => {
         { key: 'zone_name', title: t('โซน', 'Zone') },
         { key: 'room_name', title: t('ห้อง', 'Room') },
         {
+            key: 'received_at', title: t('ข้อมูลล่าสุด', 'Last Received'),
+            render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-GB')) : '—',
+        },
+        {
             key: 'kwh', title: 'KWh',
             render: (v: number) => v != null ? <strong>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong> : '—',
         },
@@ -90,6 +110,10 @@ const ConsumptionTable: React.FC = () => {
         {
             key: 'frequency', title: 'Frequency',
             render: (v: number) => v != null ? Number(v).toFixed(2) : '—',
+        },
+        {
+            key: 'consumption', title: t('การใช้ไฟ', 'Consumption'),
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
     ];
 
@@ -107,9 +131,10 @@ const ConsumptionTable: React.FC = () => {
             </div>
 
             <FilterBar
-                onSubmit={fetchData}
+                onSubmit={handleFilterSubmit}
                 loading={loading}
                 showSearchMeter
+                meterOptions={meterOptions}
                 actions={
                     <ExportButtons onExportExcel={handleExportExcel} />
                 }
@@ -125,6 +150,7 @@ const ConsumptionTable: React.FC = () => {
                 loading={loading}
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
+                onSearch={(searchMeter) => { setPage(1); setCurrentFilters(prev => ({ ...prev, searchMeter })); }}
             />
         </div>
     );

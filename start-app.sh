@@ -7,6 +7,10 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Load nvm so npm/node are on PATH in this non-interactive shell
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
 echo -e "${YELLOW}⚡ Starting EnergyPlus Application (Backend + Frontend)...${NC}"
 
 # Function to check if a port is in use

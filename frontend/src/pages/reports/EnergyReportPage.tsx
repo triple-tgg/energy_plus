@@ -1,14 +1,18 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
-import { reportsApi } from '../../api/client';
+import { dashboardApi, reportsApi } from '../../api/client';
+import * as XLSX from 'xlsx';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
+const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 const THEMES = {
     light: {
@@ -30,34 +34,80 @@ const EnergyReportPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
-    const [currentFilters, setCurrentFilters] = useState<FilterValues>({});
+    const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
+    const [meterOptions, setMeterOptions] = useState<any[]>([]);
 
-    const fetchData = useCallback(async (filters: FilterValues) => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
-        setCurrentFilters(filters);
         try {
             const res = await reportsApi.getEnergyConsumption({
-                ...filters, page, limit,
+                ...currentFilters, page, limit,
             });
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit]);
+    }, [currentFilters, page, limit]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        dashboardApi.getConsumptionMeters(currentFilters)
+            .then(res => setMeterOptions(res.data.data || []))
+            .catch(console.error);
+    }, [currentFilters.siteId, currentFilters.buildingId, currentFilters.zoneId,
+        currentFilters.meterTypeId, currentFilters.startDate, currentFilters.endDate]);
+
+    const handleFilterSubmit = (filters: FilterValues) => {
+        setPage(1);
+        setCurrentFilters(filters);
+    };
 
     const handleExport = async (type: 'excel' | 'text') => {
         try {
-            const res = type === 'excel'
-                ? await reportsApi.exportExcel('energy-consumption', currentFilters)
-                : await reportsApi.exportText('energy-consumption', currentFilters);
-            const ext = type === 'excel' ? 'xlsx' : 'txt';
-            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const res = await reportsApi.getEnergyConsumption({ ...currentFilters, page: 1, limit: 100 });
+            const firstRows = res.data.data || [];
+            const totalPages = res.data.pagination?.totalPages || 1;
+            const remaining = totalPages > 1
+                ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) =>
+                    reportsApi.getEnergyConsumption({ ...currentFilters, page: i + 2, limit: 100 })
+                ))
+                : [];
+            const rows = [...firstRows, ...remaining.flatMap(r => r.data.data || [])];
+            const exportRows = rows.map((r: any) => ({
+                [t('รหัสมิเตอร์', 'Meter Code')]: r.meter_code,
+                [t('ชื่อลูกค้า', 'Customer Name')]: r.customer_name,
+                [t('อาคาร', 'Building')]: r.building_name,
+                [t('ชั้น', 'Floor')]: r.floor,
+                [t('รหัสสถานที่', 'Site Code')]: r.site_code,
+                [t('ชื่อสถานที่', 'Site Name')]: r.site_name,
+                [t('วันที่มิเตอร์ก่อนหน้า', 'Previous Reading Date')]: r.start_date,
+                [t('จำนวนหน่วยก่อนหน้า', 'Previous Reading')]: Number(r.start_reading || 0),
+                [t('วันที่มิเตอร์ล่าสุด', 'Latest Reading Date')]: r.end_date,
+                [t('จำนวนหน่วยล่าสุด', 'Latest Reading')]: Number(r.end_reading || 0),
+                [t('จำนวนหน่วยที่ใช้', 'Units Used')]: Number(r.units_used || 0),
+                [t('ราคาต่อหน่วย', 'Unit Price')]: Number(r.unit_price || 0),
+                [t('จำนวนเงิน', 'Amount')]: Number(r.total_amount || 0),
+            }));
+
+            if (type === 'excel') {
+                const sheet = XLSX.utils.json_to_sheet(exportRows);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, sheet, 'Energy Report');
+                XLSX.writeFile(workbook, `energy_report_${today}.xlsx`);
+                return;
+            }
+
+            const headers = exportRows.length ? Object.keys(exportRows[0]) : [];
+            const textContent = [headers.join('\t'), ...exportRows.map((r: any) => headers.map(h => r[h] ?? '').join('\t'))].join('\n');
+            const url = window.URL.createObjectURL(new Blob([textContent], { type: 'text/plain;charset=utf-8' }));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `energy_report_${new Date().toISOString().substring(0, 10)}.${ext}`);
+            link.setAttribute('download', `energy_report_${today}.txt`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            window.URL.revokeObjectURL(url);
         } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
     };
 
@@ -69,19 +119,19 @@ const EnergyReportPage: React.FC = () => {
         { key: 'site_code', title: t('รหัสสถานที่', 'Site Code') },
         { key: 'site_name', title: t('ชื่อสถานที่', 'Site Name') },
         {
-            key: 'start_date', title: t('วันที่เริ่มจด', 'Start Date'),
-            render: (v: string) => v ? new Date(v).toLocaleDateString(t('th-TH', 'en-US')) : '—',
+            key: 'start_date', title: t('วันที่มิเตอร์ก่อนหน้า', 'Previous Reading Date'),
+            render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-GB')) : '—',
         },
         {
-            key: 'start_reading', title: t('จำนวนเริ่มจด', 'Start Reading'),
+            key: 'start_reading', title: t('จำนวนหน่วยก่อนหน้า', 'Previous Reading'),
             render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
-            key: 'end_date', title: t('วันที่ล่าสุด', 'End Date'),
-            render: (v: string) => v ? new Date(v).toLocaleDateString(t('th-TH', 'en-US')) : '—',
+            key: 'end_date', title: t('วันที่มิเตอร์ล่าสุด', 'Latest Reading Date'),
+            render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-GB')) : '—',
         },
         {
-            key: 'end_reading', title: t('จำนวนล่าสุด', 'End Reading'),
+            key: 'end_reading', title: t('จำนวนหน่วยล่าสุด', 'Latest Reading'),
             render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
         {
@@ -111,8 +161,10 @@ const EnergyReportPage: React.FC = () => {
                 </div>
             </div>
             <FilterBar
-                onSubmit={fetchData}
+                onSubmit={handleFilterSubmit}
                 loading={loading}
+                showSearchMeter
+                meterOptions={meterOptions}
                 actions={
                     <ExportButtons
                         onExportExcel={() => handleExport('excel')}
@@ -120,7 +172,7 @@ const EnergyReportPage: React.FC = () => {
                     />
                 }
             />
-            <DataTable title={t('รายงานการใช้พลังงาน', 'Energy Consumption Report')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} />
+            <DataTable title={t('รายงานการใช้พลังงาน', 'Energy Consumption Report')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />
         </div>
     );
 };
