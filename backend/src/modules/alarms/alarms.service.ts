@@ -1,6 +1,7 @@
 import { query } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
+import { sendTelegramMessage, getTelegramChats } from '../../utils/telegram';
 
 export class AlarmsService {
     // Alarm Configs
@@ -67,5 +68,53 @@ export class AlarmsService {
         const result = await query(`DELETE FROM alarm_group WHERE alarm_group_id=$1 RETURNING alarm_group_id`, [id]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Alarm group not found');
         return result.rows[0];
+    }
+
+    async getAlarmGroupById(id: number) {
+        const result = await query(`SELECT * FROM alarm_group WHERE alarm_group_id=$1`, [id]);
+        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Alarm group not found');
+        return result.rows[0];
+    }
+
+    // ── Telegram Notifications ──
+    // ส่งข้อความแจ้งเตือนเข้ากลุ่ม Telegram (ใช้ Bot Token ของกลุ่มนั้นๆ)
+    async notifyGroup(id: number, message: string) {
+        const group = await this.getAlarmGroupById(id);
+        const token = String(group.telegram_token || '').trim();
+        const chatId = String(group.telegram_chat_id || '').trim();
+
+        if (!token) {
+            throw new AppError(400, 'TELEGRAM_NO_TOKEN',
+                'กลุ่มนี้ยังไม่ได้ตั้งค่า Telegram Bot Token — กรอกช่อง Telegram Token ก่อน');
+        }
+        if (!chatId) {
+            throw new AppError(400, 'TELEGRAM_NO_CHAT', 'กลุ่มนี้ยังไม่ได้ตั้งค่า Telegram Chat ID');
+        }
+
+        const res = await sendTelegramMessage(token, chatId, message);
+        if (!res.ok) {
+            throw new AppError(502, 'TELEGRAM_SEND_FAILED',
+                `ส่งข้อความ Telegram ไม่สำเร็จ: ${res.description || 'unknown error'}`);
+        }
+        return { sent: true, groupName: group.group_name, chatId, messageId: res.messageId };
+    }
+
+    // ดึงรายชื่อกลุ่ม/แชทที่บอทเห็น เพื่อเติม Chat ID อัตโนมัติในฟอร์ม
+    async detectTelegramChats(token: string) {
+        const tk = String(token || '').trim();
+        if (!tk) throw new AppError(400, 'TELEGRAM_NO_TOKEN', 'กรุณากรอก Telegram Bot Token ก่อน');
+        const res = await getTelegramChats(tk);
+        if (!res.ok) throw new AppError(502, 'TELEGRAM_GETUPDATES_FAILED', `ดึงข้อมูลจาก Telegram ไม่สำเร็จ: ${res.description || 'unknown error'}`);
+        return res.chats;
+    }
+
+    // ส่งข้อความทดสอบเพื่อตรวจว่าการเชื่อมต่อกลุ่ม Telegram ถูกต้อง
+    async sendTestMessage(id: number) {
+        const time = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+        const text =
+            `🔔 <b>EnergyPlus</b>\n` +
+            `✅ ทดสอบการเชื่อมต่อการแจ้งเตือนสำเร็จ\n` +
+            `🕒 ${time}`;
+        return this.notifyGroup(id, text);
     }
 }

@@ -634,6 +634,9 @@ export class DashboardService {
         if (startDate) {
             params.push(startDate);
             filters.push(`r.received_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`);
+        } else {
+            // ค่าเริ่มต้น: ต้นวันนี้ (กันการสแกนข้อมูลทั้งชุดถ้าไม่ได้ส่งช่วงวันมา)
+            filters.push(`r.received_at >= date_trunc('day', NOW() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok'`);
         }
         if (endDate) {
             params.push(endDate);
@@ -646,7 +649,7 @@ export class DashboardService {
 
         const mappedReadings = `
             SELECT
-                r.*,
+                r.import_kwhr, r.received_at,
                 COALESCE(rmm.meter_id, fallback_meter.meter_id) AS mapped_meter_id
             FROM meter_data_realtime r
             LEFT JOIN realtime_meter_map rmm
@@ -659,51 +662,53 @@ export class DashboardService {
              AND fallback_meter.address::text = r.address_id::text
              AND rmm.id IS NULL
         `;
-        const whereClause = `WHERE ${filters.join(' AND ')}`;
-        const baseCtes = `
-            WITH mapped_readings AS (${mappedReadings}),
+
+        // สรุปการใช้ไฟ "รายวันต่อมิเตอร์" ในช่วงที่เลือก (เหมือนระบบเดิม)
+        //  - kwh        = ค่ามิเตอร์สะสมล่าสุดของวันนั้น (import_kwhr เพิ่มขึ้นเรื่อยๆ → MAX = ค่าปลายวัน)
+        //  - consumption = ค่าปลายวันนี้ − ค่าปลายวันก่อนหน้า (วันแรกในช่วง = 0)
+        const dataParams = [...params, limit, offset];
+        const result = await query(
+            `WITH mapped_readings AS (${mappedReadings}),
             scoped AS (
                 SELECT
-                    r.*,
+                    r.import_kwhr, r.received_at,
                     m.meter_id, m.meter_code, m.meter_name, m.room_name,
                     b.building_name, z.zone_name,
-                    FIRST_VALUE(r.import_kwhr) OVER (
-                        PARTITION BY m.meter_id ORDER BY r.received_at, r.id
-                    ) AS first_kwh,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY m.meter_id ORDER BY r.received_at DESC, r.id DESC
-                    ) AS latest_rank
+                    (r.received_at AT TIME ZONE 'Asia/Bangkok')::date AS day
                 FROM mapped_readings r
                 JOIN meter m ON m.meter_id = r.mapped_meter_id
                 LEFT JOIN buildings b ON b.building_id = m.building_id
                 LEFT JOIN zones z ON z.zone_id = m.zone_id
-                ${whereClause}
-            )`;
-
-        const countResult = await query(
-            `${baseCtes} SELECT COUNT(*)::int AS total FROM scoped WHERE latest_rank = 1`,
-            params
-        );
-
-        const dataParams = [...params, limit, offset];
-        const result = await query(
-            `${baseCtes}
-             SELECT
+                WHERE ${filters.join(' AND ')}
+            ),
+            daily AS (
+                SELECT
+                    meter_id, meter_code, meter_name, room_name, building_name, zone_name, day,
+                    MAX(import_kwhr) AS kwh,
+                    MAX(received_at) AS received_at
+                FROM scoped
+                GROUP BY meter_id, meter_code, meter_name, room_name, building_name, zone_name, day
+            ),
+            daily_delta AS (
+                SELECT d.*,
+                    LAG(kwh) OVER (PARTITION BY meter_id ORDER BY day) AS prev_kwh
+                FROM daily d
+            )
+            SELECT
                 meter_id, meter_code, meter_name, building_name, zone_name, room_name,
-                received_at, device_datetime,
-                import_kwhr AS kwh,
-                kw_3ph AS kw,
-                kva_3ph AS kva,
-                hz AS frequency,
-                GREATEST(COALESCE(import_kwhr, 0) - COALESCE(first_kwh, import_kwhr, 0), 0) AS consumption
-             FROM scoped
-             WHERE latest_rank = 1
-             ORDER BY received_at DESC, meter_code
-             LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+                to_char(day, 'YYYY-MM-DD') AS date, received_at,
+                kwh,
+                GREATEST(kwh - COALESCE(prev_kwh, kwh), 0) AS consumption,
+                COUNT(*) OVER() AS total_count
+            FROM daily_delta
+            ORDER BY meter_code, day
+            LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
             dataParams
         );
 
-        return { data: result.rows, total: Number(countResult.rows[0]?.total || 0), page, limit };
+        const total = result.rows.length > 0 ? Number(result.rows[0].total_count) : 0;
+        const data = result.rows.map(({ total_count, ...rest }: any) => rest);
+        return { data, total, page, limit };
     }
 
     async getConsumptionMeters(queryParams: any) {

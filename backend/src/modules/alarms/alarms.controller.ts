@@ -31,4 +31,10 @@ export class AlarmsController {
     async deleteAlarmGroup(req: Request, res: Response, next: NextFunction) {
         try { await svc.deleteAlarmGroup(parseInt(req.params.id)); res.json(successResponse(null, 'Alarm group deleted')); } catch (e) { next(e); }
     }
+    async testAlarmGroup(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await svc.sendTestMessage(parseInt(req.params.id)), 'Telegram test message sent')); } catch (e) { next(e); }
+    }
+    async detectTelegramChats(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await svc.detectTelegramChats(req.body?.token))); } catch (e) { next(e); }
+    }
 }

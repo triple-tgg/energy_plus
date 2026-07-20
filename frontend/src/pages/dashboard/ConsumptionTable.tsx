@@ -90,29 +90,16 @@ const ConsumptionTable: React.FC = () => {
         { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
         { key: 'building_name', title: t('อาคาร', 'Building') },
         { key: 'zone_name', title: t('โซน', 'Zone') },
-        { key: 'room_name', title: t('ห้อง', 'Room') },
         {
-            key: 'received_at', title: t('ข้อมูลล่าสุด', 'Last Received'),
-            render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-GB')) : '—',
+            key: 'date', title: t('วันที่', 'Date'),
+            render: (v: string) => v ? new Date(v + 'T00:00:00').toLocaleDateString(t('th-TH', 'en-GB')) : '—',
         },
         {
             key: 'kwh', title: 'KWh',
             render: (v: number) => v != null ? <strong>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong> : '—',
         },
         {
-            key: 'kw', title: 'KW',
-            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
-        },
-        {
-            key: 'kva', title: 'KVA',
-            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
-        },
-        {
-            key: 'frequency', title: 'Frequency',
-            render: (v: number) => v != null ? Number(v).toFixed(2) : '—',
-        },
-        {
-            key: 'consumption', title: t('การใช้ไฟ', 'Consumption'),
+            key: 'consumption', title: t('การใช้ไฟ (kWh)', 'Consumption (kWh)'),
             render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
         },
     ];

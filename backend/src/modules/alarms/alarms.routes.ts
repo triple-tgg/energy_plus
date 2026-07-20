@@ -14,5 +14,7 @@ router.get('/groups', authenticate, c.getAlarmGroups);
 router.post('/groups', authenticate, c.createAlarmGroup);
 router.put('/groups/:id', authenticate, c.updateAlarmGroup);
 router.delete('/groups/:id', authenticate, c.deleteAlarmGroup);
+router.post('/groups/:id/test', authenticate, c.testAlarmGroup);
+router.post('/telegram/chats', authenticate, c.detectTelegramChats);
 
 export default router;

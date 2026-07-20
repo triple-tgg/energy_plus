@@ -122,6 +122,8 @@ export const alarmsApi = {
     createGroup: (data: any) => api.post('/alarms/groups', data),
     updateGroup: (id: number, data: any) => api.put(`/alarms/groups/${id}`, data),
     deleteGroup: (id: number) => api.delete(`/alarms/groups/${id}`),
+    testGroup: (id: number) => api.post(`/alarms/groups/${id}/test`),
+    detectChats: (token: string) => api.post('/alarms/telegram/chats', { token }),
 };
 
 // Billing
