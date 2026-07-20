@@ -172,36 +172,21 @@ const RealtimePage: React.FC = () => {
         return allBuildings.filter(b => b.site_id === selectedSiteId).map(b => ({ id: b.id, name: b.name }));
     }, [allBuildings, selectedSiteId]);
 
-    // Alarm logic
-    const checkAlarms = useCallback((data: RealtimeMeterData) => {
-        const newAlerts: typeof alerts = [];
-        const avgV = (parseNum(data.vl1) + parseNum(data.vl2) + parseNum(data.vl3)) / 3;
-
-        // Voltage anomaly
-        if (avgV > 0 && (avgV < 210 || avgV > 235)) {
-            newAlerts.push({
-                id: `${data.meter_code}-v-${Date.now()}`,
-                time: new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'),
-                msg: `${t('มิเตอร์', 'Meter')} ${data.meter_code} (${data.meter_name}): ${t('แรงดันไฟฟ้าเฉลี่ยผิดปกติ', 'Avg voltage abnormal')} (${avgV.toFixed(1)} V)`,
-                type: avgV < 205 || avgV > 240 ? 'danger' : 'warning'
-            });
+    // Persisted alarms: same source used by Alarm Report, so alerts survive refreshes.
+    const fetchAlerts = useCallback(async () => {
+        try {
+            const res = await realtimeApi.getAlerts({ siteId: selectedSiteId, buildingId: selectedBuildingId });
+            const rows = res.data?.data || [];
+            setAlerts(rows.map((row: any) => ({
+                id: String(row.id),
+                time: new Date(row.occurred_at).toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'),
+                msg: row.message,
+                type: /high|critical|danger/i.test(String(row.alarm_type || '')) ? 'danger' : 'warning',
+            })));
+        } catch (error) {
+            console.error('Failed to load realtime alerts:', error);
         }
-
-        // Low power factor
-        const avgPf = (parseNum(data.pf1) + parseNum(data.pf2) + parseNum(data.pf3)) / 3;
-        if (avgPf > 0 && avgPf < 0.8) {
-            newAlerts.push({
-                id: `${data.meter_code}-pf-${Date.now()}`,
-                time: new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'),
-                msg: `${t('มิเตอร์', 'Meter')} ${data.meter_code} (${data.meter_name}): ${t('ตัวประกอบกำลังต่ำ', 'Low Power Factor')} (${avgPf.toFixed(2)})`,
-                type: 'warning'
-            });
-        }
-
-        if (newAlerts.length > 0) {
-            setAlerts(prev => [...newAlerts, ...prev].slice(0, 10));
-        }
-    }, [language, t]);
+    }, [selectedSiteId, selectedBuildingId, language]);
 
     // Fetch latest meter data
     const fetchLatestData = useCallback(async (isInitial = false) => {
@@ -247,7 +232,6 @@ const RealtimePage: React.FC = () => {
                         if (!isInitial) {
                             newFlashingRows[m.meter_code] = true;
                             hasUpdates = true;
-                            checkAlarms(m);
                         }
                     }
                 });
@@ -265,7 +249,7 @@ const RealtimePage: React.FC = () => {
             console.error('Failed to poll latest realtime data:', error);
             setDbSyncStatus('error');
         }
-    }, [selectedSiteId, selectedBuildingId, checkAlarms]);
+    }, [selectedSiteId, selectedBuildingId]);
 
     // Fetch chart history data
     const fetchChartHistory = useCallback(async () => {
@@ -317,17 +301,20 @@ const RealtimePage: React.FC = () => {
     useEffect(() => {
         // Load meter data first (fast with index), defer chart (heavier query)
         fetchLatestData(true);
+        fetchAlerts();
         const chartDelay = setTimeout(() => fetchChartHistory(), 1000);
 
         const pollLatest = setInterval(() => fetchLatestData(false), 5000);
         const pollChart = setInterval(() => fetchChartHistory(), 30000);
+        const pollAlerts = setInterval(fetchAlerts, 10000);
 
         return () => {
             clearTimeout(chartDelay);
             clearInterval(pollLatest);
             clearInterval(pollChart);
+            clearInterval(pollAlerts);
         };
-    }, [fetchLatestData, fetchChartHistory]);
+    }, [fetchLatestData, fetchChartHistory, fetchAlerts]);
 
     // Summary calculations
     const totalMeters = meters.length;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { publish, subscribe, channels, latest, realtimeHistory } from './redisPubsub.controller';
+import { publish, subscribe, channels, latest, realtimeHistory, realtimeAlerts } from './redisPubsub.controller';
 
 const router = Router();
 
@@ -17,5 +17,6 @@ router.get('/latest', latest);
 
 // GET /api/v1/redis/history — Get time-bucketed realtime history for charts
 router.get('/history', realtimeHistory);
+router.get('/alerts', realtimeAlerts);
 
 export default router;

@@ -65,6 +65,41 @@ export const getActiveChannels = async (): Promise<string[]> => {
     return channels ? [String(channels)] : [];
 };
 
+/** Latest unacknowledged alarms for the realtime monitoring panel. */
+export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?: number }): Promise<any[]> => {
+    await pool.query(`CREATE TABLE IF NOT EXISTS alarm_log (
+        id BIGSERIAL PRIMARY KEY,
+        alarm_config_id INTEGER REFERENCES alarm_config(alarm_config_id),
+        meter_id INTEGER REFERENCES meter(meter_id),
+        alarm_type VARCHAR(100),
+        message TEXT NOT NULL,
+        occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        acknowledged BOOLEAN NOT NULL DEFAULT false,
+        acknowledged_at TIMESTAMPTZ,
+        acknowledged_by VARCHAR(255),
+        resolved_at TIMESTAMPTZ,
+        resolved_by VARCHAR(255),
+        metadata JSONB
+    )`);
+
+    const params: any[] = [];
+    const filtersSql = ['al.acknowledged = false'];
+    if (filters?.siteId) { params.push(filters.siteId); filtersSql.push(`m.site_id = $${params.length}`); }
+    if (filters?.buildingId) { params.push(filters.buildingId); filtersSql.push(`m.building_id = $${params.length}`); }
+
+    const result = await pool.query(
+        `SELECT al.id, al.message, al.alarm_type, al.occurred_at, al.meter_id,
+                m.meter_code, m.meter_name
+         FROM alarm_log al
+         LEFT JOIN meter m ON m.meter_id = al.meter_id
+         WHERE ${filtersSql.join(' AND ')}
+         ORDER BY al.occurred_at DESC, al.id DESC
+         LIMIT 20`,
+        params
+    );
+    return result.rows;
+};
+
 
 
 

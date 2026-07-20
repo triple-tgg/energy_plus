@@ -6,6 +6,7 @@ import {
     getActiveChannels,
     getLatestRealtimeData,
     getRealtimeHistory,
+    getRealtimeAlerts,
 } from './redisPubsub.service';
 
 /**
@@ -125,3 +126,13 @@ export const realtimeHistory = async (req: Request, res: Response): Promise<void
     }
 };
 
+/** GET /alerts — unacknowledged alarms for the realtime panel. */
+export const realtimeAlerts = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
+        res.json(successResponse(await getRealtimeAlerts({ siteId, buildingId })));
+    } catch (error: any) {
+        res.status(500).json(errorResponse('REALTIME_ALERTS_ERROR', error.message));
+    }
+};
