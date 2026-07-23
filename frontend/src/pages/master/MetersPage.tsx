@@ -159,7 +159,7 @@ const MetersPage: React.FC = () => {
     const fetchLookups = useCallback(async () => {
         try {
             const [sRes, bRes, zRes, brRes, tRes, lRes] = await Promise.all([
-                sitesApi.getAll({ limit: 200 }),
+                sitesApi.getAll({ limit: 200, activeOnly: true }),
                 sitesApi.getAllBuildings({ limit: 200 }),
                 sitesApi.getZones({ limit: 200 }),
                 metersApi.getBrands({ limit: 200 }),

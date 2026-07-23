@@ -70,8 +70,8 @@ const FilterBar: React.FC<FilterBarProps> = ({
         const loadMaster = async () => {
             try {
                 const [typeRes, siteRes] = await Promise.all([
-                    metersApi.getTypes(),
-                    sitesApi.getAll(),
+                    metersApi.getTypes({ limit: 200, activeOnly: true }),
+                    sitesApi.getAll({ limit: 200, activeOnly: true }),
                 ]);
                 setMeterTypes(typeRes.data.data || []);
                 setSites(siteRes.data.data || []);
@@ -84,7 +84,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
         if (!filters.siteId) { setBuildings([]); setZones([]); return; }
         const loadBuildings = async () => {
             try {
-                const res = await sitesApi.getBuildings(Number(filters.siteId));
+                const res = await sitesApi.getAllBuildings({
+                    siteId: filters.siteId,
+                    limit: 200,
+                    activeOnly: true,
+                });
                 setBuildings(res.data.data || []);
             } catch (e) { console.error(e); }
         };
@@ -95,7 +99,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
         if (!filters.buildingId) { setZones([]); return; }
         const loadZones = async () => {
             try {
-                const res = await sitesApi.getZones({ buildingId: filters.buildingId });
+                const res = await sitesApi.getZones({
+                    buildingId: filters.buildingId,
+                    limit: 200,
+                    activeOnly: true,
+                });
                 setZones(res.data.data || []);
             } catch (e) { console.error(e); }
         };

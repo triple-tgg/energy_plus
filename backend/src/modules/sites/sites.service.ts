@@ -1,13 +1,27 @@
 import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
+import { syncMeterSubscriptions } from '../redis-pubsub/redisPubsub.service';
+
+const refreshMeterSubscriptions = async (): Promise<void> => {
+    try {
+        await syncMeterSubscriptions();
+    } catch (error: any) {
+        console.error('❌ Failed to refresh Redis meter subscriptions after site change:', error.message);
+    }
+};
 
 export class SitesService {
     async getSites(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const countResult = await query(`SELECT COUNT(*) FROM sites`);
+        const activeOnly = queryParams.activeOnly === true || queryParams.activeOnly === 'true';
+        const whereClause = activeOnly ? 'WHERE site_status = true' : '';
+        const countResult = await query(`SELECT COUNT(*) FROM sites ${whereClause}`);
         const total = parseInt(countResult.rows[0].count);
-        const result = await query(`SELECT * FROM sites ORDER BY site_id LIMIT $1 OFFSET $2`, [limit, offset]);
+        const result = await query(
+            `SELECT * FROM sites ${whereClause} ORDER BY site_id LIMIT $1 OFFSET $2`,
+            [limit, offset]
+        );
         return { data: result.rows, total, page, limit };
     }
 
@@ -52,6 +66,7 @@ export class SitesService {
        VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
             [data.siteName, data.siteAddress || null, data.siteStatus !== false, data.createdBy || 'system']
         );
+        await refreshMeterSubscriptions();
         return result.rows[0];
     }
 
@@ -63,12 +78,14 @@ export class SitesService {
             [data.siteName, data.siteAddress || null, data.siteStatus !== false, siteId]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Site not found');
+        await refreshMeterSubscriptions();
         return result.rows[0];
     }
 
     async deleteSite(siteId: number) {
         const result = await query(`DELETE FROM sites WHERE site_id = $1 RETURNING site_id`, [siteId]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Site not found');
+        await refreshMeterSubscriptions();
         return result.rows[0];
     }
 
@@ -109,15 +126,23 @@ export class BuildingsService {
     async getBuildings(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
         const siteId = queryParams.siteId;
-        let whereClause = '';
         const params: any[] = [];
+        const filters: string[] = [];
 
         if (siteId) {
             params.push(parseInt(siteId));
-            whereClause = `WHERE b.site_id = $${params.length}`;
+            filters.push(`b.site_id = $${params.length}`);
         }
+        if (queryParams.activeOnly === true || queryParams.activeOnly === 'true') {
+            filters.push('b.is_active = true');
+            filters.push('s.site_status = true');
+        }
+        const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
-        const countResult = await query(`SELECT COUNT(*) FROM buildings b ${whereClause}`, params);
+        const countResult = await query(
+            `SELECT COUNT(*) FROM buildings b LEFT JOIN sites s ON b.site_id = s.site_id ${whereClause}`,
+            params
+        );
         const total = parseInt(countResult.rows[0].count);
 
         params.push(limit, offset);
@@ -173,15 +198,26 @@ export class ZonesService {
     async getZones(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
         const buildingId = queryParams.buildingId;
-        let whereClause = '';
         const params: any[] = [];
+        const filters: string[] = [];
 
         if (buildingId) {
             params.push(parseInt(buildingId));
-            whereClause = `WHERE z.building_id = $${params.length}`;
+            filters.push(`z.building_id = $${params.length}`);
         }
+        if (queryParams.activeOnly === true || queryParams.activeOnly === 'true') {
+            filters.push('b.is_active = true');
+            filters.push('s.site_status = true');
+        }
+        const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
-        const countResult = await query(`SELECT COUNT(*) FROM zones z ${whereClause}`, params);
+        const countResult = await query(
+            `SELECT COUNT(*) FROM zones z
+             LEFT JOIN buildings b ON z.building_id = b.building_id
+             LEFT JOIN sites s ON b.site_id = s.site_id
+             ${whereClause}`,
+            params
+        );
         const total = parseInt(countResult.rows[0].count);
 
         params.push(limit, offset);

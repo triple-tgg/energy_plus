@@ -532,7 +532,12 @@ export class DashboardService {
     async getDemandData(queryParams: any) {
         const { siteId, buildingId, zoneId, meterId, startDate, endDate } = queryParams;
         const params: any[] = [];
-        const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
+        const filters: string[] = [
+            'm.is_active = true',
+            's.site_status = true',
+            'b.is_active = true',
+            'mt.is_active = true',
+        ];
 
         if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
@@ -737,6 +742,9 @@ export class DashboardService {
               AND fallback_meter.address::text = r.address_id::text
               AND rmm.id IS NULL
              JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, fallback_meter.meter_id)
+             JOIN sites s ON s.site_id = m.site_id
+             JOIN buildings b ON b.building_id = m.building_id
+             JOIN meter_type mt ON mt.meter_type_id = m.meter_type_id
              WHERE ${filters.join(' AND ')}
              ORDER BY m.meter_code, m.meter_name`,
             params

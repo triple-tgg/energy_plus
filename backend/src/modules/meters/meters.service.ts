@@ -145,9 +145,14 @@ export class MetersService {
     // Types
     async getTypes(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const countResult = await query(`SELECT COUNT(*) FROM meter_type`);
+        const activeOnly = queryParams.activeOnly === true || queryParams.activeOnly === 'true';
+        const whereClause = activeOnly ? 'WHERE is_active = true' : '';
+        const countResult = await query(`SELECT COUNT(*) FROM meter_type ${whereClause}`);
         const total = parseInt(countResult.rows[0].count);
-        const result = await query(`SELECT * FROM meter_type ORDER BY meter_type_id LIMIT $1 OFFSET $2`, [limit, offset]);
+        const result = await query(
+            `SELECT * FROM meter_type ${whereClause} ORDER BY meter_type_id LIMIT $1 OFFSET $2`,
+            [limit, offset]
+        );
         return { data: result.rows, total, page, limit };
     }
     async createType(data: any) {

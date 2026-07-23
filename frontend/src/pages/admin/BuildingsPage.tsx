@@ -50,7 +50,7 @@ const BuildingsPage: React.FC = () => {
 
     const fetchSites = useCallback(async () => {
         try {
-            const res = await sitesApi.getAll({ limit: 100 });
+            const res = await sitesApi.getAll({ limit: 100, activeOnly: true });
             setSites(res.data.data || []);
         } catch (err) { console.error(err); }
     }, []);

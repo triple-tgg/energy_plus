@@ -186,12 +186,14 @@ export const syncMeterSubscriptions = async (): Promise<void> => {
 
     syncPromise = (async () => {
         const result = await pool.query(
-            `SELECT DISTINCT site_el, address
-             FROM meter
-             WHERE site_el IS NOT NULL
-               AND address IS NOT NULL
-               AND is_active = true
-             ORDER BY site_el, address`
+            `SELECT DISTINCT m.site_el, m.address
+             FROM meter m
+             JOIN sites s ON s.site_id = m.site_id
+             WHERE m.site_el IS NOT NULL
+               AND m.address IS NOT NULL
+               AND m.is_active = true
+               AND s.site_status = true
+             ORDER BY m.site_el, m.address`
         );
         const desired = new Set<string>(
             result.rows.map((row: any) => `${row.site_el}_${row.address}`)

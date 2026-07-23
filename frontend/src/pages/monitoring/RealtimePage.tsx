@@ -153,7 +153,7 @@ const RealtimePage: React.FC = () => {
             try {
                 const { sitesApi } = await import('../../api/client');
                 const [sitesRes, buildingsRes] = await Promise.all([
-                    sitesApi.getAll({ limit: 100 }),
+                    sitesApi.getAll({ limit: 100, activeOnly: true }),
                     sitesApi.getAllBuildings({ limit: 200 }),
                 ]);
                 const sites = sitesRes.data?.data || [];
