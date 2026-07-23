@@ -11,18 +11,25 @@ export class LayoutsService {
             `SELECT l.*,
                     COALESCE(
                         (SELECT json_agg(json_build_object(
-                            'label', lp.label,
-                            'point_type', lp.point_type,
-                            'meter_id', lp.meter_id,
-                            'meter_type_id', m.meter_type_id,
-                            'icon_name', mt.icon_name
-                         ) ORDER BY lp.id)
-                         FROM layout_points lp
-                         LEFT JOIN meter m ON lp.meter_id = m.meter_id
-                         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
-                         WHERE lp.layout_id = l.id
+                            'point_type', summary.point_type,
+                            'count', summary.meter_count
+                         ) ORDER BY summary.point_type)
+                         FROM (
+                             SELECT CASE
+                                      WHEN lp.point_type IN ('meter', 'power') THEN 'power'
+                                      WHEN lp.point_type IN ('sensor', 'water') THEN 'water'
+                                      WHEN lp.point_type IN ('gen', 'gas') THEN 'gas'
+                                      WHEN lp.point_type IN ('ups', 'mdb') THEN 'mdb'
+                                      ELSE lp.point_type
+                                    END AS point_type,
+                                    COUNT(*)::int AS meter_count
+                             FROM layout_points lp
+                             WHERE lp.layout_id = l.id
+                               AND lp.meter_id IS NOT NULL
+                             GROUP BY 1
+                         ) summary
                         ), '[]'::json
-                    ) AS point_labels
+                    ) AS point_summary
              FROM layouts l
              ORDER BY l.id DESC LIMIT $1 OFFSET $2`,
             [limit, offset]

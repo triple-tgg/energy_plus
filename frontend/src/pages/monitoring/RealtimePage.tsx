@@ -696,8 +696,6 @@ const RealtimePage: React.FC = () => {
                         <tbody>
                             {meters.length > 0 ? (
                                 meters.map(m => {
-                                    const avgV = (m.vl1 + m.vl2 + m.vl3) / 3;
-                                    const avgI = (m.il1 + m.il2 + m.il3) / 3;
                                     const avgPf = (m.pf1 + m.pf2 + m.pf3) / 3;
                                     const isFlashing = flashingRows[m.meter_code];
                                     const locationParts = [m.building_name, m.zone_name].filter(Boolean);
@@ -724,16 +722,14 @@ const RealtimePage: React.FC = () => {
                                                 {locationParts.length > 0 ? locationParts.join(' › ') : '—'}
                                             </td>
                                             <td style={{ padding: '14px 8px' }}>
-                                                <span style={{ fontSize: '10px', color: C.sub, display: 'block', fontWeight: 500 }}>
+                                                <span style={{ fontWeight: 700 }}>
                                                     {m.vl1.toFixed(1)} / {m.vl2.toFixed(1)} / {m.vl3.toFixed(1)}
                                                 </span>
-                                                <span style={{ fontWeight: 700 }}>{avgV.toFixed(1)} V</span>
                                             </td>
                                             <td style={{ padding: '14px 8px' }}>
-                                                <span style={{ fontSize: '10px', color: C.sub, display: 'block', fontWeight: 500 }}>
+                                                <span style={{ fontWeight: 700 }}>
                                                     {m.il1.toFixed(2)} / {m.il2.toFixed(2)} / {m.il3.toFixed(2)}
                                                 </span>
-                                                <span style={{ fontWeight: 700 }}>{avgI.toFixed(2)} A</span>
                                             </td>
                                             <td style={{ padding: '14px 8px', fontWeight: 700, color: C.yellow }}>
                                                 {m.kw_3ph.toFixed(2)} kW

@@ -69,6 +69,11 @@ const parsePoint = (pt: any): LayoutPoint => ({
     meter_id: pt.meter_id ? parseInt(pt.meter_id, 10) : null,
 });
 
+const getPointMeterName = (point: LayoutPoint, meters: any[]): string => {
+    const linkedMeter = meters.find((meter: any) => Number(meter.meter_id) === Number(point.meter_id));
+    return linkedMeter?.meter_name || point.meter_name || point.label;
+};
+
 /** Check if value is a Font Awesome class */
 const isFaIcon = (v: string) => v && (v.startsWith('fa ') || v.startsWith('fa-') || v.startsWith('fas '));
 
@@ -209,7 +214,7 @@ const LayoutSettingsPage: React.FC = () => {
         try {
             const [ptRes, mRes] = await Promise.all([
                 layoutsApi.getPoints(row.id),
-                metersApi.getAll({ limit: 500 }),
+                metersApi.getAll({ limit: 500, activeOnly: true }),
             ]);
             const raw = ptRes.data.data || [];
             setPoints(raw.map(parsePoint));
@@ -302,22 +307,26 @@ const LayoutSettingsPage: React.FC = () => {
             ) : <span style={{ color: 'var(--text-muted)' }}>—</span>,
         },
         {
-            key: 'point_labels', title: t('จุดบนแผนผัง', 'Plan Points'),
+            key: 'point_summary', title: t('สรุป Meter ในแผนผัง', 'Plan Meter Summary'),
             render: (v: any) => {
-                const pts = Array.isArray(v) ? v : [];
-                if (pts.length === 0) return <span style={{ color: 'var(--text-muted)', fontFamily: MONO, fontSize: 11 }}>— {t('ไม่มีจุด', 'No points')} —</span>;
+                const summary = Array.isArray(v) ? v : [];
+                if (summary.length === 0) return <span style={{ color: 'var(--text-muted)', fontFamily: MONO, fontSize: 11 }}>— {t('ไม่มี Meter', 'No meters')} —</span>;
                 return (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {pts.map((p: any, i: number) => {
-                            const typeInfo = getPointTypeInfo(p.point_type);
+                        {summary.map((item: any) => {
+                            const typeInfo = getPointTypeInfo(item.point_type);
                             const color = typeInfo.color;
                             return (
-                                <span key={i} style={{
+                                <span key={item.point_type} style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 4,
                                     padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: MONO, fontWeight: 600,
                                     background: color + '20', color: color,
                                     border: `1px solid ${color}40`,
-                                }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 10)} {p.label}</span>
+                                }}>
+                                    {renderPointIcon(typeInfo.icon, typeInfo.emoji, 10)}
+                                    {t(typeInfo.labelTh, typeInfo.labelEn)}
+                                    <strong style={{ fontSize: 12 }}>{Number(item.count).toLocaleString()}</strong>
+                                </span>
                             );
                         })}
                     </div>
@@ -471,15 +480,22 @@ const LayoutSettingsPage: React.FC = () => {
                                                 width: 32, height: 32, borderRadius: '50%', background: color,
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 fontSize: 16, lineHeight: 1, color: '#fff',
+                                                fontFamily: MONO, fontWeight: 800,
                                                 border: isSelected ? '3px solid #fff' : `2px solid ${theme === 'dark' ? '#000' : '#fff'}`,
                                                 boxShadow: isSelected ? `0 0 0 3px ${color}, 0 2px 8px rgba(0,0,0,0.4)` : '0 2px 6px rgba(0,0,0,0.3)',
                                                 transition: 'box-shadow 0.15s, border 0.15s', userSelect: 'none',
-                                            }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 14)}</div>
+                                            }}>{idx + 1}</div>
                                             <div style={{
-                                                position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 2,
-                                                whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 9, fontWeight: 700,
-                                                color: '#fff', background: 'rgba(0,0,0,0.7)', padding: '1px 5px', borderRadius: 3,
-                                            }}>{pt.label}</div>
+                                                position: 'absolute', top: -7, right: -7,
+                                                width: 18, height: 18, borderRadius: 9,
+                                                background: theme === 'dark' ? C.panel : '#fff',
+                                                color: typeInfo.color,
+                                                border: `2px solid ${typeInfo.color}`,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: 8, lineHeight: 1,
+                                                boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+                                                userSelect: 'none', pointerEvents: 'none',
+                                            }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 8)}</div>
                                         </div>
                                     );
                                 })}
@@ -523,11 +539,9 @@ const LayoutSettingsPage: React.FC = () => {
                                                     }}
                                                     onMouseEnter={e => (e.currentTarget.style.borderColor = color)}
                                                     onMouseLeave={e => (e.currentTarget.style.borderColor = C.line)}>
-                                                    <span style={{ width: 26, height: 26, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, color: '#fff' }}>{renderPointIcon(typeInfo.icon, typeInfo.emoji, 11)}</span>
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pt.label}</div>
-                                                        <div style={{ fontFamily: MONO, fontSize: 9, color: C.sub }}>
-                                                            {t(typeInfo.labelTh, typeInfo.labelEn)} • ({Number(pt.x_percent).toFixed(1)}%, {Number(pt.y_percent).toFixed(1)}%)
+                                                        <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {idx + 1}. {getPointMeterName(pt, meters)}
                                                         </div>
                                                     </div>
                                                     <button onClick={(e) => { e.stopPropagation(); handlePointDelete(idx); }}

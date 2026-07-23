@@ -33,6 +33,9 @@ export class MetersService {
         if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); whereClause += ` AND m.meter_type_id = $${params.length}`; }
         if (search) { params.push(`%${search}%`); whereClause += ` AND (m.meter_name ILIKE $${params.length} OR m.meter_code ILIKE $${params.length})`; }
+        if (queryParams.activeOnly === true || queryParams.activeOnly === 'true') {
+            whereClause += ' AND m.is_active = true';
+        }
 
         const countResult = await query(`SELECT COUNT(*) FROM meter m ${whereClause}`, params);
         const total = parseInt(countResult.rows[0].count);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { layoutsApi, meterDataApi, metersApi } from '../../api/client';
+import { layoutsApi, meterDataApi, metersApi, realtimeApi } from '../../api/client';
 import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, X, Search, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
@@ -129,6 +129,35 @@ interface LayoutPoint {
     meter_code?: string;
 }
 
+const REALTIME_ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
+const mapRealtimeMeterData = (row: any) => {
+    const receivedAt = row?.received_at ? new Date(row.received_at).getTime() : 0;
+    const isOnline = receivedAt > 0 && Date.now() - receivedAt <= REALTIME_ONLINE_THRESHOLD_MS;
+    return {
+        ...row,
+        status: isOnline ? 'online' : 'offline',
+        date_keep: row.received_at,
+        energy_kwh: row.import_kwhr,
+        energy_kva: row.kva_3ph,
+        energy_kw: row.kw_3ph,
+        energy_kvar: row.kvar_3ph,
+        energy_frequency: row.hz,
+        energy_volt_p1: row.vl1,
+        energy_volt_p2: row.vl2,
+        energy_volt_p3: row.vl3,
+        energy_volt_l1: row.vl12,
+        energy_volt_l2: row.vl23,
+        energy_volt_l3: row.vl31,
+        energy_amp1: row.il1,
+        energy_amp2: row.il2,
+        energy_amp3: row.il3,
+        energy_pf1: row.pf1,
+        energy_pf2: row.pf2,
+        energy_pf3: row.pf3,
+    };
+};
+
 const LayoutViewPage: React.FC = () => {
     const { theme } = useTheme();
     const { t, language } = useLanguage();
@@ -151,6 +180,7 @@ const LayoutViewPage: React.FC = () => {
 
     // Meter list sidebar state
     const [allMeters, setAllMeters] = useState<any[]>([]);
+    const [latestMeterData, setLatestMeterData] = useState<Record<number, any>>({});
     const [meterSearch, setMeterSearch] = useState('');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [meterTypeFilter, setMeterTypeFilter] = useState<string | null>(null);
@@ -173,6 +203,38 @@ const LayoutViewPage: React.FC = () => {
         })();
     }, []);
 
+    // Refresh the latest realtime imported energy used by the meter list.
+    useEffect(() => {
+        let active = true;
+        const loadLatestPower = async () => {
+            try {
+                const res = await realtimeApi.getLatest();
+                const rows = res.data?.data || [];
+                if (active) {
+                    setLatestMeterData(Object.fromEntries(
+                        rows
+                            .filter((row: any) => row.meter_id)
+                            .map((row: any) => [Number(row.meter_id), row])
+                    ));
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        loadLatestPower();
+        const timer = window.setInterval(loadLatestPower, 30000);
+        return () => {
+            active = false;
+            window.clearInterval(timer);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!popupPoint?.meter_id) return;
+        const realtime = latestMeterData[Number(popupPoint.meter_id)];
+        if (realtime) setMeterData(mapRealtimeMeterData(realtime));
+    }, [latestMeterData, popupPoint?.meter_id]);
+
     // Check if a meter is linked to any point on the current layout
     const linkedMeterIds = useMemo(() => {
         const ids = new Set<string | number>();
@@ -194,7 +256,7 @@ const LayoutViewPage: React.FC = () => {
         // Also filter by activeLegendFilter if selected
         if (activeLegendFilter !== null) {
             result = result.filter((m: any) => {
-                const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                const linkedPt = points.find(p => Number(p.meter_id) === Number(m.meter_id));
                 if (!linkedPt) return false;
                 const ptMappedType = linkedPt.point_type === 'meter' ? 'power' : linkedPt.point_type === 'sensor' ? 'water' : linkedPt.point_type === 'gen' ? 'gas' : linkedPt.point_type === 'ups' ? 'mdb' : linkedPt.point_type;
                 return ptMappedType === activeLegendFilter;
@@ -203,7 +265,7 @@ const LayoutViewPage: React.FC = () => {
         
         if (meterTypeFilter !== null) {
             result = result.filter((m: any) => {
-                const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                const linkedPt = points.find(p => Number(p.meter_id) === Number(m.meter_id));
                 if (!linkedPt) return false;
                 const ptMappedType = linkedPt.point_type === 'meter' ? 'power' : linkedPt.point_type === 'sensor' ? 'water' : linkedPt.point_type === 'gen' ? 'gas' : linkedPt.point_type === 'ups' ? 'mdb' : linkedPt.point_type;
                 return ptMappedType === meterTypeFilter;
@@ -218,7 +280,11 @@ const LayoutViewPage: React.FC = () => {
                 (m.room_name || '').toLowerCase().includes(q)
             );
         }
-        return result;
+        return result.sort((a: any, b: any) => {
+            const aPointIndex = points.findIndex(point => Number(point.meter_id) === Number(a.meter_id));
+            const bPointIndex = points.findIndex(point => Number(point.meter_id) === Number(b.meter_id));
+            return aPointIndex - bPointIndex;
+        });
     }, [allMeters, linkedMeterIds, activeLegendFilter, points, meterSearch, meterTypeFilter]);
 
     // Load points when layout changes
@@ -264,6 +330,13 @@ const LayoutViewPage: React.FC = () => {
 
         setMeterLoading(true);
         try {
+            const realtime = latestMeterData[Number(pt.meter_id)];
+            if (realtime) {
+                setMeterData(mapRealtimeMeterData(realtime));
+                setMeterLoading(false);
+                return;
+            }
+
             const res = await meterDataApi.getRealtime({ meter_id: pt.meter_id });
             const rows = res.data.data || [];
             // Find the matching meter row
@@ -432,6 +505,7 @@ const LayoutViewPage: React.FC = () => {
                                         const info = POINT_TYPES[pt.point_type] || POINT_TYPES.power;
                                         const isHovered = hoveredPoint === idx;
                                         const isActive = popupPoint?.id === pt.id;
+                                        const pointNumber = points.findIndex(point => point.id === pt.id) + 1;
                                         const pointScale = Math.max(0.5, Math.min(1.5, 1 / Math.sqrt(zoom)));
                                         return (
                                             <div key={pt.id}
@@ -457,20 +531,24 @@ const LayoutViewPage: React.FC = () => {
                                                     borderRadius: '50%', background: info.color,
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                     fontSize: isHovered || isActive ? 16 : 14, lineHeight: 1, color: '#fff',
+                                                    fontFamily: MONO, fontWeight: 800,
                                                     border: isActive ? '3px solid #fff' : `2px solid ${theme === 'dark' ? '#000' : '#fff'}`,
                                                     boxShadow: isHovered || isActive
                                                         ? `0 0 12px ${info.color}80, 0 4px 12px rgba(0,0,0,0.4)`
                                                         : '0 2px 6px rgba(0,0,0,0.3)',
                                                     transition: 'all 0.2s ease', userSelect: 'none',
-                                                }}><i className={info.faIcon} /></div>
-                                                {/* Label */}
+                                                }}>{pointNumber}</div>
                                                 <div style={{
-                                                    position: 'absolute', top: '100%', left: '50%',
-                                                    transform: 'translateX(-50%)', marginTop: 3,
-                                                    whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 9, fontWeight: 700,
-                                                    color: '#fff', background: 'rgba(0,0,0,0.75)',
-                                                    padding: '2px 6px', borderRadius: 3, letterSpacing: '0.3px',
-                                                }}>{pt.label}</div>
+                                                    position: 'absolute', top: -7, right: -7,
+                                                    width: 18, height: 18,
+                                                    borderRadius: 9, background: theme === 'dark' ? C.panel : '#fff',
+                                                    color: info.color,
+                                                    border: `2px solid ${info.color}`,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    fontSize: 8,
+                                                    lineHeight: 1, boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+                                                    userSelect: 'none',
+                                                }}><i className={info.faIcon} /></div>
                                             </div>
                                         );
                                     })}
@@ -592,13 +670,19 @@ const LayoutViewPage: React.FC = () => {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                 {filteredMeters.map((m: any) => {
                                                     const isLinked = linkedMeterIds.has(m.meter_id);
-                                                    const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                                                    const linkedPt = points.find(p => Number(p.meter_id) === Number(m.meter_id));
+                                                    const pointNumber = linkedPt
+                                                        ? points.findIndex(point => point.id === linkedPt.id) + 1
+                                                        : null;
+                                                    const realtime = latestMeterData[Number(m.meter_id)];
+                                                    const hasCurrentKwh = realtime?.import_kwhr !== null && realtime?.import_kwhr !== undefined;
+                                                    const currentKwh = Number(realtime?.import_kwhr);
                                                     const ptType = linkedPt ? (linkedPt.point_type === 'meter' ? 'power' : linkedPt.point_type === 'sensor' ? 'water' : linkedPt.point_type === 'gen' ? 'gas' : linkedPt.point_type === 'ups' ? 'mdb' : linkedPt.point_type) : 'power';
                                                     const mType = POINT_TYPES[ptType] || POINT_TYPES.power;
                                                     return (
                                                         <div key={m.meter_id}
                                                             onClick={() => {
-                                                                const linkedPt = points.find(p => p.meter_id === m.meter_id);
+                                                                const linkedPt = points.find(p => Number(p.meter_id) === Number(m.meter_id));
                                                                 if (linkedPt) handlePointClick(linkedPt);
                                                             }}
                                                             style={{
@@ -616,8 +700,9 @@ const LayoutViewPage: React.FC = () => {
                                                                 width: 26, height: 26, borderRadius: '50%',
                                                                 background: isLinked ? mType.color : C.line,
                                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                fontSize: 13, flexShrink: 0, color: '#fff',
-                                                            }}>{renderMeterIcon(mType.faIcon, 12, '#fff')}</span>
+                                                                fontFamily: MONO, fontSize: 12, fontWeight: 800,
+                                                                flexShrink: 0, color: '#fff',
+                                                            }}>{pointNumber ?? '—'}</span>
                                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                                 <div style={{
                                                                     fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.ink,
@@ -628,19 +713,15 @@ const LayoutViewPage: React.FC = () => {
                                                                 </div>
                                                             </div>
                                                             <span style={{
-                                                                fontFamily: MONO, fontSize: 8, padding: '2px 6px',
-                                                                borderRadius: 8, background: `${mType.color}20`,
-                                                                color: mType.color, border: `1px solid ${mType.color}40`,
-                                                                fontWeight: 700, textTransform: 'uppercase', flexShrink: 0,
-                                                            }}>{mType.labelEn}</span>
-                                                            {isLinked && (
-                                                                <span style={{
-                                                                    fontFamily: MONO, fontSize: 8, padding: '2px 6px',
-                                                                    borderRadius: 8, background: '#10B98120',
-                                                                    color: '#10B981', border: '1px solid #10B98140',
-                                                                    fontWeight: 700, textTransform: 'uppercase', flexShrink: 0,
-                                                                }}>{t('เชื่อม', '🔗')}</span>
-                                                            )}
+                                                                minWidth: 70, textAlign: 'right',
+                                                                fontFamily: MONO, fontSize: 12, fontWeight: 800,
+                                                                color: hasCurrentKwh && Number.isFinite(currentKwh) ? '#10B981' : C.sub,
+                                                                whiteSpace: 'nowrap', flexShrink: 0,
+                                                            }}>
+                                                                {hasCurrentKwh && Number.isFinite(currentKwh)
+                                                                    ? `${currentKwh.toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWh`
+                                                                    : '— kWh'}
+                                                            </span>
                                                         </div>
                                                     );
                                                 })}
