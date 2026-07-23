@@ -19,7 +19,7 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import redisPubsubRoutes from './modules/redis-pubsub/redisPubsub.routes';
 import layoutRoutes from './modules/layouts/layouts.routes';
 import reportsRoutes from './modules/reports/reports.routes';
-import { autoSubscribeFromMeterTable } from './modules/redis-pubsub/redisPubsub.service';
+import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 
 const app = createApp();
@@ -110,6 +110,8 @@ app.use(errorHandler);
 
 // Start server with Redis connection
 const startServer = async () => {
+    let meterSubscriptionSyncTimer: NodeJS.Timeout | null = null;
+
     if (REDIS_ENABLED) {
         try {
             await connectRedis();
@@ -117,6 +119,13 @@ const startServer = async () => {
 
             // Auto-subscribe to channels from Meter table
             await autoSubscribeFromMeterTable();
+            const syncIntervalMs = parseInt(process.env.REDIS_SUBSCRIPTION_SYNC_MS || '30000', 10);
+            meterSubscriptionSyncTimer = setInterval(() => {
+                syncMeterSubscriptions().catch((error: any) => {
+                    console.error('❌ Periodic Redis subscription sync failed:', error.message);
+                });
+            }, syncIntervalMs);
+            meterSubscriptionSyncTimer.unref();
         } catch (error) {
             console.warn('⚠️  Redis connection failed, server will start without Redis');
         }
@@ -141,6 +150,7 @@ const startServer = async () => {
     const shutdown = async () => {
         console.log('\n🔄 Shutting down gracefully...');
         aggregationScheduler.stop();
+        if (meterSubscriptionSyncTimer) clearInterval(meterSubscriptionSyncTimer);
         await disconnectRedis();
         server.close(() => {
             console.log('👋 Server closed');

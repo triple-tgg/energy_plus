@@ -1,9 +1,33 @@
 import { Response } from 'express';
-import { pubClient, subClient } from '../../config/redis';
+import { pubClient, subClient, REDIS_ENABLED } from '../../config/redis';
 import pool from '../../config/database';
 
 // Track SSE clients per channel
 const sseClientsMap: Map<string, Set<Response>> = new Map();
+const subscribedChannels = new Set<string>();
+const meterChannels = new Set<string>();
+let syncPromise: Promise<void> | null = null;
+
+const handleRedisMessage = (channel: string) => async (message: string): Promise<void> => {
+    if (meterChannels.has(channel)) {
+        await saveMeterDataToDb(channel, message);
+    }
+
+    const data = `data: ${JSON.stringify({ channel, message })}\n\n`;
+    const clients = sseClientsMap.get(channel);
+    if (clients) {
+        for (const client of clients) {
+            client.write(data);
+        }
+    }
+};
+
+const ensureRedisSubscription = async (channel: string): Promise<void> => {
+    if (subscribedChannels.has(channel)) return;
+    await subClient.subscribe(channel, handleRedisMessage(channel));
+    subscribedChannels.add(channel);
+    console.log(`📡 Redis subscribed to channel: ${channel}`);
+};
 
 /**
  * Subscribe to a Redis channel and register an SSE client
@@ -12,19 +36,8 @@ export const subscribeChannel = async (channel: string, res: Response): Promise<
     // Initialize client set for this channel if needed
     if (!sseClientsMap.has(channel)) {
         sseClientsMap.set(channel, new Set());
-
-        // Subscribe to Redis channel (only once per channel)
-        await subClient.subscribe(channel, (message) => {
-            const data = `data: ${JSON.stringify({ channel, message })}\n\n`;
-            const clients = sseClientsMap.get(channel);
-            if (clients) {
-                for (const client of clients) {
-                    client.write(data);
-                }
-            }
-        });
-        console.log(`📡 Redis subscribed to channel: ${channel}`);
     }
+    await ensureRedisSubscription(channel);
 
     // Add this SSE client
     const clients = sseClientsMap.get(channel)!;
@@ -36,9 +49,11 @@ export const subscribeChannel = async (channel: string, res: Response): Promise<
         clients.delete(res);
         console.log(`❌ SSE client disconnected from: ${channel} (remaining: ${clients.size})`);
 
-        // Optionally unsubscribe if no more clients
-        if (clients.size === 0) {
-            subClient.unsubscribe(channel).catch(() => {});
+        // Keep meter channels subscribed even when the last SSE client disconnects.
+        if (clients.size === 0 && !meterChannels.has(channel)) {
+            subClient.unsubscribe(channel).then(() => {
+                subscribedChannels.delete(channel);
+            }).catch(() => {});
             sseClientsMap.delete(channel);
             console.log(`🔕 Unsubscribed from channel: ${channel} (no more clients)`);
         }
@@ -165,57 +180,58 @@ const saveMeterDataToDb = async (channel: string, message: string): Promise<void
  * Messages will be saved to database and broadcast to SSE clients.
  * Called from server.ts if REDIS_AUTO_SUBSCRIBE=true
  */
-export const autoSubscribeFromMeterTable = async (): Promise<void> => {
-    // Query distinct channels from meter table
-    const result = await pool.query(
-        `SELECT DISTINCT site_el, address
-         FROM meter
-         WHERE site_el IS NOT NULL
-           AND address IS NOT NULL
-           AND is_active = true
-         ORDER BY site_el, address`
-    );
+export const syncMeterSubscriptions = async (): Promise<void> => {
+    if (!REDIS_ENABLED || !subClient.isReady) return;
+    if (syncPromise) return syncPromise;
 
-    if (result.rows.length === 0) {
-        console.log('⚠️  No active meters with site_el + address found — skipping auto-subscribe');
-        return;
-    }
+    syncPromise = (async () => {
+        const result = await pool.query(
+            `SELECT DISTINCT site_el, address
+             FROM meter
+             WHERE site_el IS NOT NULL
+               AND address IS NOT NULL
+               AND is_active = true
+             ORDER BY site_el, address`
+        );
+        const desired = new Set<string>(
+            result.rows.map((row: any) => `${row.site_el}_${row.address}`)
+        );
 
-    // Build unique channel names: "<site_el>_<address>"
-    const channels = result.rows.map((row: any) => `${row.site_el}_${row.address}`);
-    let subscribedCount = 0;
+        const added = [...desired].filter((channel) => !meterChannels.has(channel));
+        const removed = [...meterChannels].filter((channel) => !desired.has(channel));
 
-    for (const channel of channels) {
-        // Skip if already subscribed
-        if (sseClientsMap.has(channel)) {
-            console.log(`  ⏭️  Channel already subscribed: ${channel}`);
-            continue;
+        // Mark first so messages arriving immediately after SUBSCRIBE are persisted.
+        added.forEach((channel) => meterChannels.add(channel));
+        for (const channel of added) {
+            try {
+                await ensureRedisSubscription(channel);
+            } catch (error) {
+                meterChannels.delete(channel);
+                throw error;
+            }
         }
 
-        // Initialize client set for this channel
-        sseClientsMap.set(channel, new Set());
-
-        // Subscribe to Redis — save to DB + broadcast to SSE clients
-        await subClient.subscribe(channel, async (message) => {
-            // 1. Save to database
-            await saveMeterDataToDb(channel, message);
-
-            // 2. Broadcast to SSE clients
-            const data = `data: ${JSON.stringify({ channel, message })}\n\n`;
-            const clients = sseClientsMap.get(channel);
-            if (clients) {
-                for (const client of clients) {
-                    client.write(data);
-                }
+        for (const channel of removed) {
+            meterChannels.delete(channel);
+            const hasSseClients = (sseClientsMap.get(channel)?.size ?? 0) > 0;
+            if (!hasSseClients && subscribedChannels.has(channel)) {
+                await subClient.unsubscribe(channel);
+                subscribedChannels.delete(channel);
+                sseClientsMap.delete(channel);
             }
-        });
+        }
 
-        subscribedCount++;
-    }
+        if (added.length || removed.length) {
+            console.log(`📡 Meter subscriptions synced (+${added.length}, -${removed.length}, total ${meterChannels.size})`);
+        }
+    })().finally(() => {
+        syncPromise = null;
+    });
 
-    console.log(`📡 Auto-subscribed to ${subscribedCount} channel(s) from Meter table:`);
-    channels.forEach((ch: string) => console.log(`    ↳ ${ch}`));
+    return syncPromise;
 };
+
+export const autoSubscribeFromMeterTable = syncMeterSubscriptions;
 
 /**
  * Get the latest reading for each meter from meter_data_realtime,
