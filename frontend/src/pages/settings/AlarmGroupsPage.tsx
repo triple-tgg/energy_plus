@@ -75,13 +75,20 @@ const AlarmGroupsPage: React.FC = () => {
             setDetectedChats(chats);
             if (chats.length === 0) {
                 setFormError(t('ไม่พบกลุ่ม/แชท — เพิ่มบอทเข้ากลุ่มแล้วพิมพ์ข้อความในกลุ่ม 1 ครั้ง จากนั้นกดใหม่', 'No chats found — add the bot to the group, send one message there, then try again'));
-            } else if (chats.length === 1) {
-                setForm(f => ({ ...f, telegramChatId: String(chats[0].id) }));
+            } else {
+                // Auto-select: prefer group/supergroup, otherwise first chat
+                const groupChat = chats.find((c: any) => c.type === 'group' || c.type === 'supergroup');
+                const autoChat = groupChat || chats[0];
+                setForm(prev => ({ ...prev, telegramChatId: String(autoChat.id) }));
             }
         } catch (err: any) {
             setFormError(err.response?.data?.message || t('ดึง Chat ID ไม่สำเร็จ', 'Failed to detect Chat ID'));
         }
         setDetecting(false);
+    };
+
+    const selectChat = (chatId: number) => {
+        setForm(prev => ({ ...prev, telegramChatId: String(chatId) }));
     };
 
     const handleSave = async () => {
@@ -247,7 +254,7 @@ const AlarmGroupsPage: React.FC = () => {
                                     <button
                                         key={chat.id}
                                         type="button"
-                                        onClick={() => setForm(f => ({ ...f, telegramChatId: String(chat.id) }))}
+                                        onClick={() => selectChat(chat.id)}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
                                             padding: '8px 10px', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer',

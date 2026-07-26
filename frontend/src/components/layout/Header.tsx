@@ -1,7 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { alarmsApi } from '../../api/client';
+
+interface AlertItem {
+    id: number;
+    alarm_type: string;
+    message: string;
+    meter_code: string;
+    meter_name: string;
+    occurred_at: string;
+    acknowledged: boolean;
+}
 
 const Header: React.FC = () => {
     const { user, logout } = useAuth();
@@ -10,22 +21,88 @@ const Header: React.FC = () => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // Notification state
+    const [notifOpen, setNotifOpen] = useState(false);
+    const [alerts, setAlerts] = useState<AlertItem[]>([]);
+    const [alertCount, setAlertCount] = useState(0);
+    const notifRef = useRef<HTMLDivElement>(null);
+    const readIdsRef = useRef<Set<number>>(new Set());
+
     const now = new Date();
     const dateStr = now.toLocaleDateString(language === 'th' ? 'th-TH' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     const timeStr = now.toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US', { hour: '2-digit', minute: '2-digit' });
 
+    // Close dropdowns on outside click
     useEffect(() => {
         const close = (e: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
                 setDropdownOpen(false);
+            }
+            if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+                setNotifOpen(false);
             }
         };
         document.addEventListener('mousedown', close);
         return () => document.removeEventListener('mousedown', close);
     }, []);
 
+    const markAllRead = () => {
+        alerts.forEach(a => readIdsRef.current.add(a.id));
+        setAlertCount(0);
+    };
+
+    // Poll alerts
+    const fetchAlerts = useCallback(async () => {
+        try {
+            const res = await alarmsApi.getRecentAlerts(60); // last 60 minutes
+            const items: AlertItem[] = (res.data.data || []).map((r: any) => ({
+                id: r.id,
+                alarm_type: r.alarm_type,
+                message: r.message || '',
+                meter_code: r.meter_code || '',
+                meter_name: r.meter_name || '',
+                occurred_at: r.occurred_at,
+                acknowledged: r.acknowledged ?? false,
+            }));
+            setAlerts(items);
+            // Only count alerts that haven't been read yet
+            const unread = items.filter(a => !a.acknowledged && !readIdsRef.current.has(a.id));
+            setAlertCount(unread.length);
+        } catch (e) {
+            // silent
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchAlerts();
+        const timer = setInterval(fetchAlerts, 30_000);
+        return () => clearInterval(timer);
+    }, [fetchAlerts]);
+
     const displayName = (user as any)?.displayName || (user as any)?.userName || 'User';
     const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+
+    const getAlertIcon = (type: string) => {
+        if (type === 'offline') return '🔴';
+        if (type === 'threshold_high') return '🔺';
+        if (type === 'threshold_low') return '🔻';
+        return '⚠️';
+    };
+
+    const getAlertLabel = (type: string) => {
+        if (type === 'offline') return t('ขาดการติดต่อ', 'Offline');
+        if (type === 'threshold_high') return t('เกินขั้นสูง', 'Over Max');
+        if (type === 'threshold_low') return t('ต่ำกว่าขั้นต่ำ', 'Under Min');
+        return t('แจ้งเตือน', 'Alert');
+    };
+
+    const formatTime = (dt: string) => {
+        try {
+            return new Date(dt).toLocaleString(language === 'th' ? 'th-TH' : 'en-US', {
+                timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short',
+            });
+        } catch { return dt; }
+    };
 
     return (
         <header className="topbar">
@@ -85,14 +162,120 @@ const Header: React.FC = () => {
                     <span>{language.toUpperCase()}</span>
                 </button>
 
-                {/* Notification */}
-                <button className="topbar__icon-btn" title={t('การแจ้งเตือน', 'Notifications')}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                    </svg>
-                    <span className="topbar__icon-badge">3</span>
-                </button>
+                {/* Notification Bell */}
+                <div style={{ position: 'relative' }} ref={notifRef}>
+                    <button
+                        className="topbar__icon-btn"
+                        title={t('การแจ้งเตือน', 'Notifications')}
+                        onClick={() => { setNotifOpen(v => !v); markAllRead(); }}
+                        style={{ position: 'relative' }}
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        </svg>
+                        {alertCount > 0 && (
+                            <span className="topbar__icon-badge" style={{
+                                animation: 'pulse 2s infinite',
+                            }}>
+                                {alertCount > 99 ? '99+' : alertCount}
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Notification Dropdown */}
+                    {notifOpen && (
+                        <div style={{
+                            position: 'absolute', top: '100%', right: 0, marginTop: 8,
+                            width: 380, maxHeight: 480, overflowY: 'auto',
+                            background: 'var(--surface, #fff)', border: '1px solid var(--border)',
+                            borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                            zIndex: 9999,
+                        }}>
+                            {/* Header */}
+                            <div style={{
+                                padding: '14px 16px', borderBottom: '1px solid var(--border)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            }}>
+                                <span style={{ fontWeight: 700, fontSize: 15 }}>
+                                    🔔 {t('การแจ้งเตือน', 'Notifications')}
+                                </span>
+                                {alertCount > 0 && (
+                                    <span style={{
+                                        padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                                        background: '#EF444420', color: '#EF4444',
+                                    }}>
+                                        {alertCount} {t('รายการใหม่', 'new')}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Alert List */}
+                            {alerts.length === 0 ? (
+                                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    <div style={{ fontSize: 36, marginBottom: 8 }}>✅</div>
+                                    <div style={{ fontSize: 13 }}>{t('ไม่มีการแจ้งเตือน', 'No notifications')}</div>
+                                </div>
+                            ) : (
+                                alerts.map(alert => (
+                                    <div key={alert.id} style={{
+                                        padding: '10px 16px', borderBottom: '1px solid var(--border)',
+                                        display: 'flex', gap: 10, alignItems: 'flex-start',
+                                        background: alert.acknowledged ? 'transparent' : 'var(--surface-2, rgba(239,68,68,0.04))',
+                                        cursor: 'default',
+                                    }}>
+                                        <div style={{
+                                            width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                                            display: 'grid', placeItems: 'center', fontSize: 16,
+                                            background: alert.alarm_type === 'offline' ? '#EF444415' : '#F59E0B15',
+                                        }}>
+                                            {getAlertIcon(alert.alarm_type)}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
+                                                <span style={{
+                                                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                                                    padding: '1px 5px', borderRadius: 3,
+                                                    background: alert.alarm_type === 'offline' ? '#EF444420' : '#F59E0B20',
+                                                    color: alert.alarm_type === 'offline' ? '#EF4444' : '#F59E0B',
+                                                }}>
+                                                    {getAlertLabel(alert.alarm_type)}
+                                                </span>
+                                                {!alert.acknowledged && (
+                                                    <span style={{
+                                                        width: 6, height: 6, borderRadius: '50%',
+                                                        background: '#EF4444', flexShrink: 0,
+                                                    }} />
+                                                )}
+                                            </div>
+                                            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                [{alert.meter_code}] {alert.meter_name}
+                                            </div>
+                                            {alert.message && (
+                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {alert.message}
+                                                </div>
+                                            )}
+                                            <div style={{ fontSize: 10, color: '#999', marginTop: 3 }}>
+                                                🕒 {formatTime(alert.occurred_at)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+
+                            {/* Footer */}
+                            <div style={{ padding: '10px 16px', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                                <a href="/reports/alarms" style={{
+                                    fontSize: 12, fontWeight: 600, color: 'var(--accent)',
+                                    textDecoration: 'none',
+                                }}>
+                                    {t('ดูประวัติทั้งหมด →', 'View all history →')}
+                                </a>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* User Dropdown */}
                 <div className="topbar__user" ref={dropdownRef}>
@@ -139,6 +322,13 @@ const Header: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            <style>{`
+                @keyframes pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.2); }
+                }
+            `}</style>
         </header>
     );
 };

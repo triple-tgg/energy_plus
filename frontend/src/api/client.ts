@@ -124,6 +124,8 @@ export const alarmsApi = {
     deleteGroup: (id: number) => api.delete(`/alarms/groups/${id}`),
     testGroup: (id: number) => api.post(`/alarms/groups/${id}/test`),
     detectChats: (token: string) => api.post('/alarms/telegram/chats', { token }),
+    triggerCheck: () => api.post('/alarms/trigger-check'),
+    getRecentAlerts: (minutes?: number) => api.get('/alarms/recent-alerts', { params: { minutes } }),
 };
 
 // Billing

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import AlarmNotification from '../ui/AlarmNotification';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -37,6 +38,7 @@ const MainLayout: React.FC = () => {
                     <Outlet />
                 </main>
             </div>
+            <AlarmNotification />
         </div>
     );
 };

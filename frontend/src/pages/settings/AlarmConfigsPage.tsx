@@ -5,12 +5,16 @@ import { alarmsApi, metersApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ConfigForm {
+    alarmType: 'threshold' | 'offline';
     meterId: string;
     energyValueId: string;
     lowerValue: string;
     higherValue: string;
     lowerMessage: string;
     higherMessage: string;
+    offlineTimeoutSec: string;
+    cooldownMinutes: string;
+    alarmGroupId: string;
     isActive: boolean;
     isLampOn: boolean;
     isBuzzerOn: boolean;
@@ -19,8 +23,9 @@ interface ConfigForm {
 }
 
 const emptyForm: ConfigForm = {
-    meterId: '', energyValueId: '', lowerValue: '', higherValue: '',
-    lowerMessage: '', higherMessage: '', isActive: true,
+    alarmType: 'threshold', meterId: '', energyValueId: '', lowerValue: '', higherValue: '',
+    lowerMessage: '', higherMessage: '', offlineTimeoutSec: '60', cooldownMinutes: '5',
+    alarmGroupId: '', isActive: true,
     isLampOn: false, isBuzzerOn: false, lampAddress: '', buzzerAddress: '',
 };
 
@@ -34,6 +39,7 @@ const AlarmConfigsPage: React.FC = () => {
 
     const [meters, setMeters] = useState<any[]>([]);
     const [energyValues, setEnergyValues] = useState<any[]>([]);
+    const [groups, setGroups] = useState<any[]>([]);
 
     const [showModal, setShowModal] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
@@ -58,12 +64,14 @@ const AlarmConfigsPage: React.FC = () => {
 
     const fetchLookups = useCallback(async () => {
         try {
-            const [mRes, evRes] = await Promise.all([
+            const [mRes, evRes, gRes] = await Promise.all([
                 metersApi.getAll({ limit: 200 }),
                 metersApi.getEnergyValues(),
+                alarmsApi.getGroups({ limit: 100 }),
             ]);
             setMeters(mRes.data.data || []);
             setEnergyValues(evRes.data.data || []);
+            setGroups(gRes.data.data || []);
         } catch (err) { console.error(err); }
     }, []);
 
@@ -76,12 +84,16 @@ const AlarmConfigsPage: React.FC = () => {
     const handleEdit = (row: any) => {
         setEditId(row.alarm_config_id);
         setForm({
+            alarmType: row.alarm_type || 'threshold',
             meterId: row.meter_id?.toString() || '',
             energyValueId: row.energy_value_id?.toString() || '',
             lowerValue: row.lower_value?.toString() || '',
             higherValue: row.higher_value?.toString() || '',
             lowerMessage: row.lower_message || '',
             higherMessage: row.higher_message || '',
+            offlineTimeoutSec: row.offline_timeout_sec?.toString() || '60',
+            cooldownMinutes: row.cooldown_minutes?.toString() || '5',
+            alarmGroupId: row.alarm_group_id?.toString() || '',
             isActive: row.is_active ?? true,
             isLampOn: row.is_lamp_on ?? false,
             isBuzzerOn: row.is_buzzer_on ?? false,
@@ -94,6 +106,7 @@ const AlarmConfigsPage: React.FC = () => {
 
     const handleSave = async () => {
         if (!form.meterId) { setFormError(t('กรุณาเลือกมิเตอร์', 'Please select a meter')); return; }
+        if (form.alarmType === 'threshold' && !form.energyValueId) { setFormError(t('กรุณาเลือกพารามิเตอร์พลังงาน', 'Please select an energy parameter')); return; }
         setSaving(true); setFormError('');
         try {
             const payload = {
@@ -102,6 +115,9 @@ const AlarmConfigsPage: React.FC = () => {
                 energyValueId: form.energyValueId ? parseInt(form.energyValueId) : null,
                 lowerValue: form.lowerValue ? parseFloat(form.lowerValue) : null,
                 higherValue: form.higherValue ? parseFloat(form.higherValue) : null,
+                offlineTimeoutSec: parseInt(form.offlineTimeoutSec) || 60,
+                cooldownMinutes: parseInt(form.cooldownMinutes) || 5,
+                alarmGroupId: form.alarmGroupId ? parseInt(form.alarmGroupId) : null,
                 lampAddress: form.lampAddress ? parseInt(form.lampAddress) : null,
                 buzzerAddress: form.buzzerAddress ? parseInt(form.buzzerAddress) : null,
             };
@@ -132,12 +148,43 @@ const AlarmConfigsPage: React.FC = () => {
 
     const columns = [
         {
+            key: 'alarm_type', title: t('ประเภท', 'Type'),
+            render: (v: string) => (
+                <span style={{
+                    padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    background: v === 'offline' ? '#EF444420' : '#3B82F620',
+                    color: v === 'offline' ? '#EF4444' : '#3B82F6',
+                }}>
+                    {v === 'offline' ? t('🔴 ขาดการติดต่อ', '🔴 Offline') : t('📊 เกณฑ์', '📊 Threshold')}
+                </span>
+            ),
+        },
+        {
             key: 'meter_name', title: t('มิเตอร์', 'Meter'),
             render: (v: string, row: any) => <span>{row.meter_code} — {v}</span>,
         },
-        { key: 'energy_value_name', title: t('พารามิเตอร์พลังงาน', 'Energy Parameter') },
-        { key: 'lower_value', title: t('ขีดจำกัดล่าง', 'Lower Limit') },
-        { key: 'higher_value', title: t('ขีดจำกัดบน', 'Higher Limit') },
+        {
+            key: 'energy_value_name', title: t('พารามิเตอร์', 'Parameter'),
+            render: (v: string, row: any) => row.alarm_type === 'offline'
+                ? <span style={{ color: '#888' }}>—</span>
+                : v || '—',
+        },
+        {
+            key: 'lower_value', title: t('ขั้นต่ำ', 'Min'),
+            render: (v: any, row: any) => row.alarm_type === 'offline'
+                ? <span style={{ color: '#888' }}>—</span>
+                : v ?? '—',
+        },
+        {
+            key: 'higher_value', title: t('ขั้นสูง', 'Max'),
+            render: (v: any, row: any) => row.alarm_type === 'offline'
+                ? <span style={{ fontSize: 11 }}>{row.offline_timeout_sec || 60}s</span>
+                : v ?? '—',
+        },
+        {
+            key: 'cooldown_minutes', title: t('Cooldown', 'Cooldown'),
+            render: (v: any) => <span style={{ fontSize: 11 }}>{v || 5} {t('นาที', 'min')}</span>,
+        },
         {
             key: 'is_active', title: t('สถานะ', 'Status'),
             render: (v: boolean) => (
@@ -167,7 +214,36 @@ const AlarmConfigsPage: React.FC = () => {
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
 
-                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('มิเตอร์และพารามิเตอร์', 'Meter and Parameter')}</div>
+                {/* Alarm Type */}
+                <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ประเภทการแจ้งเตือน', 'Alert Type')}</div>
+                <div className="form-row">
+                    <div className="form-group" style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {([
+                                { value: 'offline' as const, emoji: '🔴', labelTh: 'ขาดการติดต่อ', labelEn: 'Offline Detection' },
+                                { value: 'threshold' as const, emoji: '📊', labelTh: 'เกินเกณฑ์', labelEn: 'Threshold' },
+                            ]).map(opt => (
+                                <button key={opt.value}
+                                    onClick={() => setForm({ ...form, alarmType: opt.value })}
+                                    style={{
+                                        flex: 1, padding: '10px 14px', borderRadius: 6, cursor: 'pointer',
+                                        border: form.alarmType === opt.value ? '2px solid var(--accent)' : '1px solid var(--border)',
+                                        background: form.alarmType === opt.value ? 'var(--accent-bg, rgba(54,194,206,0.1))' : 'transparent',
+                                        color: form.alarmType === opt.value ? 'var(--accent)' : 'var(--text-secondary)',
+                                        fontWeight: form.alarmType === opt.value ? 700 : 400,
+                                        fontSize: 13, textAlign: 'center',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    {opt.emoji} {t(opt.labelTh, opt.labelEn)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Meter Selection */}
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('มิเตอร์', 'Meter')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('มิเตอร์', 'Meter')} <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -177,48 +253,118 @@ const AlarmConfigsPage: React.FC = () => {
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">{t('พารามิเตอร์พลังงาน', 'Energy Parameter')}</label>
-                        <select className="form-control" value={form.energyValueId} onChange={e => setForm({ ...form, energyValueId: e.target.value })}>
-                            <option value="">{t('— เลือก —', '— Select —')}</option>
-                            {energyValues.map(ev => <option key={ev.energy_value_id} value={ev.energy_value_id}>{ev.energy_value_name}</option>)}
+                        <label className="form-label">{t('กลุ่มแจ้งเตือน (Telegram)', 'Alarm Group (Telegram)')}</label>
+                        <select className="form-control" value={form.alarmGroupId} onChange={e => setForm({ ...form, alarmGroupId: e.target.value })}>
+                            <option value="">{t('— เลือกกลุ่ม —', '— Select Group —')}</option>
+                            {groups.map(g => <option key={g.alarm_group_id} value={g.alarm_group_id}>{g.group_name}</option>)}
                         </select>
                     </div>
                 </div>
 
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ขีดจำกัด', 'Limits')}</div>
+                {/* Threshold-specific fields */}
+                {form.alarmType === 'threshold' && (
+                    <>
+                        <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('พารามิเตอร์และขีดจำกัด', 'Parameter and Limits')}</div>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">{t('พารามิเตอร์พลังงาน', 'Energy Parameter')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <select className="form-control" value={form.energyValueId} onChange={e => setForm({ ...form, energyValueId: e.target.value })}>
+                                    <option value="">{t('— เลือก —', '— Select —')}</option>
+                                    {energyValues.map(ev => <option key={ev.energy_value_id} value={ev.energy_value_id}>{ev.energy_value_name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">{t('ขั้นต่ำ (Lower)', 'Lower Limit')}</label>
+                                <input type="number" className="form-control" placeholder="0" value={form.lowerValue} onChange={e => setForm({ ...form, lowerValue: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">{t('ขั้นสูง (Higher)', 'Higher Limit')}</label>
+                                <input type="number" className="form-control" placeholder="0" value={form.higherValue} onChange={e => setForm({ ...form, higherValue: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">{t('ข้อความเตือนขั้นต่ำ', 'Lower Alert Message')}</label>
+                                <input type="text" className="form-control" placeholder={t('ข้อความเมื่อต่ำกว่าเกณฑ์', 'Message when below limit')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">{t('ข้อความเตือนขั้นสูง', 'Higher Alert Message')}</label>
+                                <input type="text" className="form-control" placeholder={t('ข้อความเมื่อสูงกว่าเกณฑ์', 'Message when above limit')} value={form.higherMessage} onChange={e => setForm({ ...form, higherMessage: e.target.value })} />
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* Offline-specific fields */}
+                {form.alarmType === 'offline' && (
+                    <>
+                        <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ตั้งค่าการตรวจจับ', 'Detection Settings')}</div>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">{t('ระยะเวลา Timeout (วินาที)', 'Timeout (seconds)')}</label>
+                                <input type="number" className="form-control" placeholder="60" value={form.offlineTimeoutSec} onChange={e => setForm({ ...form, offlineTimeoutSec: e.target.value })} />
+                                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{t('หากไม่ได้รับข้อมูลเกินเวลานี้ จะส่งเตือน', 'Alert if no data received for this duration')}</div>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* Common fields */}
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ตั้งค่าทั่วไป', 'General Settings')}</div>
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">{t('ขีดจำกัดล่าง', 'Lower Limit')}</label>
-                        <input type="number" className="form-control" placeholder="0" value={form.lowerValue} onChange={e => setForm({ ...form, lowerValue: e.target.value })} />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">{t('ขีดจำกัดบน', 'Higher Limit')}</label>
-                        <input type="number" className="form-control" placeholder="0" value={form.higherValue} onChange={e => setForm({ ...form, higherValue: e.target.value })} />
-                    </div>
-                </div>
-                <div className="form-row">
-                    <div className="form-group">
-                        <label className="form-label">{t('ข้อความเตือนเมื่อขีดจำกัดต่ำกว่า', 'Lower Alert Message')}</label>
-                        <input type="text" className="form-control" placeholder={t('ข้อความแจ้งเตือนเมื่อต่ำกว่าขีดจำกัด', 'Alarm message for lower limit')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value })} />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">{t('ข้อความเตือนเมื่อขีดจำกัดสูงกว่า', 'Higher Alert Message')}</label>
-                        <input type="text" className="form-control" placeholder={t('ข้อความแจ้งเตือนเมื่อสูงกว่าขีดจำกัด', 'Alarm message for higher limit')} value={form.higherMessage} onChange={e => setForm({ ...form, higherMessage: e.target.value })} />
+                        <label className="form-label">{t('Cooldown (นาที)', 'Cooldown (minutes)')}</label>
+                        <input type="number" className="form-control" placeholder="5" value={form.cooldownMinutes} onChange={e => setForm({ ...form, cooldownMinutes: e.target.value })} />
+                        <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{t('ป้องกันส่งซ้ำภายในเวลานี้', 'Prevent duplicate alerts within this period')}</div>
                     </div>
                 </div>
 
-                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('อุปกรณ์แจ้งเตือน', 'Warning Devices')}</div>
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ช่องทางแจ้งเตือน', 'Notification Channels')}</div>
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2, rgba(127,127,127,0.08))', fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                    ✈️ {t('Telegram — ส่งข้อความเข้ากลุ่มที่เลือก', 'Telegram — sends message to selected group')}<br/>
+                    🔊 {t('เสียงเตือนบนเว็บ — เมื่อมี alert ใหม่จะดังเสียง beep (~0.8 วินาที)', 'Web sound — plays beep when new alert fires (~0.8s)')}
+                    <button type="button" onClick={() => {
+                        try {
+                            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                            const playBeep = (freq: number, startTime: number, dur: number) => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.type = 'square';
+                                osc.frequency.value = freq;
+                                gain.gain.setValueAtTime(0.15, startTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, startTime + dur);
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.start(startTime);
+                                osc.stop(startTime + dur);
+                            };
+                            const now = ctx.currentTime;
+                            playBeep(880, now, 0.15);
+                            playBeep(880, now + 0.25, 0.15);
+                            playBeep(1100, now + 0.5, 0.3);
+                        } catch (e) { console.warn(e); }
+                    }} style={{
+                        marginLeft: 10, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)',
+                        background: 'transparent', cursor: 'pointer', fontSize: 11, color: 'var(--accent)',
+                    }}>
+                        🔊 {t('ทดสอบเสียง', 'Test Sound')}
+                    </button>
+                </div>
+
+                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('อุปกรณ์แจ้งเตือน', 'Warning Devices')}</div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <input type="checkbox" checked={form.isLampOn} onChange={e => setForm({ ...form, isLampOn: e.target.checked })} style={{ width: 18, height: 18 }} />
-                            {t('เปิดใช้งานไฟเตือน', 'Enable Warning Lamp')}
+                            {t('💡 เปิดใช้งานไฟเตือน', '💡 Enable Warning Lamp')}
                         </label>
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <input type="checkbox" checked={form.isBuzzerOn} onChange={e => setForm({ ...form, isBuzzerOn: e.target.checked })} style={{ width: 18, height: 18 }} />
-                            {t('เปิดใช้งานไซเรนเตือน', 'Enable Warning Buzzer')}
+                            {t('🔔 เปิดใช้งานไซเรนเตือน', '🔔 Enable Warning Buzzer')}
                         </label>
                     </div>
                 </div>

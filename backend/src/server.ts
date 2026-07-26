@@ -21,6 +21,7 @@ import layoutRoutes from './modules/layouts/layouts.routes';
 import reportsRoutes from './modules/reports/reports.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
+import { alertEngine } from './modules/alarms/alert-engine.service';
 
 const app = createApp();
 const PORT = process.env.PORT || 3003;
@@ -139,8 +140,14 @@ const startServer = async () => {
         console.warn('⚠️  Aggregation scheduler failed to start:', error.message);
     }
 
+    try {
+        alertEngine.start();
+    } catch (error: any) {
+        console.warn('⚠️  Alert Engine failed to start:', error.message);
+    }
+
     const server = app.listen(PORT, () => {
-        console.log(`\n🚀 EnergyPlus API Server running on port ${PORT}`);
+        console.log(`\n🚀 Energy Monitoring API Server running on port ${PORT}`);
         console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
         console.log(`💚 Health check: http://localhost:${PORT}${API_PREFIX}/health`);
         console.log(`📡 Redis Pub/Sub: http://localhost:${PORT}${API_PREFIX}/redis/channels\n`);
@@ -150,6 +157,7 @@ const startServer = async () => {
     const shutdown = async () => {
         console.log('\n🔄 Shutting down gracefully...');
         aggregationScheduler.stop();
+        alertEngine.stop();
         if (meterSubscriptionSyncTimer) clearInterval(meterSubscriptionSyncTimer);
         await disconnectRedis();
         server.close(() => {

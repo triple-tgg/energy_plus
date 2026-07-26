@@ -10,27 +10,28 @@ export class AlarmsService {
         const countResult = await query(`SELECT COUNT(*) FROM alarm_config`);
         const total = parseInt(countResult.rows[0].count);
         const result = await query(
-            `SELECT ac.*, m.meter_name, m.meter_code, ev.energy_value_name
+            `SELECT ac.*, m.meter_name, m.meter_code, ev.energy_value_name, ag.group_name AS alarm_group_name
        FROM alarm_config ac
        LEFT JOIN meter m ON ac.meter_id = m.meter_id
        LEFT JOIN energy_value ev ON ac.energy_value_id = ev.energy_value_id
+       LEFT JOIN alarm_group ag ON ac.alarm_group_id = ag.alarm_group_id
        ORDER BY ac.alarm_config_id LIMIT $1 OFFSET $2`, [limit, offset]
         );
         return { data: result.rows, total, page, limit };
     }
     async createAlarmConfig(data: any) {
         const result = await query(
-            `INSERT INTO alarm_config (meter_id, energy_value_id, lower_value, higher_value, lower_message, higher_message, is_active, is_lamp_on, is_buzzer_on, lamp_address, buzzer_address, created_by, created_on)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW()) RETURNING *`,
-            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage, data.higherMessage, data.isActive, data.isLampOn, data.isBuzzerOn, data.lampAddress, data.buzzerAddress, data.createdBy]
+            `INSERT INTO alarm_config (meter_id, energy_value_id, lower_value, higher_value, lower_message, higher_message, is_active, is_lamp_on, is_buzzer_on, lamp_address, buzzer_address, alarm_type, offline_timeout_sec, cooldown_minutes, alarm_group_id, created_by, created_on)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW()) RETURNING *`,
+            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage, data.higherMessage, data.isActive ?? true, data.isLampOn ?? false, data.isBuzzerOn ?? false, data.lampAddress ?? 0, data.buzzerAddress ?? 0, data.alarmType || 'threshold', data.offlineTimeoutSec ?? 60, data.cooldownMinutes ?? 5, data.alarmGroupId || null, data.createdBy]
         );
         return result.rows[0];
     }
     async updateAlarmConfig(id: number, data: any) {
         const result = await query(
-            `UPDATE alarm_config SET meter_id=$1, energy_value_id=$2, lower_value=$3, higher_value=$4, lower_message=$5, higher_message=$6, is_active=$7, is_lamp_on=$8, is_buzzer_on=$9, lamp_address=$10, buzzer_address=$11, last_modified_by=$12, last_modified_on=NOW()
-       WHERE alarm_config_id=$13 RETURNING *`,
-            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage, data.higherMessage, data.isActive, data.isLampOn, data.isBuzzerOn, data.lampAddress, data.buzzerAddress, data.modifiedBy, id]
+            `UPDATE alarm_config SET meter_id=$1, energy_value_id=$2, lower_value=$3, higher_value=$4, lower_message=$5, higher_message=$6, is_active=$7, is_lamp_on=$8, is_buzzer_on=$9, lamp_address=$10, buzzer_address=$11, alarm_type=$12, offline_timeout_sec=$13, cooldown_minutes=$14, alarm_group_id=$15, last_modified_by=$16, last_modified_on=NOW()
+       WHERE alarm_config_id=$17 RETURNING *`,
+            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage, data.higherMessage, data.isActive, data.isLampOn ?? false, data.isBuzzerOn ?? false, data.lampAddress ?? 0, data.buzzerAddress ?? 0, data.alarmType || 'threshold', data.offlineTimeoutSec ?? 60, data.cooldownMinutes ?? 5, data.alarmGroupId || null, data.modifiedBy, id]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Alarm config not found');
         return result.rows[0];
@@ -112,9 +113,23 @@ export class AlarmsService {
     async sendTestMessage(id: number) {
         const time = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
         const text =
-            `🔔 <b>EnergyPlus</b>\n` +
+            `🔔 <b>Energy Monitoring</b>\n` +
             `✅ ทดสอบการเชื่อมต่อการแจ้งเตือนสำเร็จ\n` +
             `🕒 ${time}`;
         return this.notifyGroup(id, text);
+    }
+
+    // ดึง alarm log ล่าสุดที่ยังไม่ acknowledge (สำหรับ web notification)
+    async getRecentAlerts(sinceMinutes: number = 5) {
+        const result = await query(`
+            SELECT al.*, m.meter_code, m.meter_name
+            FROM alarm_log al
+            LEFT JOIN meter m ON al.meter_id = m.meter_id
+            WHERE al.acknowledged = false
+              AND al.occurred_at >= NOW() - ($1 || ' minutes')::interval
+            ORDER BY al.occurred_at DESC
+            LIMIT 20
+        `, [sinceMinutes]);
+        return result.rows;
     }
 }

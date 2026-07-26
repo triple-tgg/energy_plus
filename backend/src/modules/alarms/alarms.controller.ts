@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AlarmsService } from './alarms.service';
+import { alertEngine } from './alert-engine.service';
 import { AuthRequest } from '../../types';
 import { successResponse, paginationHelper } from '../../utils/response';
 
@@ -36,5 +37,11 @@ export class AlarmsController {
     }
     async detectTelegramChats(req: Request, res: Response, next: NextFunction) {
         try { res.json(successResponse(await svc.detectTelegramChats(req.body?.token))); } catch (e) { next(e); }
+    }
+    async triggerCheck(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await alertEngine.manualCheck(), 'Alert check completed')); } catch (e) { next(e); }
+    }
+    async getRecentAlerts(req: Request, res: Response, next: NextFunction) {
+        try { const mins = parseInt(req.query.minutes as string) || 5; res.json(successResponse(await svc.getRecentAlerts(mins))); } catch (e) { next(e); }
     }
 }
