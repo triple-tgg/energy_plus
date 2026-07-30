@@ -38,6 +38,12 @@ interface AlarmConfig {
     // joined
     meter_code: string;
     meter_name: string;
+    site_name: string | null;
+    building_name: string | null;
+    zone_name: string | null;
+    floor: number | null;
+    room_code: string | null;
+    room_name: string | null;
     telegram_token: string | null;
     telegram_chat_id: string | null;
     group_name: string | null;
@@ -46,6 +52,18 @@ interface AlarmConfig {
 
 const fmtDate = (d: Date) =>
     d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+
+/** Format complete location string (สาขา, ตึก, โซน, ชั้น, ห้อง) */
+const formatLocation = (cfg: AlarmConfig): string => {
+    const parts: string[] = [];
+    if (cfg.site_name) parts.push(`สาขา: ${cfg.site_name}`);
+    if (cfg.building_name) parts.push(`ตึก: ${cfg.building_name}`);
+    if (cfg.zone_name) parts.push(`โซน: ${cfg.zone_name}`);
+    if (cfg.floor != null && cfg.floor !== undefined) parts.push(`ชั้น: ${cfg.floor}`);
+    const roomStr = [cfg.room_code, cfg.room_name].filter(Boolean).join(' ');
+    if (roomStr) parts.push(`ห้อง: ${roomStr}`);
+    return parts.length > 0 ? parts.join(' | ') : 'ไม่ระบุสถานที่';
+};
 
 export class AlertEngine {
     private timer?: NodeJS.Timeout;
@@ -93,11 +111,15 @@ export class AlertEngine {
     private async loadActiveConfigs(): Promise<AlarmConfig[]> {
         const result = await query(`
             SELECT ac.*,
-                   m.meter_code, m.meter_name,
+                   m.meter_code, m.meter_name, m.floor, m.room_code, m.room_name,
+                   s.site_name, b.building_name, z.zone_name,
                    ag.telegram_token, ag.telegram_chat_id, ag.group_name,
                    ev.energy_value_name
             FROM alarm_config ac
             LEFT JOIN meter m ON ac.meter_id = m.meter_id
+            LEFT JOIN sites s ON m.site_id = s.site_id
+            LEFT JOIN buildings b ON m.building_id = b.building_id
+            LEFT JOIN zones z ON m.zone_id = z.zone_id
             LEFT JOIN alarm_group ag ON ac.alarm_group_id = ag.alarm_group_id AND ag.is_active = true
             LEFT JOIN energy_value ev ON ac.energy_value_id = ev.energy_value_id
             WHERE ac.is_active = true
@@ -153,9 +175,11 @@ export class AlertEngine {
             const reason = isTimedOut
                 ? `ไม่ได้รับข้อมูลมากกว่า ${cfg.offline_timeout_sec} วินาที`
                 : `ได้รับค่า 0 ทั้งหมด (Zero Reading)`;
+            const locationStr = formatLocation(cfg);
             const msg =
                 `🔴 <b>OFFLINE ALERT</b>\n` +
                 `Meter: <b>[${cfg.meter_code}]</b> ${cfg.meter_name}\n` +
+                `📍 สถานที่: ${locationStr}\n` +
                 `สาเหตุ: ${reason}\n` +
                 (lastTs ? `ข้อมูลล่าสุด: ${fmtDate(lastTs)} (${agoSec}s ago)\n` : `ข้อมูลล่าสุด: ไม่มี\n`) +
                 `🕒 ${fmtDate(now)}`;
@@ -198,12 +222,15 @@ export class AlertEngine {
             const value = parseFloat(data[fieldName]);
             if (isNaN(value)) continue;
 
+            const locationStr = formatLocation(cfg);
+
             // Check lower bound
             if (cfg.lower_value !== null && value < cfg.lower_value) {
                 if (this.inCooldown(cfg, now)) continue;
                 const msg =
                     `⚠️ <b>THRESHOLD ALERT — ต่ำกว่าขั้นต่ำ</b>\n` +
                     `Meter: <b>[${cfg.meter_code}]</b> ${cfg.meter_name}\n` +
+                    `📍 สถานที่: ${locationStr}\n` +
                     `ค่า: ${cfg.energy_value_name} = <b>${value.toFixed(2)}</b>\n` +
                     `ขั้นต่ำ: ${Number(cfg.lower_value).toFixed(2)}\n` +
                     (cfg.lower_message ? `📝 ${cfg.lower_message}\n` : '') +
@@ -218,6 +245,7 @@ export class AlertEngine {
                 const msg =
                     `🔺 <b>THRESHOLD ALERT — เกินขั้นสูง</b>\n` +
                     `Meter: <b>[${cfg.meter_code}]</b> ${cfg.meter_name}\n` +
+                    `📍 สถานที่: ${locationStr}\n` +
                     `ค่า: ${cfg.energy_value_name} = <b>${value.toFixed(2)}</b>\n` +
                     `ขั้นสูง: ${Number(cfg.higher_value).toFixed(2)}\n` +
                     (cfg.higher_message ? `📝 ${cfg.higher_message}\n` : '') +
