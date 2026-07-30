@@ -44,4 +44,11 @@ export class AlarmsController {
     async getRecentAlerts(req: Request, res: Response, next: NextFunction) {
         try { const mins = parseInt(req.query.minutes as string) || 5; res.json(successResponse(await svc.getRecentAlerts(mins))); } catch (e) { next(e); }
     }
+    async getRecentMeterData(req: Request, res: Response, next: NextFunction) {
+        try {
+            const meterId = parseInt(req.params.meterId);
+            const mins = parseInt(req.query.minutes as string) || 15;
+            res.json(successResponse(await svc.getRecentMeterData(meterId, mins)));
+        } catch (e) { next(e); }
+    }
 }

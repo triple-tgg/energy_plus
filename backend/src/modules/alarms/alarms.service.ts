@@ -140,4 +140,24 @@ export class AlarmsService {
         `, [sinceMinutes]);
         return result.rows;
     }
+
+    // ดึงข้อมูลสรุปล่าสุดจาก actual_meter_data (ทุก 15 นาที) สำหรับ meter ที่เลือก
+    async getRecentMeterData(meterId: number, minutes: number = 15) {
+        const result = await query(`
+            SELECT
+                date_keep,
+                energy_kw, energy_kva, energy_kvar,
+                energy_volt_p1, energy_volt_p2, energy_volt_p3,
+                energy_amp1, energy_amp2, energy_amp3,
+                energy_pf1, energy_pf2, energy_pf3,
+                energy_frequency, energy_kwh,
+                status
+            FROM actual_meter_data
+            WHERE meter_id = $1
+              AND date_keep >= NOW() - ($2 || ' minutes')::interval
+            ORDER BY date_keep DESC
+            LIMIT 10
+        `, [meterId, minutes]);
+        return result.rows;
+    }
 }

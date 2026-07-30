@@ -1931,6 +1931,19 @@ body {
 /* --- Light Theme: Engineering Paper --- */
 .app.ec-theme-light {
   background-color: #EAE7DA;
+
+  /* Override semantic tokens for light theme */
+  --bg: #EAE7DA;
+  --surface: #FBFAF4;
+  --surface-2: rgba(43, 76, 126, 0.06);
+  --text: #23261E;
+  --text-secondary: #5A5D52;
+  --text-muted: #8A8D82;
+  --border: #D4D1C0;
+  --border-light: #E5E2D4;
+  --accent: #2B4C7E;
+  --accent-hover: #1d3557;
+  --accent-bg: rgba(43, 76, 126, 0.08);
 }
 
 .ec-theme-light .sidebar {
@@ -2318,6 +2331,88 @@ body {
 .ec-theme-light .btn-secondary:hover:not(:disabled) {
   background: #EAE7DA;
   border-color: #A6A892;
+}
+
+/* Modal overrides for light theme */
+.ec-theme-light .modal,
+.ec-theme-light .modal-container {
+  background: #FBFAF4;
+  border: 1px solid #D4D1C0;
+  border-radius: 0;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.12);
+}
+
+.ec-theme-light .modal-header {
+  background: #F1EFE3;
+  border-bottom: 1px solid #D4D1C0;
+}
+
+.ec-theme-light .modal-title {
+  color: #23261E;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .modal-close {
+  color: #5A5D52;
+  background: rgba(43, 76, 126, 0.06);
+  border: 1px solid #D4D1C0;
+}
+
+.ec-theme-light .modal-close:hover {
+  background: rgba(43, 76, 126, 0.12);
+  color: #2B4C7E;
+}
+
+.ec-theme-light .modal-footer {
+  background: #F1EFE3;
+  border-top: 1px solid #D4D1C0;
+}
+
+.ec-theme-light .form-label {
+  color: #23261E;
+  font-family: ui-monospace, monospace;
+}
+
+/* Card / DataTable overrides for light theme */
+.ec-theme-light .card {
+  background: #FBFAF4;
+  border: 1px solid #D4D1C0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ec-theme-light .data-table th {
+  background: #F1EFE3;
+  color: #23261E;
+  border-bottom: 2px solid #D4D1C0;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .data-table td {
+  border-bottom: 1px solid #E5E2D4;
+  color: #23261E;
+}
+
+.ec-theme-light .data-table tr:hover td {
+  background: rgba(43, 76, 126, 0.04);
+}
+
+.ec-theme-light .btn-outline {
+  color: #23261E;
+  border-color: #D4D1C0;
+  background: #FBFAF4;
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .btn-outline:hover:not(:disabled) {
+  background: #F1EFE3;
+  border-color: #A6A892;
+}
+
+.ec-theme-light .btn-danger {
+  border-radius: 0;
+  font-family: ui-monospace, monospace;
 }
 
 /* --- Global Elements under ec-theme-dark --- */

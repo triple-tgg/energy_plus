@@ -126,6 +126,7 @@ export const alarmsApi = {
     detectChats: (token: string) => api.post('/alarms/telegram/chats', { token }),
     triggerCheck: () => api.post('/alarms/trigger-check'),
     getRecentAlerts: (minutes?: number) => api.get('/alarms/recent-alerts', { params: { minutes } }),
+    getRecentMeterData: (meterId: number, minutes?: number) => api.get(`/alarms/meter-data/${meterId}/recent`, { params: { minutes } }),
 };
 
 // Billing

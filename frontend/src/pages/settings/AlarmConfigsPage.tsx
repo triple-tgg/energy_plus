@@ -53,6 +53,9 @@ const AlarmConfigsPage: React.FC = () => {
     const [deleteTarget, setDeleteTarget] = useState<any>(null);
     const [deleting, setDeleting] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
+    const [recentData, setRecentData] = useState<any[]>([]);
+    const [recentLoading, setRecentLoading] = useState(false);
+    const [showRecent, setShowRecent] = useState(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -263,6 +266,72 @@ const AlarmConfigsPage: React.FC = () => {
                         </select>
                     </div>
                 </div>
+
+                {/* Recent Data Preview */}
+                {form.meterId && (
+                    <div style={{ marginBottom: 10 }}>
+                        <button type="button" onClick={async () => {
+                            if (showRecent) { setShowRecent(false); return; }
+                            setRecentLoading(true); setShowRecent(true);
+                            try {
+                                const res = await alarmsApi.getRecentMeterData(parseInt(form.meterId), 15);
+                                setRecentData(res.data.data || []);
+                            } catch { setRecentData([]); }
+                            setRecentLoading(false);
+                        }} style={{
+                            padding: '6px 14px', borderRadius: 4, cursor: 'pointer',
+                            border: '1px solid var(--accent)', background: 'var(--accent-bg, rgba(43,76,126,0.08))',
+                            color: 'var(--accent)', fontWeight: 600, fontSize: 12, transition: 'all 0.15s',
+                        }}>
+                            {showRecent ? t('🔼 ซ่อนข้อมูล', '🔼 Hide Data') : t('📊 ดูข้อมูลล่าสุด 15 นาที', '📊 View Last 15 min Data')}
+                        </button>
+
+                        {showRecent && (
+                            <div style={{ marginTop: 8, padding: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface-2, rgba(127,127,127,0.05))', fontSize: 12, maxHeight: 220, overflowY: 'auto' }}>
+                                {recentLoading ? (
+                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16 }}>⏳ {t('กำลังโหลด...', 'Loading...')}</div>
+                                ) : recentData.length === 0 ? (
+                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16 }}>⚠️ {t('ไม่มีข้อมูลใน 15 นาทีที่ผ่านมา', 'No data in the last 15 minutes')}</div>
+                                ) : (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                                <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-secondary)' }}>{t('เวลา', 'Time')}</th>
+                                                <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-secondary)' }}>kW</th>
+                                                <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-secondary)' }}>kVA</th>
+                                                <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-secondary)' }}>V (P1)</th>
+                                                <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-secondary)' }}>A (P1)</th>
+                                                <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-secondary)' }}>PF1</th>
+                                                <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-secondary)' }}>Hz</th>
+                                                <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-secondary)' }}>kWh</th>
+                                                <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-secondary)' }}>{t('สถานะ', 'Status')}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {recentData.map((row: any, i: number) => (
+                                                <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                                                    <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{new Date(row.date_keep).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                                                    <td style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 600 }}>{Number(row.energy_kw || 0).toFixed(2)}</td>
+                                                    <td style={{ textAlign: 'right', padding: '4px 6px' }}>{Number(row.energy_kva || 0).toFixed(2)}</td>
+                                                    <td style={{ textAlign: 'right', padding: '4px 6px' }}>{Number(row.energy_volt_p1 || 0).toFixed(1)}</td>
+                                                    <td style={{ textAlign: 'right', padding: '4px 6px' }}>{Number(row.energy_amp1 || 0).toFixed(2)}</td>
+                                                    <td style={{ textAlign: 'right', padding: '4px 6px' }}>{Number(row.energy_pf1 || 0).toFixed(3)}</td>
+                                                    <td style={{ textAlign: 'right', padding: '4px 6px' }}>{Number(row.energy_frequency || 0).toFixed(1)}</td>
+                                                    <td style={{ textAlign: 'right', padding: '4px 6px' }}>{Number(row.energy_kwh || 0).toFixed(2)}</td>
+                                                    <td style={{ textAlign: 'center', padding: '4px 6px' }}>
+                                                        <span style={{ padding: '1px 6px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: row.status === 'online' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: row.status === 'online' ? '#10b981' : '#ef4444' }}>
+                                                            {row.status || 'online'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Threshold-specific fields */}
                 {form.alarmType === 'threshold' && (

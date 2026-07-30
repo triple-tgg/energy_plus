@@ -18,5 +18,6 @@ router.post('/groups/:id/test', authenticate, c.testAlarmGroup);
 router.post('/telegram/chats', authenticate, c.detectTelegramChats);
 router.post('/trigger-check', authenticate, c.triggerCheck);
 router.get('/recent-alerts', authenticate, c.getRecentAlerts);
+router.get('/meter-data/:meterId/recent', authenticate, c.getRecentMeterData);
 
 export default router;
