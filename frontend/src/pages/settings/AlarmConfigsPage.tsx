@@ -274,7 +274,7 @@ const AlarmConfigsPage: React.FC = () => {
                             if (showRecent) { setShowRecent(false); return; }
                             setRecentLoading(true); setShowRecent(true);
                             try {
-                                const res = await alarmsApi.getRecentMeterData(parseInt(form.meterId), 15);
+                                const res = await alarmsApi.getRecentMeterData(parseInt(form.meterId));
                                 setRecentData(res.data.data || []);
                             } catch { setRecentData([]); }
                             setRecentLoading(false);
@@ -283,7 +283,7 @@ const AlarmConfigsPage: React.FC = () => {
                             border: '1px solid var(--accent)', background: 'var(--accent-bg, rgba(43,76,126,0.08))',
                             color: 'var(--accent)', fontWeight: 600, fontSize: 12, transition: 'all 0.15s',
                         }}>
-                            {showRecent ? t('🔼 ซ่อนข้อมูล', '🔼 Hide Data') : t('📊 ดูข้อมูลล่าสุด 15 นาที', '📊 View Last 15 min Data')}
+                            {showRecent ? t('🔼 ซ่อนข้อมูล', '🔼 Hide Data') : t('📊 ดูข้อมูลล่าสุด', '📊 View Recent Data')}
                         </button>
 
                         {showRecent && (
@@ -291,7 +291,7 @@ const AlarmConfigsPage: React.FC = () => {
                                 {recentLoading ? (
                                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16 }}>⏳ {t('กำลังโหลด...', 'Loading...')}</div>
                                 ) : recentData.length === 0 ? (
-                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16 }}>⚠️ {t('ไม่มีข้อมูลใน 15 นาทีที่ผ่านมา', 'No data in the last 15 minutes')}</div>
+                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16 }}>⚠️ {t('ไม่มีข้อมูลสำหรับมิเตอร์นี้', 'No data found for this meter')}</div>
                                 ) : (
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                                         <thead>

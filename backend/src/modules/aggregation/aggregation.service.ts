@@ -87,7 +87,7 @@ export class AggregationService {
 
         await pool.query(`
             CREATE INDEX IF NOT EXISTS idx_meter_site_address
-            ON meter (site_id, address)
+            ON meter (site_el, address)
         `);
 
         await pool.query(`
@@ -163,7 +163,7 @@ export class AggregationService {
                          AND rmm.is_active = true
                          AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                         LEFT JOIN meter m
-                          ON m.site_id = r.site_id
+                          ON m.site_el = r.site_id
                          AND m.address::text = r.address_id::text
                          AND rmm.id IS NULL
                         WHERE r.received_at >= $1
@@ -249,7 +249,7 @@ export class AggregationService {
                          AND rmm.is_active = true
                          AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                         LEFT JOIN meter m
-                          ON m.site_id = r.site_id
+                          ON m.site_el = r.site_id
                          AND m.address::text = r.address_id::text
                          AND rmm.id IS NULL
                         WHERE r.received_at >= $1

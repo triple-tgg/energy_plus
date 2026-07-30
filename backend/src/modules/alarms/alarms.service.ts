@@ -141,8 +141,8 @@ export class AlarmsService {
         return result.rows;
     }
 
-    // ดึงข้อมูลสรุปล่าสุดจาก actual_meter_data (ทุก 15 นาที) สำหรับ meter ที่เลือก
-    async getRecentMeterData(meterId: number, minutes: number = 15) {
+    // ดึงข้อมูลสรุปล่าสุดจาก actual_meter_data สำหรับ meter ที่เลือก
+    async getRecentMeterData(meterId: number) {
         const result = await query(`
             SELECT
                 date_keep,
@@ -154,10 +154,9 @@ export class AlarmsService {
                 status
             FROM actual_meter_data
             WHERE meter_id = $1
-              AND date_keep >= NOW() - ($2 || ' minutes')::interval
             ORDER BY date_keep DESC
             LIMIT 10
-        `, [meterId, minutes]);
+        `, [meterId]);
         return result.rows;
     }
 }
