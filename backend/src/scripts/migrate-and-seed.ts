@@ -303,12 +303,7 @@ async function migrateAndSeed() {
         lower_value DECIMAL(18,2),
         higher_value DECIMAL(18,2),
         lower_message TEXT,
-        higher_message TEXT,
         is_active BOOLEAN DEFAULT true,
-        is_lamp_on BOOLEAN DEFAULT false,
-        is_buzzer_on BOOLEAN DEFAULT false,
-        lamp_address INTEGER DEFAULT 0,
-        buzzer_address INTEGER DEFAULT 0,
         alarm_group_id INTEGER REFERENCES alarm_group(alarm_group_id),
         created_on TIMESTAMPTZ DEFAULT NOW()
       )

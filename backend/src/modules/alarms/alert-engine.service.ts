@@ -29,12 +29,15 @@ interface AlarmConfig {
     alarm_type: string;       // 'offline' | 'threshold'
     lower_value: number | null;
     higher_value: number | null;
-    lower_message: string | null;
-    higher_message: string | null;
+    lower_message: string | null;  // unified custom note
     offline_timeout_sec: number;
     cooldown_minutes: number;
     last_triggered_at: string | null;
     alarm_group_id: number | null;
+    // schedule
+    active_days: number[] | null;       // [0=Sun,1=Mon,...,6=Sat], null = all days
+    active_time_start: string | null;   // 'HH:mm', null = no start limit
+    active_time_end: string | null;     // 'HH:mm', null = no end limit
     // joined
     meter_code: string;
     meter_name: string;
@@ -65,6 +68,39 @@ const formatLocation = (cfg: AlarmConfig): string => {
     return parts.length > 0 ? parts.join(' | ') : 'ไม่ระบุสถานที่';
 };
 
+/** Check if the current Bangkok time is within the config's active schedule */
+const isWithinSchedule = (cfg: AlarmConfig): boolean => {
+    // Get current Bangkok time
+    const nowBkk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const dayOfWeek = nowBkk.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const hhmm = `${String(nowBkk.getHours()).padStart(2, '0')}:${String(nowBkk.getMinutes()).padStart(2, '0')}`;
+
+    // Check day-of-week
+    const days = cfg.active_days;
+    if (days && Array.isArray(days) && days.length > 0 && days.length < 7) {
+        if (!days.includes(dayOfWeek)) return false;
+    }
+
+    // Check time range
+    const start = cfg.active_time_start;
+    const end = cfg.active_time_end;
+    if (start && end) {
+        if (start <= end) {
+            // Normal range: e.g., 08:00 – 18:00
+            if (hhmm < start || hhmm > end) return false;
+        } else {
+            // Overnight range: e.g., 22:00 – 06:00
+            if (hhmm < start && hhmm > end) return false;
+        }
+    } else if (start && !end) {
+        if (hhmm < start) return false;
+    } else if (!start && end) {
+        if (hhmm > end) return false;
+    }
+
+    return true;
+};
+
 export class AlertEngine {
     private timer?: NodeJS.Timeout;
     private running = false;
@@ -92,7 +128,11 @@ export class AlertEngine {
         if (this.running) return;
         this.running = true;
         try {
-            const configs = await this.loadActiveConfigs();
+            const allConfigs = await this.loadActiveConfigs();
+            if (allConfigs.length === 0) { this.running = false; return; }
+
+            // Filter configs by schedule (day-of-week + time range)
+            const configs = allConfigs.filter(isWithinSchedule);
             if (configs.length === 0) { this.running = false; return; }
 
             const offlineConfigs = configs.filter(c => c.alarm_type === 'offline');
@@ -176,7 +216,7 @@ export class AlertEngine {
                 ? `ไม่ได้รับข้อมูลมากกว่า ${cfg.offline_timeout_sec} วินาที`
                 : `ได้รับค่า 0 ทั้งหมด (Zero Reading)`;
             const locationStr = formatLocation(cfg);
-            const customNote = (cfg.lower_message || cfg.higher_message || '').trim();
+            const customNote = (cfg.lower_message || '').trim();
             const msg =
                 `🔴 <b>OFFLINE ALERT</b>\n` +
                 `Meter: <b>[${cfg.meter_code}]</b> ${cfg.meter_name}\n` +
@@ -225,6 +265,7 @@ export class AlertEngine {
             if (isNaN(value)) continue;
 
             const locationStr = formatLocation(cfg);
+            const customNote = (cfg.lower_message || '').trim();
 
             // Check lower bound
             if (cfg.lower_value !== null && value < cfg.lower_value) {
@@ -235,7 +276,7 @@ export class AlertEngine {
                     `📍 สถานที่: ${locationStr}\n` +
                     `ค่า: ${cfg.energy_value_name} = <b>${value.toFixed(2)}</b>\n` +
                     `ขั้นต่ำ: ${Number(cfg.lower_value).toFixed(2)}\n` +
-                    (cfg.lower_message ? `📝 ${cfg.lower_message}\n` : '') +
+                    (customNote ? `📝 Note: ${customNote}\n` : '') +
                     `🕒 ${fmtDate(now)}`;
                 await this.fireAlert(cfg, 'threshold_low', msg, now);
                 continue;
@@ -250,7 +291,7 @@ export class AlertEngine {
                     `📍 สถานที่: ${locationStr}\n` +
                     `ค่า: ${cfg.energy_value_name} = <b>${value.toFixed(2)}</b>\n` +
                     `ขั้นสูง: ${Number(cfg.higher_value).toFixed(2)}\n` +
-                    (cfg.higher_message ? `📝 ${cfg.higher_message}\n` : '') +
+                    (customNote ? `📝 Note: ${customNote}\n` : '') +
                     `🕒 ${fmtDate(now)}`;
                 await this.fireAlert(cfg, 'threshold_high', msg, now);
             }

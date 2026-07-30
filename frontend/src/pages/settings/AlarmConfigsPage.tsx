@@ -11,22 +11,24 @@ interface ConfigForm {
     lowerValue: string;
     higherValue: string;
     lowerMessage: string;
-    higherMessage: string;
     offlineTimeoutSec: string;
     cooldownMinutes: string;
     alarmGroupId: string;
     isActive: boolean;
-    isLampOn: boolean;
-    isBuzzerOn: boolean;
-    lampAddress: string;
-    buzzerAddress: string;
+    activeDays: number[];
+    activeTimeStart: string;
+    activeTimeEnd: string;
 }
+
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const DAY_LABELS_TH = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+const DAY_LABELS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const emptyForm: ConfigForm = {
     alarmType: 'threshold', meterId: '', energyValueId: '', lowerValue: '', higherValue: '',
-    lowerMessage: '', higherMessage: '', offlineTimeoutSec: '60', cooldownMinutes: '5',
+    lowerMessage: '', offlineTimeoutSec: '60', cooldownMinutes: '5',
     alarmGroupId: '', isActive: true,
-    isLampOn: false, isBuzzerOn: false, lampAddress: '', buzzerAddress: '',
+    activeDays: [...ALL_DAYS], activeTimeStart: '', activeTimeEnd: '',
 };
 
 const AlarmConfigsPage: React.FC = () => {
@@ -83,6 +85,8 @@ const AlarmConfigsPage: React.FC = () => {
 
     const handleEdit = (row: any) => {
         setEditId(row.alarm_config_id);
+        const rawDays = row.active_days;
+        const parsedDays = Array.isArray(rawDays) ? rawDays : (typeof rawDays === 'string' ? JSON.parse(rawDays) : [...ALL_DAYS]);
         setForm({
             alarmType: row.alarm_type || 'threshold',
             meterId: row.meter_id?.toString() || '',
@@ -90,15 +94,13 @@ const AlarmConfigsPage: React.FC = () => {
             lowerValue: row.lower_value?.toString() || '',
             higherValue: row.higher_value?.toString() || '',
             lowerMessage: row.lower_message || '',
-            higherMessage: row.higher_message || '',
             offlineTimeoutSec: row.offline_timeout_sec?.toString() || '60',
             cooldownMinutes: row.cooldown_minutes?.toString() || '5',
             alarmGroupId: row.alarm_group_id?.toString() || '',
             isActive: row.is_active ?? true,
-            isLampOn: row.is_lamp_on ?? false,
-            isBuzzerOn: row.is_buzzer_on ?? false,
-            lampAddress: row.lamp_address?.toString() || '',
-            buzzerAddress: row.buzzer_address?.toString() || '',
+            activeDays: parsedDays,
+            activeTimeStart: row.active_time_start || '',
+            activeTimeEnd: row.active_time_end || '',
         });
         setFormError('');
         setShowModal(true);
@@ -118,8 +120,9 @@ const AlarmConfigsPage: React.FC = () => {
                 offlineTimeoutSec: parseInt(form.offlineTimeoutSec) || 60,
                 cooldownMinutes: parseInt(form.cooldownMinutes) || 5,
                 alarmGroupId: form.alarmGroupId ? parseInt(form.alarmGroupId) : null,
-                lampAddress: form.lampAddress ? parseInt(form.lampAddress) : null,
-                buzzerAddress: form.buzzerAddress ? parseInt(form.buzzerAddress) : null,
+                activeDays: form.activeDays,
+                activeTimeStart: form.activeTimeStart || null,
+                activeTimeEnd: form.activeTimeEnd || null,
             };
             if (editId) {
                 await alarmsApi.updateConfig(editId, payload);
@@ -286,12 +289,9 @@ const AlarmConfigsPage: React.FC = () => {
                         </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label className="form-label">{t('ข้อความเตือนขั้นต่ำ', 'Lower Alert Message')}</label>
-                                <input type="text" className="form-control" placeholder={t('ข้อความเมื่อต่ำกว่าเกณฑ์', 'Message when below limit')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value })} />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">{t('ข้อความเตือนขั้นสูง', 'Higher Alert Message')}</label>
-                                <input type="text" className="form-control" placeholder={t('ข้อความเมื่อสูงกว่าเกณฑ์', 'Message when above limit')} value={form.higherMessage} onChange={e => setForm({ ...form, higherMessage: e.target.value })} />
+                                <label className="form-label">{t('บันทึกข้อความเพิ่มเติม (Custom Note)', 'Custom Alert Note')}</label>
+                                <input type="text" className="form-control" placeholder={t('เช่น ตรวจสอบระบบไฟฟ้าชั้น 3', 'e.g. Check electrical system floor 3')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value })} />
+                                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{t('ข้อความนี้จะถูกแนบไปกับ Telegram และ Alarm Log เมื่อมีการแจ้งเตือน', 'This note will be attached to Telegram and Alarm Log messages')}</div>
                             </div>
                         </div>
                     </>
@@ -311,12 +311,68 @@ const AlarmConfigsPage: React.FC = () => {
                         <div className="form-row">
                             <div className="form-group">
                                 <label className="form-label">{t('บันทึกข้อความเพิ่มเติม (Custom Note)', 'Custom Alert Note')}</label>
-                                <input type="text" className="form-control" placeholder={t('เช่น กรุณาติดต่อช่างไฟอาคาร A โทร 081-xxx-xxxx', 'e.g. Please contact electrician ext 1234')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value, higherMessage: e.target.value })} />
+                                <input type="text" className="form-control" placeholder={t('เช่น กรุณาติดต่อช่างไฟอาคาร A โทร 081-xxx-xxxx', 'e.g. Please contact electrician ext 1234')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value })} />
                                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{t('ข้อความนี้จะถูกแนบไปกับ Telegram และ Alarm Log เมื่อมีการแจ้งเตือน', 'This note will be attached to Telegram and Alarm Log messages')}</div>
                             </div>
                         </div>
                     </>
                 )}
+
+                {/* Schedule */}
+                <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ตารางเวลาทำงาน', 'Active Schedule')}</div>
+                <div className="form-row">
+                    <div className="form-group" style={{ flex: 2 }}>
+                        <label className="form-label">{t('วันที่แจ้งเตือน', 'Active Days')}</label>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {ALL_DAYS.map(d => {
+                                const selected = form.activeDays.includes(d);
+                                return (
+                                    <button key={d} type="button"
+                                        onClick={() => {
+                                            const next = selected
+                                                ? form.activeDays.filter(x => x !== d)
+                                                : [...form.activeDays, d].sort();
+                                            setForm({ ...form, activeDays: next });
+                                        }}
+                                        style={{
+                                            width: 40, height: 36, borderRadius: 6, cursor: 'pointer',
+                                            border: selected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                                            background: selected ? 'var(--accent-bg, rgba(54,194,206,0.15))' : 'transparent',
+                                            color: selected ? 'var(--accent)' : 'var(--text-secondary)',
+                                            fontWeight: selected ? 700 : 400,
+                                            fontSize: 12, transition: 'all 0.15s',
+                                        }}
+                                    >
+                                        {t(DAY_LABELS_TH[d], DAY_LABELS_EN[d])}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                            <button type="button" onClick={() => setForm({ ...form, activeDays: [...ALL_DAYS] })} style={{ fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                {t('เลือกทุกวัน', 'All days')}
+                            </button>
+                            <button type="button" onClick={() => setForm({ ...form, activeDays: [1, 2, 3, 4, 5] })} style={{ fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                {t('จันทร์–ศุกร์', 'Mon–Fri')}
+                            </button>
+                            <button type="button" onClick={() => setForm({ ...form, activeDays: [0, 6] })} style={{ fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                {t('เสาร์–อาทิตย์', 'Sat–Sun')}
+                            </button>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{t('เลือกวันที่ต้องการให้ระบบแจ้งเตือนทำงาน', 'Select which days the alarm should be active')}</div>
+                    </div>
+                </div>
+                <div className="form-row">
+                    <div className="form-group">
+                        <label className="form-label">{t('เวลาเริ่ม', 'Start Time')}</label>
+                        <input type="time" className="form-control" value={form.activeTimeStart} onChange={e => setForm({ ...form, activeTimeStart: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">{t('เวลาสิ้นสุด', 'End Time')}</label>
+                        <input type="time" className="form-control" value={form.activeTimeEnd} onChange={e => setForm({ ...form, activeTimeEnd: e.target.value })} />
+                    </div>
+                </div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>{t('หากไม่ระบุเวลา ระบบจะแจ้งเตือนตลอด 24 ชั่วโมง (เช่น 08:00–18:00 = เฉพาะเวลาทำงาน)', 'Leave empty for 24h alerting. e.g. 08:00–18:00 = business hours only')}</div>
 
                 {/* Common fields */}
                 <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ตั้งค่าทั่วไป', 'General Settings')}</div>
@@ -360,21 +416,6 @@ const AlarmConfigsPage: React.FC = () => {
                     </button>
                 </div>
 
-                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('อุปกรณ์แจ้งเตือน', 'Warning Devices')}</div>
-                <div className="form-row">
-                    <div className="form-group">
-                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <input type="checkbox" checked={form.isLampOn} onChange={e => setForm({ ...form, isLampOn: e.target.checked })} style={{ width: 18, height: 18 }} />
-                            {t('💡 เปิดใช้งานไฟเตือน', '💡 Enable Warning Lamp')}
-                        </label>
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <input type="checkbox" checked={form.isBuzzerOn} onChange={e => setForm({ ...form, isBuzzerOn: e.target.checked })} style={{ width: 18, height: 18 }} />
-                            {t('🔔 เปิดใช้งานไซเรนเตือน', '🔔 Enable Warning Buzzer')}
-                        </label>
-                    </div>
-                </div>
 
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

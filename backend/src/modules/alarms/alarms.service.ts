@@ -7,6 +7,12 @@ export class AlarmsService {
     // Alarm Configs
     async getAlarmConfigs(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
+
+        // Ensure schedule columns exist (safe migration)
+        await query(`ALTER TABLE alarm_config ADD COLUMN IF NOT EXISTS active_days JSONB DEFAULT '[0,1,2,3,4,5,6]'`);
+        await query(`ALTER TABLE alarm_config ADD COLUMN IF NOT EXISTS active_time_start VARCHAR(5) DEFAULT NULL`);
+        await query(`ALTER TABLE alarm_config ADD COLUMN IF NOT EXISTS active_time_end VARCHAR(5) DEFAULT NULL`);
+
         const countResult = await query(`SELECT COUNT(*) FROM alarm_config`);
         const total = parseInt(countResult.rows[0].count);
         const result = await query(
@@ -20,18 +26,20 @@ export class AlarmsService {
         return { data: result.rows, total, page, limit };
     }
     async createAlarmConfig(data: any) {
+        const activeDays = data.activeDays && Array.isArray(data.activeDays) ? JSON.stringify(data.activeDays) : '[0,1,2,3,4,5,6]';
         const result = await query(
-            `INSERT INTO alarm_config (meter_id, energy_value_id, lower_value, higher_value, lower_message, higher_message, is_active, is_lamp_on, is_buzzer_on, lamp_address, buzzer_address, alarm_type, offline_timeout_sec, cooldown_minutes, alarm_group_id, created_by, created_on)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW()) RETURNING *`,
-            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage, data.higherMessage, data.isActive ?? true, data.isLampOn ?? false, data.isBuzzerOn ?? false, data.lampAddress ?? 0, data.buzzerAddress ?? 0, data.alarmType || 'threshold', data.offlineTimeoutSec ?? 60, data.cooldownMinutes ?? 5, data.alarmGroupId || null, data.createdBy]
+            `INSERT INTO alarm_config (meter_id, energy_value_id, lower_value, higher_value, lower_message, is_active, alarm_type, offline_timeout_sec, cooldown_minutes, alarm_group_id, active_days, active_time_start, active_time_end, created_by, created_on)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW()) RETURNING *`,
+            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage || data.higherMessage || null, data.isActive ?? true, data.alarmType || 'threshold', data.offlineTimeoutSec ?? 60, data.cooldownMinutes ?? 5, data.alarmGroupId || null, activeDays, data.activeTimeStart || null, data.activeTimeEnd || null, data.createdBy]
         );
         return result.rows[0];
     }
     async updateAlarmConfig(id: number, data: any) {
+        const activeDays = data.activeDays && Array.isArray(data.activeDays) ? JSON.stringify(data.activeDays) : '[0,1,2,3,4,5,6]';
         const result = await query(
-            `UPDATE alarm_config SET meter_id=$1, energy_value_id=$2, lower_value=$3, higher_value=$4, lower_message=$5, higher_message=$6, is_active=$7, is_lamp_on=$8, is_buzzer_on=$9, lamp_address=$10, buzzer_address=$11, alarm_type=$12, offline_timeout_sec=$13, cooldown_minutes=$14, alarm_group_id=$15, last_modified_by=$16, last_modified_on=NOW()
-       WHERE alarm_config_id=$17 RETURNING *`,
-            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage, data.higherMessage, data.isActive, data.isLampOn ?? false, data.isBuzzerOn ?? false, data.lampAddress ?? 0, data.buzzerAddress ?? 0, data.alarmType || 'threshold', data.offlineTimeoutSec ?? 60, data.cooldownMinutes ?? 5, data.alarmGroupId || null, data.modifiedBy, id]
+            `UPDATE alarm_config SET meter_id=$1, energy_value_id=$2, lower_value=$3, higher_value=$4, lower_message=$5, is_active=$6, alarm_type=$7, offline_timeout_sec=$8, cooldown_minutes=$9, alarm_group_id=$10, active_days=$11, active_time_start=$12, active_time_end=$13, last_modified_by=$14, last_modified_on=NOW()
+       WHERE alarm_config_id=$15 RETURNING *`,
+            [data.meterId, data.energyValueId, data.lowerValue, data.higherValue, data.lowerMessage || data.higherMessage || null, data.isActive, data.alarmType || 'threshold', data.offlineTimeoutSec ?? 60, data.cooldownMinutes ?? 5, data.alarmGroupId || null, activeDays, data.activeTimeStart || null, data.activeTimeEnd || null, data.modifiedBy, id]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Alarm config not found');
         return result.rows[0];
