@@ -41,7 +41,6 @@ const playAlarmSound = () => {
 const AlarmNotification: React.FC = () => {
     const [alerts, setAlerts] = useState<AlertItem[]>([]);
     const [dismissed, setDismissed] = useState<Set<number>>(new Set());
-    const [muted, setMuted] = useState(false);
     const knownIdsRef = useRef<Set<number>>(new Set());
     const firstLoadRef = useRef(true);
 
@@ -60,7 +59,7 @@ const AlarmNotification: React.FC = () => {
             // Check for NEW alerts (not seen before)
             if (!firstLoadRef.current) {
                 const newAlerts = items.filter(a => !knownIdsRef.current.has(a.id));
-                if (newAlerts.length > 0 && !muted) {
+                if (newAlerts.length > 0) {
                     playAlarmSound();
                 }
             }
@@ -73,7 +72,7 @@ const AlarmNotification: React.FC = () => {
         } catch (e) {
             // silently fail
         }
-    }, [muted]);
+    }, []);
 
     useEffect(() => {
         fetchAlerts();
@@ -92,67 +91,106 @@ const AlarmNotification: React.FC = () => {
     const visibleAlerts = alerts.filter(a => !dismissed.has(a.id));
     if (visibleAlerts.length === 0) return null;
 
+    const getAlertColor = (type: string) => {
+        if (type === 'offline') return { border: '#EF4444', bg: '#EF4444', icon: '🔴', label: 'OFFLINE' };
+        if (type === 'threshold_high') return { border: '#F59E0B', bg: '#F59E0B', icon: '🔺', label: 'เกินขั้นสูง' };
+        return { border: '#3B82F6', bg: '#3B82F6', icon: '🔻', label: 'ต่ำกว่าขั้นต่ำ' };
+    };
+
     return (
         <div style={{
-            position: 'fixed', top: 16, right: 16, zIndex: 9999,
-            display: 'flex', flexDirection: 'column', gap: 8,
-            maxWidth: 380, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto',
+            position: 'fixed',
+            top: 76,       /* ใต้ topbar 68px + gap 8px */
+            right: 16,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            maxWidth: 360,
+            maxHeight: 'calc(100vh - 100px)',
+            overflowY: 'auto',
         }}>
             {/* Controls */}
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                <button onClick={() => setMuted(m => !m)} style={{
-                    padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                    background: muted ? '#EF444430' : '#10B98130',
-                    color: muted ? '#EF4444' : '#10B981',
-                    fontSize: 11, fontWeight: 600,
+            {visibleAlerts.length > 1 && (
+                <div style={{
+                    display: 'flex', gap: 6, justifyContent: 'flex-end',
+                    padding: '4px 0',
                 }}>
-                    {muted ? '🔇 เสียงปิด' : '🔊 เสียงเปิด'}
-                </button>
-                {visibleAlerts.length > 1 && (
                     <button onClick={dismissAll} style={{
-                        padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                        background: '#64748B20', color: '#64748B', fontSize: 11, fontWeight: 600,
+                        padding: '3px 10px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                        background: 'rgba(100,116,139,0.12)', color: '#64748B',
+                        fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3,
                     }}>
-                        ปิดทั้งหมด ({visibleAlerts.length})
+                        ✕ ปิดทั้งหมด ({visibleAlerts.length})
                     </button>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Alert cards */}
-            {visibleAlerts.slice(0, 5).map(alert => (
-                <div key={alert.id} style={{
-                    background: alert.alarm_type === 'offline'
-                        ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
-                        : 'linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%)',
-                    border: alert.alarm_type === 'offline' ? '1px solid #EF4444' : '1px solid #F59E0B',
-                    borderRadius: 10, padding: '12px 14px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                    animation: 'slideIn 0.3s ease-out',
-                    color: '#fff',
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{
-                            fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
-                            color: alert.alarm_type === 'offline' ? '#EF4444' : '#F59E0B',
-                        }}>
-                            {alert.alarm_type === 'offline' ? '🔴 OFFLINE' : alert.alarm_type === 'threshold_high' ? '🔺 เกินขั้นสูง' : '🔻 ต่ำกว่าขั้นต่ำ'}
-                        </span>
+            {visibleAlerts.slice(0, 5).map(alert => {
+                const c = getAlertColor(alert.alarm_type);
+                return (
+                    <div key={alert.id} style={{
+                        background: 'var(--surface, #fff)',
+                        borderLeft: `4px solid ${c.border}`,
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        boxShadow: '0 2px 12px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06)',
+                        animation: 'alarmSlideIn 0.3s ease-out',
+                        color: 'var(--text, #23261E)',
+                        position: 'relative',
+                    }}>
+                        {/* Close button */}
                         <button onClick={() => dismiss(alert.id)} style={{
-                            background: 'none', border: 'none', color: '#888', cursor: 'pointer',
-                            fontSize: 16, lineHeight: 1, padding: '0 2px',
+                            position: 'absolute', top: 6, right: 8,
+                            background: 'none', border: 'none', color: 'var(--text-muted, #999)',
+                            cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '2px',
                         }}>×</button>
+
+                        {/* Type badge */}
+                        <div style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background: `${c.bg}18`,
+                            color: c.border,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: 0.5,
+                            textTransform: 'uppercase',
+                            marginBottom: 6,
+                        }}>
+                            {c.icon} {c.label}
+                        </div>
+
+                        {/* Meter info */}
+                        <div style={{
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            color: 'var(--text, #23261E)',
+                            lineHeight: 1.4,
+                            paddingRight: 16,
+                        }}>
+                            [{alert.meter_code}] {alert.meter_name}
+                        </div>
+
+                        {/* Timestamp */}
+                        <div style={{
+                            fontSize: 10.5,
+                            color: 'var(--text-secondary, #888)',
+                            marginTop: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                        }}>
+                            🕒 {new Date(alert.occurred_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
+                        </div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                        [{alert.meter_code}] {alert.meter_name}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#aaa' }}>
-                        🕒 {new Date(alert.occurred_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
-                    </div>
-                </div>
-            ))}
+                );
+            })}
 
             <style>{`
-                @keyframes slideIn {
+                @keyframes alarmSlideIn {
                     from { transform: translateX(100%); opacity: 0; }
                     to { transform: translateX(0); opacity: 1; }
                 }
