@@ -176,12 +176,14 @@ export class AlertEngine {
                 ? `ไม่ได้รับข้อมูลมากกว่า ${cfg.offline_timeout_sec} วินาที`
                 : `ได้รับค่า 0 ทั้งหมด (Zero Reading)`;
             const locationStr = formatLocation(cfg);
+            const customNote = (cfg.lower_message || cfg.higher_message || '').trim();
             const msg =
                 `🔴 <b>OFFLINE ALERT</b>\n` +
                 `Meter: <b>[${cfg.meter_code}]</b> ${cfg.meter_name}\n` +
                 `📍 สถานที่: ${locationStr}\n` +
                 `สาเหตุ: ${reason}\n` +
                 (lastTs ? `ข้อมูลล่าสุด: ${fmtDate(lastTs)} (${agoSec}s ago)\n` : `ข้อมูลล่าสุด: ไม่มี\n`) +
+                (customNote ? `📝 Note: ${customNote}\n` : '') +
                 `🕒 ${fmtDate(now)}`;
 
             await this.fireAlert(cfg, 'offline', msg, now);

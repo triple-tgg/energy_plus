@@ -300,12 +300,19 @@ const AlarmConfigsPage: React.FC = () => {
                 {/* Offline-specific fields */}
                 {form.alarmType === 'offline' && (
                     <>
-                        <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ตั้งค่าการตรวจจับ', 'Detection Settings')}</div>
+                        <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ตั้งค่าการตรวจจับและข้อความเพิ่มเติม', 'Detection & Custom Note')}</div>
                         <div className="form-row">
                             <div className="form-group">
                                 <label className="form-label">{t('ระยะเวลา Timeout (วินาที)', 'Timeout (seconds)')}</label>
                                 <input type="number" className="form-control" placeholder="60" value={form.offlineTimeoutSec} onChange={e => setForm({ ...form, offlineTimeoutSec: e.target.value })} />
                                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{t('หากไม่ได้รับข้อมูลเกินเวลานี้ จะส่งเตือน', 'Alert if no data received for this duration')}</div>
+                            </div>
+                        </div>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">{t('บันทึกข้อความเพิ่มเติม (Custom Note)', 'Custom Alert Note')}</label>
+                                <input type="text" className="form-control" placeholder={t('เช่น กรุณาติดต่อช่างไฟอาคาร A โทร 081-xxx-xxxx', 'e.g. Please contact electrician ext 1234')} value={form.lowerMessage} onChange={e => setForm({ ...form, lowerMessage: e.target.value, higherMessage: e.target.value })} />
+                                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{t('ข้อความนี้จะถูกแนบไปกับ Telegram และ Alarm Log เมื่อมีการแจ้งเตือน', 'This note will be attached to Telegram and Alarm Log messages')}</div>
                             </div>
                         </div>
                     </>
