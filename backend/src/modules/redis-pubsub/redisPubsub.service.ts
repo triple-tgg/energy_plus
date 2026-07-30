@@ -277,7 +277,13 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
             m.status AS meter_status, m.is_active,
             s.site_name,
             b.building_name,
-            z.zone_name
+            z.zone_name,
+            CASE WHEN COALESCE(lr.vl1,0)=0 AND COALESCE(lr.vl2,0)=0 AND COALESCE(lr.vl3,0)=0
+                  AND COALESCE(lr.il1,0)=0 AND COALESCE(lr.il2,0)=0 AND COALESCE(lr.il3,0)=0
+                  AND COALESCE(lr.kw_3ph,0)=0 AND COALESCE(lr.kva_3ph,0)=0
+                  AND COALESCE(lr.hz,0)=0 AND COALESCE(lr.import_kwhr,0)=0
+                 THEN true ELSE false
+            END AS is_all_zero
         FROM latest_readings lr
         LEFT JOIN realtime_meter_map rmm
             ON rmm.realtime_site_id = lr.realtime_site_id

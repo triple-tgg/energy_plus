@@ -159,6 +159,11 @@ const isRealtime = (m: MeterData) => m.data_source === 'realtime' || m.data_sour
 function meterStatus(m: MeterData, now: number): string {
     if (m.disabled) return 'offline';
     if (now - m.received_at > STALE_MS) return 'offline';
+    // Treat all-zero readings as offline (meter communicating but no real data)
+    if (m.vl1 === 0 && m.vl2 === 0 && m.vl3 === 0
+        && m.il1 === 0 && m.il2 === 0 && m.il3 === 0
+        && m.kw_3ph === 0 && m.kva_3ph === 0
+        && m.hz === 0 && m.import_kwhr === 0) return 'offline';
     const p = period(m), t = m.threshold;
     if (t > 0 && p > t) return 'over';
     return 'normal';

@@ -110,30 +110,39 @@ export class AlertEngine {
         const meterIds = [...new Set(configs.map(c => c.meter_id))];
         if (meterIds.length === 0) return;
 
-        // Get latest received_at for each meter from realtime data
+        // Get latest record (with readings) for each meter from realtime data
         const result = await query(`
-            SELECT m.meter_id, r.received_at
+            SELECT m.meter_id, r.received_at, r.vl1, r.vl2, r.vl3, r.il1, r.il2, r.il3, r.kw_3ph, r.kva_3ph, r.hz, r.import_kwhr
             FROM meter m
             JOIN LATERAL (
-                SELECT r2.received_at FROM meter_data_realtime r2
+                SELECT r2.received_at, r2.vl1, r2.vl2, r2.vl3, r2.il1, r2.il2, r2.il3, r2.kw_3ph, r2.kva_3ph, r2.hz, r2.import_kwhr
+                FROM meter_data_realtime r2
                 WHERE r2.site_id = m.site_el AND r2.address_id = m.address::int
                 ORDER BY r2.received_at DESC LIMIT 1
             ) r ON true
             WHERE m.meter_id = ANY($1)
         `, [meterIds]);
 
-        const lastSeen = new Map<number, Date>();
+        const meterReadings = new Map<number, any>();
         for (const row of result.rows) {
-            lastSeen.set(row.meter_id, new Date(row.received_at));
+            meterReadings.set(row.meter_id, row);
         }
 
         const now = new Date();
         for (const cfg of configs) {
-            const lastTs = lastSeen.get(cfg.meter_id);
+            const row = meterReadings.get(cfg.meter_id);
+            const lastTs = row ? new Date(row.received_at) : null;
             const timeoutMs = (cfg.offline_timeout_sec || 60) * 1000;
 
-            // Check if meter is offline
-            const isOffline = !lastTs || (now.getTime() - lastTs.getTime() > timeoutMs);
+            const isTimedOut = !lastTs || (now.getTime() - lastTs.getTime() > timeoutMs);
+            const isAllZero = row ? (
+                parseFloat(row.vl1 || 0) === 0 && parseFloat(row.vl2 || 0) === 0 && parseFloat(row.vl3 || 0) === 0 &&
+                parseFloat(row.il1 || 0) === 0 && parseFloat(row.il2 || 0) === 0 && parseFloat(row.il3 || 0) === 0 &&
+                parseFloat(row.kw_3ph || 0) === 0 && parseFloat(row.kva_3ph || 0) === 0 &&
+                parseFloat(row.hz || 0) === 0 && parseFloat(row.import_kwhr || 0) === 0
+            ) : false;
+
+            const isOffline = isTimedOut || isAllZero;
             if (!isOffline) continue;
 
             // Check cooldown
@@ -141,10 +150,13 @@ export class AlertEngine {
 
             // Fire alert
             const agoSec = lastTs ? Math.round((now.getTime() - lastTs.getTime()) / 1000) : -1;
+            const reason = isTimedOut
+                ? `ไม่ได้รับข้อมูลมากกว่า ${cfg.offline_timeout_sec} วินาที`
+                : `ได้รับค่า 0 ทั้งหมด (Zero Reading)`;
             const msg =
                 `🔴 <b>OFFLINE ALERT</b>\n` +
                 `Meter: <b>[${cfg.meter_code}]</b> ${cfg.meter_name}\n` +
-                `สถานะ: ไม่ได้รับข้อมูลมากกว่า ${cfg.offline_timeout_sec} วินาที\n` +
+                `สาเหตุ: ${reason}\n` +
                 (lastTs ? `ข้อมูลล่าสุด: ${fmtDate(lastTs)} (${agoSec}s ago)\n` : `ข้อมูลล่าสุด: ไม่มี\n`) +
                 `🕒 ${fmtDate(now)}`;
 

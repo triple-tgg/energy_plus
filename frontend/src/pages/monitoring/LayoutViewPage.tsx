@@ -134,9 +134,16 @@ const REALTIME_ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
 const mapRealtimeMeterData = (row: any) => {
     const receivedAt = row?.received_at ? new Date(row.received_at).getTime() : 0;
     const isOnline = receivedAt > 0 && Date.now() - receivedAt <= REALTIME_ONLINE_THRESHOLD_MS;
+    // Treat all-zero readings as offline even if data is fresh
+    const isAllZero = row?.is_all_zero === true || (
+        parseFloat(row?.vl1 || 0) === 0 && parseFloat(row?.vl2 || 0) === 0 && parseFloat(row?.vl3 || 0) === 0
+        && parseFloat(row?.il1 || 0) === 0 && parseFloat(row?.il2 || 0) === 0 && parseFloat(row?.il3 || 0) === 0
+        && parseFloat(row?.kw_3ph || 0) === 0 && parseFloat(row?.kva_3ph || 0) === 0
+        && parseFloat(row?.hz || 0) === 0 && parseFloat(row?.import_kwhr || 0) === 0
+    );
     return {
         ...row,
-        status: isOnline ? 'online' : 'offline',
+        status: (isOnline && !isAllZero) ? 'online' : 'offline',
         date_keep: row.received_at,
         energy_kwh: row.import_kwhr,
         energy_kva: row.kva_3ph,

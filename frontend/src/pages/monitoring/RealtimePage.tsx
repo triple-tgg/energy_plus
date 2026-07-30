@@ -35,6 +35,7 @@ interface RealtimeMeterData {
     loop_id: number;
     meter_status: string;
     is_active: boolean;
+    is_all_zero: boolean;
     site_name: string;
     building_name: string;
     zone_name: string;
@@ -103,6 +104,17 @@ const DETAIL_FIELDS: { key: string; labelTh: string; labelEn: string; unit: stri
 const parseNum = (v: any, fallback = 0): number => {
     const n = parseFloat(v);
     return isFinite(n) ? n : fallback;
+};
+
+/** Detect meter as "offline" when all key measurement values are zero */
+const isMeterOffline = (m: RealtimeMeterData): boolean => {
+    // Backend may provide is_all_zero flag
+    if (m.is_all_zero === true) return true;
+    // Fallback: check client-side
+    return m.vl1 === 0 && m.vl2 === 0 && m.vl3 === 0
+        && m.il1 === 0 && m.il2 === 0 && m.il3 === 0
+        && m.kw_3ph === 0 && m.kva_3ph === 0
+        && m.hz === 0 && m.import_kwhr === 0;
 };
 
 /** Format device_datetime from DB — DB stores Bangkok time but PG sends as UTC.
@@ -318,9 +330,11 @@ const RealtimePage: React.FC = () => {
 
     // Summary calculations
     const totalMeters = meters.length;
-    const totalPower = meters.reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
-    const avgVoltage = meters.length > 0
-        ? meters.reduce((sum, m) => sum + ((m.vl1 + m.vl2 + m.vl3) / 3 || 0), 0) / meters.length
+    const onlineMeters = meters.filter(m => !isMeterOffline(m));
+    const offlineMeters = meters.filter(m => isMeterOffline(m));
+    const totalPower = onlineMeters.reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
+    const avgVoltage = onlineMeters.length > 0
+        ? onlineMeters.reduce((sum, m) => sum + ((m.vl1 + m.vl2 + m.vl3) / 3 || 0), 0) / onlineMeters.length
         : 0;
 
     // Chart colors
@@ -441,11 +455,20 @@ const RealtimePage: React.FC = () => {
                         <Cpu size={20} style={{ color: C.accent }} />
                     </div>
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
-                        {totalMeters}
+                        {onlineMeters.length}<span style={{ fontSize: 14, fontWeight: 600, color: C.sub }}>/{totalMeters}</span>
                     </h3>
-                    <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
-                        {t('ช่องสัญญาณที่ทำงานในระบบ', 'ACTIVE CHANNELS IN PROCESS')}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '11px', fontFamily: MONO, fontWeight: 600 }}>
+                        <span style={{ color: C.green, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
+                            {t('ออนไลน์', 'ONLINE')} {onlineMeters.length}
+                        </span>
+                        {offlineMeters.length > 0 && (
+                            <span style={{ color: C.red, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, display: 'inline-block' }} />
+                                {t('ออฟไลน์', 'OFFLINE')} {offlineMeters.length}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Total Load Card */}
@@ -680,6 +703,7 @@ const RealtimePage: React.FC = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', fontFamily: MONO }}>
                         <thead>
                             <tr style={{ borderBottom: `2px solid ${C.line}`, color: C.sub, fontWeight: 700 }}>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('สถานะ', 'Status')}</th>
                                 <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('รหัส', 'Code')}</th>
                                 <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('ชื่อมิเตอร์', 'Meter Name')}</th>
                                 <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('สถานที่', 'Location')}</th>
@@ -699,6 +723,7 @@ const RealtimePage: React.FC = () => {
                                     const avgPf = (m.pf1 + m.pf2 + m.pf3) / 3;
                                     const isFlashing = flashingRows[m.meter_code];
                                     const locationParts = [m.building_name, m.zone_name].filter(Boolean);
+                                    const offline = isMeterOffline(m);
 
                                     return (
                                         <tr key={m.meter_code}
@@ -707,17 +732,32 @@ const RealtimePage: React.FC = () => {
                                                 borderBottom: `1px solid ${C.line}`,
                                                 backgroundColor: isFlashing
                                                     ? (theme === 'light' ? 'rgba(43,76,126,0.12)' : 'rgba(54,194,206,0.12)')
-                                                    : 'transparent',
+                                                    : offline
+                                                        ? (theme === 'light' ? 'rgba(239,68,68,0.04)' : 'rgba(248,81,73,0.06)')
+                                                        : 'transparent',
                                                 transition: isFlashing ? 'none' : 'background-color 0.8s ease',
-                                                color: C.ink,
+                                                color: offline ? C.sub : C.ink,
                                                 fontWeight: 500,
                                                 cursor: 'pointer',
+                                                opacity: offline ? 0.7 : 1,
                                             }}
                                             onMouseEnter={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = theme === 'light' ? '#f0efe5' : '#1f2937'; }}
-                                            onMouseLeave={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                            onMouseLeave={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = offline ? (theme === 'light' ? 'rgba(239,68,68,0.04)' : 'rgba(248,81,73,0.06)') : 'transparent'; }}
                                         >
+                                            <td style={{ padding: '14px 8px', textAlign: 'center' }}>
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                    padding: '2px 8px', fontSize: 10, fontWeight: 700, fontFamily: MONO,
+                                                    background: offline ? C.red + '18' : C.green + '18',
+                                                    color: offline ? C.red : C.green,
+                                                    border: `1px solid ${offline ? C.red : C.green}30`,
+                                                }}>
+                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: offline ? C.red : C.green, display: 'inline-block', boxShadow: offline ? 'none' : `0 0 6px ${C.green}` }} />
+                                                    {offline ? t('ออฟไลน์', 'OFFLINE') : t('ออนไลน์', 'ONLINE')}
+                                                </span>
+                                            </td>
                                             <td style={{ padding: '14px 8px', fontWeight: 700 }}>{m.meter_code}</td>
-                                            <td style={{ padding: '14px 8px', color: C.accent, fontWeight: 700 }}>{m.meter_name || m.room_code || `M${m.meter_id}`}</td>
+                                            <td style={{ padding: '14px 8px', color: offline ? C.sub : C.accent, fontWeight: 700 }}>{m.meter_name || m.room_code || `M${m.meter_id}`}</td>
                                             <td style={{ padding: '14px 8px', fontSize: '11px', color: C.sub }}>
                                                 {locationParts.length > 0 ? locationParts.join(' › ') : '—'}
                                             </td>
@@ -750,7 +790,7 @@ const RealtimePage: React.FC = () => {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={11} style={{ textAlign: 'center', padding: '30px', color: C.sub }}>
+                                    <td colSpan={12} style={{ textAlign: 'center', padding: '30px', color: C.sub }}>
                                         {t('ไม่พบข้อมูลการลงทะเบียนมิเตอร์', 'NO METER REGISTRIES FOUND')}
                                     </td>
                                 </tr>
