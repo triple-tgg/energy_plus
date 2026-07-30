@@ -155,7 +155,7 @@ export class AlarmsService {
             FROM actual_meter_data
             WHERE meter_id = $1
             ORDER BY date_keep DESC
-            LIMIT 10
+            LIMIT 5
         `, [meterId]);
         return result.rows;
     }

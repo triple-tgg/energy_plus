@@ -84,10 +84,12 @@ const AlarmConfigsPage: React.FC = () => {
     useEffect(() => { fetchLookups(); }, [fetchLookups]);
     useEffect(() => { if (successMsg) { const t = setTimeout(() => setSuccessMsg(''), 3000); return () => clearTimeout(t); } }, [successMsg]);
 
-    const handleCreate = () => { setEditId(null); setForm(emptyForm); setFormError(''); setShowModal(true); };
+    const handleCreate = () => { setEditId(null); setForm(emptyForm); setFormError(''); setShowRecent(false); setRecentData([]); setShowModal(true); };
 
     const handleEdit = (row: any) => {
         setEditId(row.alarm_config_id);
+        setShowRecent(false);
+        setRecentData([]);
         const rawDays = row.active_days;
         const parsedDays = Array.isArray(rawDays) ? rawDays : (typeof rawDays === 'string' ? JSON.parse(rawDays) : [...ALL_DAYS]);
         setForm({
@@ -253,7 +255,7 @@ const AlarmConfigsPage: React.FC = () => {
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('มิเตอร์', 'Meter')} <span style={{ color: 'var(--danger)' }}>*</span></label>
-                        <select className="form-control" value={form.meterId} onChange={e => setForm({ ...form, meterId: e.target.value })}>
+                        <select className="form-control" value={form.meterId} onChange={e => { setForm({ ...form, meterId: e.target.value }); setShowRecent(false); setRecentData([]); }}>
                             <option value="">{t('— เลือกมิเตอร์ —', '— Select Meter —')}</option>
                             {meters.map(m => <option key={m.meter_id} value={m.meter_id}>{m.meter_code} — {m.meter_name}</option>)}
                         </select>
