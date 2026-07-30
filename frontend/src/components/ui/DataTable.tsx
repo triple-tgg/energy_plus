@@ -115,7 +115,7 @@ const DataTable: React.FC<DataTableProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: '11.5px', color: C.sub }}>
                     <span>{t('แสดง', 'SHOW')}</span>
                     <select value={limit} onChange={e => onLimitChange?.(parseInt(e.target.value))} style={{ ...inputStyle, padding: '3px 6px' }}>
-                        {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                        {[10, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                     <span>{t('รายการ', 'ENTRIES')}</span>
                 </div>
