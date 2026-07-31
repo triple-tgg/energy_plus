@@ -83,14 +83,14 @@ const Header: React.FC = () => {
     const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
     const getAlertIcon = (type: string) => {
-        if (type === 'offline') return '🔴';
+        if (type === 'disconnect') return '🔴';
         if (type === 'threshold_high') return '🔺';
         if (type === 'threshold_low') return '🔻';
         return '⚠️';
     };
 
     const getAlertLabel = (type: string) => {
-        if (type === 'offline') return t('ขาดการติดต่อ', 'Offline');
+        if (type === 'disconnect') return t('ขาดการติดต่อ', 'Disconnect');
         if (type === 'threshold_high') return t('เกินขั้นสูง', 'Over Max');
         if (type === 'threshold_low') return t('ต่ำกว่าขั้นต่ำ', 'Under Min');
         return t('แจ้งเตือน', 'Alert');
@@ -227,7 +227,7 @@ const Header: React.FC = () => {
                                         <div style={{
                                             width: 34, height: 34, borderRadius: 8, flexShrink: 0,
                                             display: 'grid', placeItems: 'center', fontSize: 16,
-                                            background: alert.alarm_type === 'offline' ? '#EF444415' : '#F59E0B15',
+                                            background: alert.alarm_type === 'disconnect' ? '#EF444415' : '#F59E0B15',
                                         }}>
                                             {getAlertIcon(alert.alarm_type)}
                                         </div>
@@ -236,8 +236,8 @@ const Header: React.FC = () => {
                                                 <span style={{
                                                     fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
                                                     padding: '1px 5px', borderRadius: 3,
-                                                    background: alert.alarm_type === 'offline' ? '#EF444420' : '#F59E0B20',
-                                                    color: alert.alarm_type === 'offline' ? '#EF4444' : '#F59E0B',
+                                                    background: alert.alarm_type === 'disconnect' ? '#EF444420' : '#F59E0B20',
+                                                    color: alert.alarm_type === 'disconnect' ? '#EF4444' : '#F59E0B',
                                                 }}>
                                                     {getAlertLabel(alert.alarm_type)}
                                                 </span>

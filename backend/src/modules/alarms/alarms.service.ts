@@ -12,6 +12,9 @@ export class AlarmsService {
         await query(`ALTER TABLE alarm_config ADD COLUMN IF NOT EXISTS active_days JSONB DEFAULT '[0,1,2,3,4,5,6]'`);
         await query(`ALTER TABLE alarm_config ADD COLUMN IF NOT EXISTS active_time_start VARCHAR(5) DEFAULT NULL`);
         await query(`ALTER TABLE alarm_config ADD COLUMN IF NOT EXISTS active_time_end VARCHAR(5) DEFAULT NULL`);
+        // Migrate alarm_type 'offline' → 'disconnect' (idempotent)
+        await query(`UPDATE alarm_config SET alarm_type = 'disconnect' WHERE alarm_type = 'offline'`);
+        await query(`UPDATE alarm_log SET alarm_type = 'disconnect' WHERE alarm_type = 'offline'`);
 
         const countResult = await query(`SELECT COUNT(*) FROM alarm_config`);
         const total = parseInt(countResult.rows[0].count);

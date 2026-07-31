@@ -92,7 +92,7 @@ const AlarmNotification: React.FC = () => {
     if (visibleAlerts.length === 0) return null;
 
     const getAlertColor = (type: string) => {
-        if (type === 'offline') return { border: '#EF4444', bg: '#EF4444', icon: '🔴', label: 'OFFLINE' };
+        if (type === 'disconnect') return { border: '#EF4444', bg: '#EF4444', icon: '🔴', label: 'DISCONNECT' };
         if (type === 'threshold_high') return { border: '#F59E0B', bg: '#F59E0B', icon: '🔺', label: 'เกินขั้นสูง' };
         return { border: '#3B82F6', bg: '#3B82F6', icon: '🔻', label: 'ต่ำกว่าขั้นต่ำ' };
     };

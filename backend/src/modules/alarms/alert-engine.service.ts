@@ -26,7 +26,7 @@ interface AlarmConfig {
     alarm_config_id: number;
     meter_id: number;
     energy_value_id: number | null;
-    alarm_type: string;       // 'offline' | 'threshold'
+    alarm_type: string;       // 'disconnect' | 'threshold'
     lower_value: number | null;
     higher_value: number | null;
     lower_message: string | null;  // unified custom note
@@ -135,10 +135,10 @@ export class AlertEngine {
             const configs = allConfigs.filter(isWithinSchedule);
             if (configs.length === 0) { this.running = false; return; }
 
-            const offlineConfigs = configs.filter(c => c.alarm_type === 'offline');
+            const disconnectConfigs = configs.filter(c => c.alarm_type === 'disconnect');
             const thresholdConfigs = configs.filter(c => c.alarm_type === 'threshold');
 
-            if (offlineConfigs.length > 0) await this.checkOffline(offlineConfigs);
+            if (disconnectConfigs.length > 0) await this.checkOffline(disconnectConfigs);
             if (thresholdConfigs.length > 0) await this.checkThreshold(thresholdConfigs);
         } catch (err: any) {
             console.error('❌ Alert Engine error:', err.message);
@@ -218,7 +218,7 @@ export class AlertEngine {
             const locationStr = formatLocation(cfg);
             const customNote = (cfg.lower_message || '').trim();
             const msg =
-                `🔴 <b>OFFLINE ALERT</b>\n` +
+                `🔴 <b>DISCONNECT ALERT</b>\n` +
                 `Meter: <b>[${cfg.meter_code}]</b> ${cfg.meter_name}\n` +
                 `📍 สถานที่: ${locationStr}\n` +
                 `สาเหตุ: ${reason}\n` +
@@ -226,7 +226,7 @@ export class AlertEngine {
                 (customNote ? `📝 Note: ${customNote}\n` : '') +
                 `🕒 ${fmtDate(now)}`;
 
-            await this.fireAlert(cfg, 'offline', msg, now);
+            await this.fireAlert(cfg, 'disconnect', msg, now);
         }
     }
 
@@ -360,9 +360,9 @@ export class AlertEngine {
         const logBefore = await query('SELECT COUNT(*)::int AS cnt FROM alarm_log');
         const before = logBefore.rows[0].cnt;
 
-        const offlineConfigs = configs.filter(c => c.alarm_type === 'offline');
+        const disconnectConfigs = configs.filter(c => c.alarm_type === 'disconnect');
         const thresholdConfigs = configs.filter(c => c.alarm_type === 'threshold');
-        if (offlineConfigs.length > 0) await this.checkOffline(offlineConfigs);
+        if (disconnectConfigs.length > 0) await this.checkOffline(disconnectConfigs);
         if (thresholdConfigs.length > 0) await this.checkThreshold(thresholdConfigs);
 
         const logAfter = await query('SELECT COUNT(*)::int AS cnt FROM alarm_log');

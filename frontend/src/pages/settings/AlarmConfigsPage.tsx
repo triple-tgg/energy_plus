@@ -5,7 +5,7 @@ import { alarmsApi, metersApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ConfigForm {
-    alarmType: 'threshold' | 'offline';
+    alarmType: 'threshold' | 'disconnect';
     meterId: string;
     energyValueId: string;
     lowerValue: string;
@@ -160,10 +160,10 @@ const AlarmConfigsPage: React.FC = () => {
             render: (v: string) => (
                 <span style={{
                     padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                    background: v === 'offline' ? '#EF444420' : '#3B82F620',
-                    color: v === 'offline' ? '#EF4444' : '#3B82F6',
+                    background: v === 'disconnect' ? '#EF444420' : '#3B82F620',
+                    color: v === 'disconnect' ? '#EF4444' : '#3B82F6',
                 }}>
-                    {v === 'offline' ? t('🔴 ขาดการติดต่อ', '🔴 Offline') : t('📊 เกณฑ์', '📊 Threshold')}
+                    {v === 'disconnect' ? t('🔴 ขาดการติดต่อ', '🔴 Disconnect') : t('📊 เกณฑ์', '📊 Threshold')}
                 </span>
             ),
         },
@@ -173,19 +173,19 @@ const AlarmConfigsPage: React.FC = () => {
         },
         {
             key: 'energy_value_name', title: t('พารามิเตอร์', 'Parameter'),
-            render: (v: string, row: any) => row.alarm_type === 'offline'
+            render: (v: string, row: any) => row.alarm_type === 'disconnect'
                 ? <span style={{ color: '#888' }}>—</span>
                 : v || '—',
         },
         {
             key: 'lower_value', title: t('ขั้นต่ำ', 'Min'),
-            render: (v: any, row: any) => row.alarm_type === 'offline'
+            render: (v: any, row: any) => row.alarm_type === 'disconnect'
                 ? <span style={{ color: '#888' }}>—</span>
                 : v ?? '—',
         },
         {
             key: 'higher_value', title: t('ขั้นสูง', 'Max'),
-            render: (v: any, row: any) => row.alarm_type === 'offline'
+            render: (v: any, row: any) => row.alarm_type === 'disconnect'
                 ? <span style={{ fontSize: 11 }}>{row.offline_timeout_sec || 60}s</span>
                 : v ?? '—',
         },
@@ -228,7 +228,7 @@ const AlarmConfigsPage: React.FC = () => {
                     <div className="form-group" style={{ flex: 1 }}>
                         <div style={{ display: 'flex', gap: 8 }}>
                             {([
-                                { value: 'offline' as const, emoji: '🔴', labelTh: 'ขาดการติดต่อ', labelEn: 'Offline Detection' },
+                                { value: 'disconnect' as const, emoji: '🔴', labelTh: 'ขาดการติดต่อ', labelEn: 'Disconnect Detection' },
                                 { value: 'threshold' as const, emoji: '📊', labelTh: 'เกินเกณฑ์', labelEn: 'Threshold' },
                             ]).map(opt => (
                                 <button key={opt.value}
@@ -368,8 +368,8 @@ const AlarmConfigsPage: React.FC = () => {
                     </>
                 )}
 
-                {/* Offline-specific fields */}
-                {form.alarmType === 'offline' && (
+                {/* Disconnect-specific fields */}
+                {form.alarmType === 'disconnect' && (
                     <>
                         <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ตั้งค่าการตรวจจับและข้อความเพิ่มเติม', 'Detection & Custom Note')}</div>
                         <div className="form-row">
