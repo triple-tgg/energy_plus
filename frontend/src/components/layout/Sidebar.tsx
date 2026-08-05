@@ -31,39 +31,14 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
     {
-        titleEn: 'Administration',
-        titleTh: 'การจัดการระบบ',
-        icon: Settings,
+        titleEn: 'Dashboards',
+        titleTh: 'แดชบอร์ด',
+        icon: LayoutDashboard,
         items: [
-            { labelEn: 'Company Info', labelTh: 'ข้อมูลบริษัท', path: '/admin/company', icon: Building2, permissionKey: 'company' },
-            { labelEn: 'User Groups', labelTh: 'กลุ่มผู้ใช้งาน', path: '/admin/groups', icon: Users, permissionKey: 'users' },
-            { labelEn: 'Users', labelTh: 'ผู้ใช้งาน', path: '/admin/users', icon: User, permissionKey: 'users' },
-            { labelEn: 'Sites', labelTh: 'สถานที่ / สาขา', path: '/admin/sites', icon: MapPin, permissionKey: 'sites' },
-            { labelEn: 'Buildings', labelTh: 'อาคาร', path: '/admin/buildings', icon: Construction, permissionKey: 'sites' },
-        ],
-    },
-    {
-        titleEn: 'Master Data',
-        titleTh: 'ข้อมูลหลัก',
-        icon: Package,
-        items: [
-            { labelEn: 'Meter Types', labelTh: 'ประเภทมิเตอร์', path: '/master/types', icon: Plug, permissionKey: 'meters' },
-            { labelEn: 'Models', labelTh: 'รุ่นมิเตอร์', path: '/master/brands', icon: Tag, permissionKey: 'meters' },
-            { labelEn: 'Loops', labelTh: 'วงจรการจ่ายไฟ', path: '/master/loops', icon: RefreshCw, permissionKey: 'meters' },
-            { labelEn: 'Meters', labelTh: 'มิเตอร์', path: '/master/meters', icon: Zap, permissionKey: 'meters' },
-        ],
-    },
-    {
-        titleEn: 'Settings',
-        titleTh: 'การตั้งค่า',
-        icon: Wrench,
-        items: [
-            { labelEn: 'Alarm Groups', labelTh: 'กลุ่มแจ้งเตือน', path: '/settings/alarm-groups', icon: Bell, permissionKey: 'alarms' },
-            { labelEn: 'Alarm Settings', labelTh: 'ตั้งค่าแจ้งเตือน', path: '/settings/alarm-configs', icon: AlertTriangle, permissionKey: 'alarms' },
-            { labelEn: 'Billing Tariffs', labelTh: 'อัตราค่าไฟฟ้า', path: '/settings/billing', icon: Coins, permissionKey: 'billing' },
-            { labelEn: 'Demand & Savings', labelTh: 'ดีมานด์ & ประหยัด', path: '/settings/demand', icon: TrendingDown, permissionKey: 'settings' },
-            { labelEn: 'Layout Settings', labelTh: 'ตั้งค่าแผนผัง', path: '/settings/layouts', icon: Map, permissionKey: 'settings' },
-            { labelEn: 'Export Settings', labelTh: 'ตั้งค่าการ Export', path: '/settings/export', icon: Upload, permissionKey: 'settings' },
+            { labelEn: 'Zone Consumption', labelTh: 'ปริมาณการใช้ไฟรายโซน', path: '/dashboard/zone', icon: MapPinned, permissionKey: 'dashboard' },
+            { labelEn: 'MDB Consumption', labelTh: 'ปริมาณการใช้ไฟรายตู้ MDB', path: '/dashboard/mdb', icon: Gauge, permissionKey: 'dashboard' },
+            { labelEn: 'Demand Dashboard', labelTh: 'แดชบอร์ดดีมานด์พีค', path: '/dashboard/demand', icon: TrendingDown, permissionKey: 'dashboard' },
+            { labelEn: 'Consumption Table', labelTh: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: Table, permissionKey: 'dashboard' },
         ],
     },
     {
@@ -88,14 +63,39 @@ const navGroups: NavGroup[] = [
         ],
     },
     {
-        titleEn: 'Dashboards',
-        titleTh: 'แดชบอร์ด',
-        icon: LayoutDashboard,
+        titleEn: 'Settings',
+        titleTh: 'การตั้งค่า',
+        icon: Wrench,
         items: [
-            { labelEn: 'Zone Consumption', labelTh: 'ปริมาณการใช้ไฟรายโซน', path: '/dashboard/zone', icon: MapPinned, permissionKey: 'dashboard' },
-            { labelEn: 'MDB Consumption', labelTh: 'ปริมาณการใช้ไฟรายตู้ MDB', path: '/dashboard/mdb', icon: Gauge, permissionKey: 'dashboard' },
-            { labelEn: 'Demand Dashboard', labelTh: 'แดชบอร์ดดีมานด์พีค', path: '/dashboard/demand', icon: TrendingDown, permissionKey: 'dashboard' },
-            { labelEn: 'Consumption Table', labelTh: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: Table, permissionKey: 'dashboard' },
+            { labelEn: 'Alarm Groups', labelTh: 'กลุ่มแจ้งเตือน', path: '/settings/alarm-groups', icon: Bell, permissionKey: 'alarms' },
+            { labelEn: 'Alarm Settings', labelTh: 'ตั้งค่าแจ้งเตือน', path: '/settings/alarm-configs', icon: AlertTriangle, permissionKey: 'alarms' },
+            { labelEn: 'Billing Tariffs', labelTh: 'อัตราค่าไฟฟ้า', path: '/settings/billing', icon: Coins, permissionKey: 'billing' },
+            { labelEn: 'Demand & Savings', labelTh: 'ดีมานด์ & ประหยัด', path: '/settings/demand', icon: TrendingDown, permissionKey: 'settings' },
+            { labelEn: 'Layout Settings', labelTh: 'ตั้งค่าแผนผัง', path: '/settings/layouts', icon: Map, permissionKey: 'settings' },
+            { labelEn: 'Export Settings', labelTh: 'ตั้งค่าการ Export', path: '/settings/export', icon: Upload, permissionKey: 'settings' },
+        ],
+    },
+    {
+        titleEn: 'Master Data',
+        titleTh: 'ข้อมูลหลัก',
+        icon: Package,
+        items: [
+            { labelEn: 'Meter Types', labelTh: 'ประเภทมิเตอร์', path: '/master/types', icon: Plug, permissionKey: 'meters' },
+            { labelEn: 'Models', labelTh: 'รุ่นมิเตอร์', path: '/master/brands', icon: Tag, permissionKey: 'meters' },
+            { labelEn: 'Loops', labelTh: 'วงจรการจ่ายไฟ', path: '/master/loops', icon: RefreshCw, permissionKey: 'meters' },
+            { labelEn: 'Meters', labelTh: 'มิเตอร์', path: '/master/meters', icon: Zap, permissionKey: 'meters' },
+        ],
+    },
+    {
+        titleEn: 'Administration',
+        titleTh: 'การจัดการระบบ',
+        icon: Settings,
+        items: [
+            { labelEn: 'Company Info', labelTh: 'ข้อมูลบริษัท', path: '/admin/company', icon: Building2, permissionKey: 'company' },
+            { labelEn: 'User Groups', labelTh: 'กลุ่มผู้ใช้งาน', path: '/admin/groups', icon: Users, permissionKey: 'users' },
+            { labelEn: 'Users', labelTh: 'ผู้ใช้งาน', path: '/admin/users', icon: User, permissionKey: 'users' },
+            { labelEn: 'Sites', labelTh: 'สถานที่ / สาขา', path: '/admin/sites', icon: MapPin, permissionKey: 'sites' },
+            { labelEn: 'Buildings', labelTh: 'อาคาร', path: '/admin/buildings', icon: Construction, permissionKey: 'sites' },
         ],
     },
 ];
@@ -112,7 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNa
     const { theme } = useTheme();
     const { user } = useAuth();
     const { t } = useLanguage();
-    const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(navGroups.map(g => g.titleEn)));
+    const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
     // Filter nav groups and items based on user permissions
     const filteredNavGroups = useMemo(() => {
