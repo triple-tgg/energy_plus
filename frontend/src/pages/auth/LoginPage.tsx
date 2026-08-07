@@ -32,7 +32,7 @@ const LoginPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [showPw, setShowPw] = useState(false);
 
-    if (isAuthenticated) return <Navigate to="/admin/company" replace />;
+    if (isAuthenticated) return <Navigate to="/dashboard/zone" replace />;
 
     const C = THEMES[theme] || THEMES.dark;
 
@@ -42,7 +42,7 @@ const LoginPage: React.FC = () => {
         setLoading(true);
         try {
             await login(username, password);
-            navigate('/admin/company');
+            navigate('/dashboard/zone', { replace: true });
         } catch (err: any) {
             setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
         } finally {
