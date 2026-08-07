@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
+import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
 import { reportsApi } from '../../api/client';
+import { exportReport, fetchAllReportRows, type ReportExportFormat } from '../../utils/reportExport';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -11,6 +13,7 @@ const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace'
 const today = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date());
+const AUTO_REFRESH_INTERVAL_MS = 30_000;
 
 const THEMES = {
     light: {
@@ -34,11 +37,12 @@ const AlarmReportPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
+    const fetchData = useCallback(async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
             const res = await reportsApi.getAlarms({
                 ...currentFilters,
@@ -47,10 +51,17 @@ const AlarmReportPage: React.FC = () => {
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
-        setLoading(false);
+        if (showLoading) setLoading(false);
     }, [currentFilters, page, limit]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => {
+        fetchData();
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') fetchData(false);
+        }, AUTO_REFRESH_INTERVAL_MS);
+
+        return () => window.clearInterval(intervalId);
+    }, [fetchData]);
 
     const handleFilterSubmit = (filters: FilterValues) => {
         setPage(1);
@@ -66,6 +77,30 @@ const AlarmReportPage: React.FC = () => {
         } catch (err) {
             alert(t('การยืนยัน (Acknowledge) ล้มเหลว', 'Acknowledgement failed'));
         }
+    };
+
+    const handleExport = async (format: ReportExportFormat) => {
+        setExporting(true);
+        try {
+            const rows = await fetchAllReportRows((exportPage, exportLimit) =>
+                reportsApi.getAlarms({ ...currentFilters, page: exportPage, limit: exportLimit })
+            );
+            const exportRows = rows.map((row: any) => ({
+                [t('วันที่', 'Date')]: row.alarm_date,
+                [t('ข้อความแจ้งเตือน', 'Alarm Message')]: row.message,
+                [t('วันเวลาที่เกิด', 'Occurred At')]: row.occurred_at,
+                [t('ประเภท', 'Type')]: row.alarm_type,
+                [t('วันเวลาที่แก้ไข', 'Resolved At')]: row.resolved_at,
+                [t('ผู้แก้ไข', 'Resolved By')]: row.resolved_by,
+                [t('สถานะรับทราบ', 'Acknowledgement Status')]: row.acknowledged
+                    ? t('รับทราบแล้ว', 'Acknowledged')
+                    : t('ยังไม่รับทราบ', 'Not Acknowledged'),
+                [t('วันเวลาที่รับทราบ', 'Acknowledged At')]: row.acknowledged_at,
+            }));
+            exportReport(exportRows, `alarm_report_${today}`, 'Alarm Report', format);
+        } catch (err) {
+            alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
+        } finally { setExporting(false); }
     };
 
     const columns = [
@@ -125,6 +160,7 @@ const AlarmReportPage: React.FC = () => {
                 showSite={false}
                 showBuilding={false}
                 showZone={false}
+                actions={<ExportButtons onExport={handleExport} loading={exporting} />}
             />
             <DataTable title={t('ข้อมูลการแจ้งเตือน', 'Alarm Logs')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />
         </div>

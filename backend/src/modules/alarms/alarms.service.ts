@@ -2,6 +2,7 @@ import { query } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 import { sendTelegramMessage, getTelegramChats } from '../../utils/telegram';
+import { sendAlertEmail } from '../../utils/email';
 
 export class AlarmsService {
     // Alarm Configs
@@ -51,6 +52,88 @@ export class AlarmsService {
         const result = await query(`DELETE FROM alarm_config WHERE alarm_config_id=$1 RETURNING alarm_config_id`, [id]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Alarm config not found');
         return result.rows[0];
+    }
+
+    async importAlarmConfigs(rows: any[], createdBy: string) {
+        const result = { imported: 0, skipped: 0, errors: [] as { row: number; message: string }[] };
+        const toNumber = (value: any): number | null => value === '' || value == null ? null : Number(value);
+        const toBoolean = (value: any): boolean => !['false', '0', 'no', 'inactive'].includes(String(value ?? 'true').trim().toLowerCase());
+
+        for (let index = 0; index < rows.length; index++) {
+            const row = rows[index];
+            const rowNumber = index + 2;
+            try {
+                const meterCode = String(row.meterCode || '').trim();
+                const alarmType = String(row.alarmType || 'threshold').trim().toLowerCase();
+                if (!meterCode) throw new Error('Meter Code is required');
+                if (!['threshold', 'disconnect'].includes(alarmType)) throw new Error('Alarm Type must be threshold or disconnect');
+
+                const meter = await query(`SELECT meter_id FROM meter WHERE LOWER(meter_code) = LOWER($1) LIMIT 1`, [meterCode]);
+                if (!meter.rows.length) throw new Error(`Meter Code not found: ${meterCode}`);
+                const meterId = meter.rows[0].meter_id;
+
+                let energyValueId: number | null = null;
+                if (alarmType === 'threshold') {
+                    const energyValue = String(row.energyValue || '').trim();
+                    if (!energyValue) throw new Error('Energy Value is required for threshold alarms');
+                    const ev = await query(
+                        `SELECT energy_value_id FROM energy_value WHERE LOWER(energy_value_name) = LOWER($1) OR energy_value_id::text = $1 LIMIT 1`,
+                        [energyValue]
+                    );
+                    if (!ev.rows.length) throw new Error(`Energy Value not found: ${energyValue}`);
+                    energyValueId = ev.rows[0].energy_value_id;
+                }
+
+                let alarmGroupId: number | null = null;
+                const groupName = String(row.alarmGroup || '').trim();
+                if (groupName) {
+                    const group = await query(
+                        `SELECT alarm_group_id FROM alarm_group WHERE LOWER(group_name) = LOWER($1) OR alarm_group_id::text = $1 LIMIT 1`,
+                        [groupName]
+                    );
+                    if (!group.rows.length) throw new Error(`Alarm Group not found: ${groupName}`);
+                    alarmGroupId = group.rows[0].alarm_group_id;
+                }
+
+                const duplicate = await query(
+                    `SELECT alarm_config_id FROM alarm_config
+                     WHERE meter_id=$1 AND alarm_type=$2 AND energy_value_id IS NOT DISTINCT FROM $3 LIMIT 1`,
+                    [meterId, alarmType, energyValueId]
+                );
+                if (duplicate.rows.length) {
+                    result.skipped++;
+                    result.errors.push({ row: rowNumber, message: 'Configuration already exists' });
+                    continue;
+                }
+
+                const activeDays = String(row.activeDays ?? '0,1,2,3,4,5,6')
+                    .split(',').map(value => Number(value.trim())).filter(value => Number.isInteger(value) && value >= 0 && value <= 6);
+                if (!activeDays.length) throw new Error('Active Days must contain values from 0 to 6');
+
+                const lowerValue = toNumber(row.lowerValue);
+                const higherValue = toNumber(row.higherValue);
+                const offlineTimeoutSec = toNumber(row.offlineTimeoutSec) ?? 60;
+                const cooldownMinutes = toNumber(row.cooldownMinutes) ?? 5;
+                if (alarmType === 'threshold' && lowerValue == null && higherValue == null) {
+                    throw new Error('At least one of Lower Value or Higher Value is required');
+                }
+                if (offlineTimeoutSec <= 0 || cooldownMinutes <= 0) throw new Error('Timeout and Cooldown must be greater than zero');
+
+                await this.createAlarmConfig({
+                    meterId, energyValueId, lowerValue, higherValue,
+                    lowerMessage: String(row.message || '').trim() || null,
+                    isActive: toBoolean(row.isActive), alarmType,
+                    offlineTimeoutSec, cooldownMinutes, alarmGroupId, activeDays,
+                    activeTimeStart: String(row.activeTimeStart || '').trim() || null,
+                    activeTimeEnd: String(row.activeTimeEnd || '').trim() || null,
+                    createdBy,
+                });
+                result.imported++;
+            } catch (error: any) {
+                result.errors.push({ row: rowNumber, message: error.message || 'Import failed' });
+            }
+        }
+        return result;
     }
 
     // Alarm Groups
@@ -128,6 +211,21 @@ export class AlarmsService {
             `✅ ทดสอบการเชื่อมต่อการแจ้งเตือนสำเร็จ\n` +
             `🕒 ${time}`;
         return this.notifyGroup(id, text);
+    }
+
+    async sendTestEmail(id: number) {
+        const group = await this.getAlarmGroupById(id);
+        const recipients = String(group.email || '').trim();
+        if (!recipients) {
+            throw new AppError(400, 'EMAIL_NO_RECIPIENT', 'กลุ่มนี้ยังไม่ได้ระบุอีเมลผู้รับ');
+        }
+        const time = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+        const message = `<b>Energy Monitoring</b>\n✅ ทดสอบการแจ้งเตือนทาง Email สำเร็จ\n🕒 ${time}`;
+        const result = await sendAlertEmail(recipients, '[Energy Monitoring] Test notification', message);
+        if (!result.ok) {
+            throw new AppError(502, 'EMAIL_SEND_FAILED', `ส่ง Email ไม่สำเร็จ: ${result.description}`);
+        }
+        return { sent: true, groupName: group.group_name, recipients, messageId: result.messageId };
     }
 
     // ดึง alarm log ล่าสุดที่ยังไม่ acknowledge (สำหรับ web notification)

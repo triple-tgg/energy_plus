@@ -3,7 +3,8 @@ import FilterBar from '../../components/ui/FilterBar';
 import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
-import { dashboardApi, reportsApi } from '../../api/client';
+import { dashboardApi } from '../../api/client';
+import { exportReport, fetchAllReportRows, type ReportExportFormat } from '../../utils/reportExport';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -33,6 +34,7 @@ const ConsumptionTable: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [meterOptions, setMeterOptions] = useState<any[]>([]);
     const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
 
@@ -69,20 +71,26 @@ const ConsumptionTable: React.FC = () => {
         setCurrentFilters(filters);
     };
 
-    const handleExportExcel = async () => {
+    const handleExport = async (format: ReportExportFormat) => {
+        setExporting(true);
         try {
-            const res = await reportsApi.exportExcel('energy-consumption', currentFilters);
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `consumption_${new Date().toISOString().substring(0, 10)}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            const rows = await fetchAllReportRows((exportPage, exportLimit) =>
+                dashboardApi.getConsumptionTable({ ...currentFilters, page: exportPage, limit: exportLimit })
+            );
+            const exportRows = rows.map((row: any) => ({
+                [t('รหัสมิเตอร์', 'Meter Code')]: row.meter_code,
+                [t('ชื่อมิเตอร์', 'Meter Name')]: row.meter_name,
+                [t('อาคาร', 'Building')]: row.building_name,
+                [t('โซน', 'Zone')]: row.zone_name,
+                [t('วันที่', 'Date')]: row.date,
+                KWh: row.kwh,
+                [t('การใช้ไฟ (kWh)', 'Consumption (kWh)')]: row.consumption,
+            }));
+            exportReport(exportRows, `consumption_${today}`, 'Consumption', format);
         } catch (err) {
             console.error(err);
             alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
-        }
+        } finally { setExporting(false); }
     };
 
     const columns = [
@@ -123,7 +131,7 @@ const ConsumptionTable: React.FC = () => {
                 showSearchMeter
                 meterOptions={meterOptions}
                 actions={
-                    <ExportButtons onExportExcel={handleExportExcel} />
+                    <ExportButtons onExport={handleExport} loading={exporting} />
                 }
             />
 

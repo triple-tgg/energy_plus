@@ -33,6 +33,7 @@ const AlarmGroupsPage: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [testingId, setTestingId] = useState<number | null>(null);
+    const [testingEmailId, setTestingEmailId] = useState<number | null>(null);
     const [showHowTo, setShowHowTo] = useState(false);
     const [detecting, setDetecting] = useState(false);
     const [detectedChats, setDetectedChats] = useState<{ id: number; title: string; type: string }[]>([]);
@@ -118,6 +119,17 @@ const AlarmGroupsPage: React.FC = () => {
         setTestingId(null);
     };
 
+    const handleTestEmail = async (row: any) => {
+        setTestingEmailId(row.alarm_group_id);
+        try {
+            await alarmsApi.testGroupEmail(row.alarm_group_id);
+            setSuccessMsg(t(`ส่ง Email ทดสอบไปยัง "${row.email}" สำเร็จ!`, `Test email sent to "${row.email}"!`));
+        } catch (err: any) {
+            alert(err.response?.data?.message || t('ส่ง Email ทดสอบไม่สำเร็จ', 'Test email failed'));
+        }
+        setTestingEmailId(null);
+    };
+
     const handleDeleteClick = (row: any) => { setDeleteTarget(row); setShowDelete(true); };
 
     const handleDeleteConfirm = async () => {
@@ -149,6 +161,9 @@ const AlarmGroupsPage: React.FC = () => {
                 <div className="table-actions">
                     <button className="btn btn-outline btn-sm" onClick={() => handleTest(row)} disabled={testingId === row.alarm_group_id} title={t('ส่งข้อความทดสอบไปยัง Telegram', 'Send a test message to Telegram')}>
                         {testingId === row.alarm_group_id ? t('⏳ กำลังส่ง...', '⏳ Sending...') : t('✈️ ทดสอบ Telegram', '✈️ Test Telegram')}
+                    </button>
+                    <button className="btn btn-outline btn-sm" onClick={() => handleTestEmail(row)} disabled={testingEmailId === row.alarm_group_id || !row.email} title={t('ส่งข้อความทดสอบทาง Email', 'Send a test email')}>
+                        {testingEmailId === row.alarm_group_id ? t('⏳ กำลังส่ง...', '⏳ Sending...') : t('✉️ ทดสอบ Email', '✉️ Test Email')}
                     </button>
                     <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>{t('✏️ แก้ไข', '✏️ Edit')}</button>
                     <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>{t('🗑️ ลบ', '🗑️ Delete')}</button>
@@ -225,8 +240,9 @@ const AlarmGroupsPage: React.FC = () => {
                     <input type="text" className="form-control" placeholder={t('เช่น ทีมซ่อมบำรุง', 'e.g. Maintenance Team')} value={form.groupName} onChange={e => setForm({ ...form, groupName: e.target.value })} autoFocus />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">{t('อีเมล', 'Email')}</label>
-                    <input type="email" className="form-control" placeholder="email@example.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                    <label className="form-label">{t('อีเมลผู้รับ', 'Recipient Email')}</label>
+                    <input type="text" className="form-control" placeholder="email@example.com, team@example.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                    <small style={{ color: 'var(--text-muted)' }}>{t('ระบุได้หลายอีเมลโดยคั่นด้วยเครื่องหมายจุลภาค', 'Separate multiple email addresses with commas')}</small>
                 </div>
                 <div className="form-group">
                     <label className="form-label">{t('Telegram Token', 'Telegram Token')}</label>

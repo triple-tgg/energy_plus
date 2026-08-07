@@ -1,5 +1,6 @@
 import { query } from '../../config/database';
 import { sendTelegramMessage } from '../../utils/telegram';
+import { sendAlertEmail } from '../../utils/email';
 
 /* ─── energy_value_id → realtime column mapping ─── */
 const ENERGY_VALUE_FIELD: Record<number, string> = {
@@ -49,6 +50,7 @@ interface AlarmConfig {
     room_name: string | null;
     telegram_token: string | null;
     telegram_chat_id: string | null;
+    email: string | null;
     group_name: string | null;
     energy_value_name: string | null;
 }
@@ -153,7 +155,7 @@ export class AlertEngine {
             SELECT ac.*,
                    m.meter_code, m.meter_name, m.floor, m.room_code, m.room_name,
                    s.site_name, b.building_name, z.zone_name,
-                   ag.telegram_token, ag.telegram_chat_id, ag.group_name,
+                   ag.telegram_token, ag.telegram_chat_id, ag.email, ag.group_name,
                    ev.energy_value_name
             FROM alarm_config ac
             LEFT JOIN meter m ON ac.meter_id = m.meter_id
@@ -306,7 +308,7 @@ export class AlertEngine {
         return (now.getTime() - lastFired.getTime()) < cooldownMs;
     }
 
-    /* ─── FIRE ALERT: Send Telegram + Write alarm_log + Update last_triggered_at ─── */
+    /* ─── FIRE ALERT: Send notifications + Write alarm_log + Update last_triggered_at ─── */
     private async fireAlert(cfg: AlarmConfig, alarmType: string, message: string, now: Date): Promise<void> {
         // 1) Send Telegram (if configured)
         const token = (cfg.telegram_token || '').trim();
@@ -326,7 +328,23 @@ export class AlertEngine {
             console.warn(`⚠️ Alert [${cfg.alarm_config_id}] has no Telegram config — skipping notification`);
         }
 
-        // 2) Write alarm_log
+        // 2) Send Email independently (if recipients are configured on the alarm group)
+        const recipients = (cfg.email || '').trim();
+        let emailSent = false;
+        if (recipients) {
+            const subject = `[Energy Monitoring] ${alarmType} - ${cfg.meter_code || cfg.meter_name}`;
+            try {
+                const res = await sendAlertEmail(recipients, subject, message);
+                emailSent = res.ok;
+                if (!res.ok) {
+                    console.warn(`⚠️ Alert Email failed [${cfg.alarm_config_id}]: ${res.description}`);
+                }
+            } catch (err: any) {
+                console.warn(`⚠️ Alert Email error [${cfg.alarm_config_id}]: ${err.message}`);
+            }
+        }
+
+        // 3) Write alarm_log
         try {
             await query(`
                 INSERT INTO alarm_log (alarm_config_id, meter_id, alarm_type, message, occurred_at, acknowledged, metadata)
@@ -337,13 +355,13 @@ export class AlertEngine {
                 alarmType,
                 message.replace(/<[^>]*>/g, ''),  // strip HTML for log
                 now.toISOString(),
-                JSON.stringify({ telegram_sent: telegramSent, group: cfg.group_name || null }),
+                JSON.stringify({ telegram_sent: telegramSent, email_sent: emailSent, group: cfg.group_name || null }),
             ]);
         } catch (err: any) {
             console.error(`❌ Alert log write failed [${cfg.alarm_config_id}]:`, err.message);
         }
 
-        // 3) Update last_triggered_at
+        // 4) Update last_triggered_at
         try {
             await query(`UPDATE alarm_config SET last_triggered_at = $1 WHERE alarm_config_id = $2`,
                 [now.toISOString(), cfg.alarm_config_id]);
@@ -351,7 +369,7 @@ export class AlertEngine {
             console.error(`❌ Alert update last_triggered_at failed:`, err.message);
         }
 
-        console.log(`🔔 Alert fired [${cfg.alarm_config_id}] type=${alarmType} meter=${cfg.meter_code} telegram=${telegramSent}`);
+        console.log(`🔔 Alert fired [${cfg.alarm_config_id}] type=${alarmType} meter=${cfg.meter_code} telegram=${telegramSent} email=${emailSent}`);
     }
 
     /* ─── Manual trigger (for API endpoint) ─── */

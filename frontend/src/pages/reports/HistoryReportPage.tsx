@@ -4,7 +4,7 @@ import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
 import { dashboardApi, reportsApi } from '../../api/client';
-import * as XLSX from 'xlsx';
+import { exportReport, fetchAllReportRows, type ReportExportFormat } from '../../utils/reportExport';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -34,6 +34,7 @@ const HistoryReportPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
     const [meterOptions, setMeterOptions] = useState<any[]>([]);
 
@@ -61,14 +62,17 @@ const HistoryReportPage: React.FC = () => {
         setCurrentFilters(filters);
     };
 
-    const handleExport = () => {
+    const handleExport = async (format: ReportExportFormat) => {
+        setExporting(true);
         try {
-            const exportRows = data.map(({ meter_id, ...row }) => row);
-            const sheet = XLSX.utils.json_to_sheet(exportRows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, sheet, 'History');
-            XLSX.writeFile(workbook, `history_${today}_page_${page}.xlsx`);
-        } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
+            const rows = await fetchAllReportRows((exportPage, exportLimit) =>
+                reportsApi.getHistory({ ...currentFilters, page: exportPage, limit: exportLimit })
+            );
+            const exportRows = rows.map(({ meter_id, ...row }: any) => row);
+            exportReport(exportRows, `history_${today}`, 'History', format);
+        } catch (err) {
+            alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
+        } finally { setExporting(false); }
     };
 
     const numCol = (key: string, title: string, digits = 2) => ({
@@ -122,7 +126,7 @@ const HistoryReportPage: React.FC = () => {
                 loading={loading}
                 showSearchMeter
                 meterOptions={meterOptions}
-                actions={<ExportButtons onExportExcel={handleExport} />}
+                actions={<ExportButtons onExport={handleExport} loading={exporting} />}
             />
             <DataTable title={t('ข้อมูลพลังงานย้อนหลัง', 'Historical Energy Data')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />
         </div>

@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { alarmsApi, metersApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
+import * as XLSX from 'xlsx';
 
 interface ConfigForm {
     alarmType: 'threshold' | 'disconnect';
@@ -56,6 +57,9 @@ const AlarmConfigsPage: React.FC = () => {
     const [recentData, setRecentData] = useState<any[]>([]);
     const [recentLoading, setRecentLoading] = useState(false);
     const [showRecent, setShowRecent] = useState(false);
+    const importInputRef = useRef<HTMLInputElement>(null);
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState<any>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -154,6 +158,53 @@ const AlarmConfigsPage: React.FC = () => {
         setDeleting(false);
     };
 
+    const downloadTemplate = () => {
+        const headers = [
+            'meterCode', 'alarmType', 'energyValue', 'alarmGroup', 'lowerValue', 'higherValue',
+            'message', 'offlineTimeoutSec', 'cooldownMinutes', 'activeDays',
+            'activeTimeStart', 'activeTimeEnd', 'isActive',
+        ];
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headers]), 'Alarm Configs');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(meters.map(m => ({ meterCode: m.meter_code, meterName: m.meter_name }))), 'Meters');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(energyValues.map(v => ({ energyValue: v.energy_value_name, id: v.energy_value_id }))), 'Energy Values');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(groups.map(g => ({ alarmGroup: g.group_name, id: g.alarm_group_id }))), 'Alarm Groups');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+            ['Field', 'Description'],
+            ['alarmType', 'threshold or disconnect'],
+            ['activeDays', '0=Sun, 1=Mon, ... 6=Sat; separate with commas'],
+            ['activeTimeStart / activeTimeEnd', 'HH:mm; leave blank for 24 hours'],
+            ['isActive', 'true or false'],
+            ['threshold', 'Requires energyValue and at least lowerValue or higherValue'],
+            ['disconnect', 'Uses offlineTimeoutSec; energyValue can be blank'],
+        ]), 'Instructions');
+        XLSX.writeFile(workbook, 'alarm_settings_import_template.xlsx');
+    };
+
+    const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        try {
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+            const sheet = workbook.Sheets['Alarm Configs'] || workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json<any>(sheet, { defval: '' })
+                .filter(row => String(row.meterCode || '').trim());
+            if (!rows.length) {
+                alert(t('ไม่พบข้อมูลสำหรับนำเข้าใน Sheet "Alarm Configs"', 'No import rows found in the "Alarm Configs" sheet'));
+                return;
+            }
+            if (!window.confirm(t(`ยืนยันนำเข้า Alarm Settings จำนวน ${rows.length} รายการ?`, `Import ${rows.length} alarm configurations?`))) return;
+            setImporting(true);
+            const response = await alarmsApi.importConfigs(rows);
+            setImportResult(response.data.data);
+            setPage(1);
+            await fetchData();
+        } catch (error: any) {
+            alert(error.response?.data?.message || t('นำเข้า Alarm Settings ไม่สำเร็จ', 'Alarm settings import failed'));
+        } finally { setImporting(false); }
+    };
+
     const columns = [
         {
             key: 'alarm_type', title: t('ประเภท', 'Type'),
@@ -215,6 +266,15 @@ const AlarmConfigsPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-outline btn-sm" onClick={downloadTemplate}>
+                    📄 {t('ดาวน์โหลด Template', 'Download Template')}
+                </button>
+                <button type="button" className="btn btn-success btn-sm" onClick={() => importInputRef.current?.click()} disabled={importing}>
+                    {importing ? t('⏳ กำลังนำเข้า...', '⏳ Importing...') : t('📥 Import Template', '📥 Import Template')}
+                </button>
+                <input ref={importInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} style={{ display: 'none' }} />
+            </div>
             <DataTable title={t('ตั้งค่าการแจ้งเตือน', 'Alarm Settings')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มการตั้งค่าการแจ้งเตือน', 'Add Alarm Configuration')} />
 
             <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขการตั้งค่าการแจ้งเตือน', 'Edit Alarm Configuration') : t('เพิ่มการตั้งค่าการแจ้งเตือน', 'Add Alarm Configuration')} size="lg"
@@ -261,7 +321,7 @@ const AlarmConfigsPage: React.FC = () => {
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">{t('กลุ่มแจ้งเตือน (Telegram)', 'Alarm Group (Telegram)')}</label>
+                        <label className="form-label">{t('กลุ่มแจ้งเตือน (Telegram / Email)', 'Alarm Group (Telegram / Email)')}</label>
                         <select className="form-control" value={form.alarmGroupId} onChange={e => setForm({ ...form, alarmGroupId: e.target.value })}>
                             <option value="">{t('— เลือกกลุ่ม —', '— Select Group —')}</option>
                             {groups.map(g => <option key={g.alarm_group_id} value={g.alarm_group_id}>{g.group_name}</option>)}
@@ -458,6 +518,7 @@ const AlarmConfigsPage: React.FC = () => {
                 <div style={{ marginBottom: 8, marginTop: 8, fontWeight: 600, fontSize: 13, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ช่องทางแจ้งเตือน', 'Notification Channels')}</div>
                 <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2, rgba(127,127,127,0.08))', fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
                     ✈️ {t('Telegram — ส่งข้อความเข้ากลุ่มที่เลือก', 'Telegram — sends message to selected group')}<br/>
+                    ✉️ {t('Email — ส่งไปยังอีเมลที่กำหนดในกลุ่มแจ้งเตือน', 'Email — sends to recipients configured in the alarm group')}<br/>
                     🔊 {t('เสียงเตือนบนเว็บ — เมื่อมี alert ใหม่จะดังเสียง beep (~0.8 วินาที)', 'Web sound — plays beep when new alert fires (~0.8s)')}
                     <button type="button" onClick={() => {
                         try {
@@ -504,6 +565,25 @@ const AlarmConfigsPage: React.FC = () => {
                     <p style={{ fontSize: 16, marginBottom: 8 }}>{t('ต้องการลบการตั้งค่าการแจ้งเตือนสำหรับ', 'Delete alarm configuration for')}</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>"{deleteTarget?.meter_name}"</p>
                 </div>
+            </Modal>
+
+            <Modal isOpen={Boolean(importResult)} onClose={() => setImportResult(null)} title={t('ผลการนำเข้า Alarm Settings', 'Alarm Settings Import Result')} size="md"
+                footer={<button className="btn btn-primary" onClick={() => setImportResult(null)}>{t('ปิด', 'Close')}</button>}
+            >
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                    <div className="badge badge-success">{t('สำเร็จ', 'Imported')}: {importResult?.imported || 0}</div>
+                    <div className="badge">{t('ข้าม', 'Skipped')}: {importResult?.skipped || 0}</div>
+                    <div className="badge badge-danger">{t('ผิดพลาด', 'Errors')}: {importResult?.errors?.length || 0}</div>
+                </div>
+                {importResult?.errors?.length > 0 && (
+                    <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid var(--border)' }}>
+                        {importResult.errors.map((error: any, index: number) => (
+                            <div key={index} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                                <strong>{t('แถว', 'Row')} {error.row}:</strong> {error.message}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </Modal>
         </div>
     );

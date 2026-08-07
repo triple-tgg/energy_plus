@@ -1,50 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
+export type ExportFormat = 'excel' | 'csv';
+
 interface ExportButtonsProps {
-    onExportExcel?: () => void;
-    onExportText?: () => void;
-    onExportPdf?: () => void;
+    onExport: (format: ExportFormat) => void | Promise<void>;
     loading?: boolean;
 }
 
-const ExportButtons: React.FC<ExportButtonsProps> = ({
-    onExportExcel,
-    onExportText,
-    onExportPdf,
-    loading = false,
-}) => {
+const ExportButtons: React.FC<ExportButtonsProps> = ({ onExport, loading = false }) => {
     const { t } = useLanguage();
+    const [format, setFormat] = useState<ExportFormat>('excel');
 
     return (
         <div className="export-buttons">
-            {onExportExcel && (
-                <button
-                    className="btn btn-success btn-sm"
-                    onClick={onExportExcel}
-                    disabled={loading}
-                >
-                    📥 {t('ส่งออก Excel', 'Export Excel')}
-                </button>
-            )}
-            {onExportText && (
-                <button
-                    className="btn btn-info btn-sm"
-                    onClick={onExportText}
-                    disabled={loading}
-                >
-                    📄 {t('ส่งออกข้อความ', 'Export Text')}
-                </button>
-            )}
-            {onExportPdf && (
-                <button
-                    className="btn btn-danger btn-sm"
-                    onClick={onExportPdf}
-                    disabled={loading}
-                >
-                    📑 {t('ส่งออก PDF', 'Export PDF')}
-                </button>
-            )}
+            <select
+                className="form-control form-control-sm export-format-select"
+                value={format}
+                onChange={event => setFormat(event.target.value as ExportFormat)}
+                disabled={loading}
+                aria-label={t('เลือกรูปแบบไฟล์', 'Select export format')}
+            >
+                <option value="excel">Excel (.xlsx)</option>
+                <option value="csv">CSV (.csv)</option>
+            </select>
+            <button type="button" className="btn btn-success btn-sm" onClick={() => onExport(format)} disabled={loading}>
+                📥 {loading ? t('กำลังส่งออก...', 'Exporting...') : t('ส่งออก', 'Export')}
+            </button>
         </div>
     );
 };

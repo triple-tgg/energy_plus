@@ -4,7 +4,7 @@ import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
 import { dashboardApi, reportsApi } from '../../api/client';
-import * as XLSX from 'xlsx';
+import { exportReport, fetchAllReportRows, type ReportExportFormat } from '../../utils/reportExport';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -34,6 +34,7 @@ const EnergyReportPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [currentFilters, setCurrentFilters] = useState<FilterValues>({ startDate: today, endDate: today });
     const [meterOptions, setMeterOptions] = useState<any[]>([]);
 
@@ -63,17 +64,12 @@ const EnergyReportPage: React.FC = () => {
         setCurrentFilters(filters);
     };
 
-    const handleExport = async (type: 'excel' | 'text') => {
+    const handleExport = async (format: ReportExportFormat) => {
+        setExporting(true);
         try {
-            const res = await reportsApi.getEnergyConsumption({ ...currentFilters, page: 1, limit: 100 });
-            const firstRows = res.data.data || [];
-            const totalPages = res.data.pagination?.totalPages || 1;
-            const remaining = totalPages > 1
-                ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) =>
-                    reportsApi.getEnergyConsumption({ ...currentFilters, page: i + 2, limit: 100 })
-                ))
-                : [];
-            const rows = [...firstRows, ...remaining.flatMap(r => r.data.data || [])];
+            const rows = await fetchAllReportRows((exportPage, exportLimit) =>
+                reportsApi.getEnergyConsumption({ ...currentFilters, page: exportPage, limit: exportLimit })
+            );
             const exportRows = rows.map((r: any) => ({
                 [t('รหัสมิเตอร์', 'Meter Code')]: r.meter_code,
                 [t('ชื่อลูกค้า', 'Customer Name')]: r.customer_name,
@@ -90,25 +86,10 @@ const EnergyReportPage: React.FC = () => {
                 [t('จำนวนเงิน', 'Amount')]: Number(r.total_amount || 0),
             }));
 
-            if (type === 'excel') {
-                const sheet = XLSX.utils.json_to_sheet(exportRows);
-                const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, sheet, 'Energy Report');
-                XLSX.writeFile(workbook, `energy_report_${today}.xlsx`);
-                return;
-            }
-
-            const headers = exportRows.length ? Object.keys(exportRows[0]) : [];
-            const textContent = [headers.join('\t'), ...exportRows.map((r: any) => headers.map(h => r[h] ?? '').join('\t'))].join('\n');
-            const url = window.URL.createObjectURL(new Blob([textContent], { type: 'text/plain;charset=utf-8' }));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `energy_report_${today}.txt`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
+            exportReport(exportRows, `energy_report_${today}`, 'Energy Report', format);
+        } catch (err) {
+            alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
+        } finally { setExporting(false); }
     };
 
     const columns = [
@@ -166,10 +147,7 @@ const EnergyReportPage: React.FC = () => {
                 showSearchMeter
                 meterOptions={meterOptions}
                 actions={
-                    <ExportButtons
-                        onExportExcel={() => handleExport('excel')}
-                        onExportText={() => handleExport('text')}
-                    />
+                    <ExportButtons onExport={handleExport} loading={exporting} />
                 }
             />
             <DataTable title={t('รายงานการใช้พลังงาน', 'Energy Consumption Report')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />

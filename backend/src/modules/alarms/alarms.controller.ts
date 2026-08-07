@@ -19,6 +19,15 @@ export class AlarmsController {
     async deleteAlarmConfig(req: Request, res: Response, next: NextFunction) {
         try { await svc.deleteAlarmConfig(parseInt(req.params.id)); res.json(successResponse(null, 'Alarm config deleted')); } catch (e) { next(e); }
     }
+    async importAlarmConfigs(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            if (!Array.isArray(req.body) || req.body.length === 0) {
+                return res.status(400).json({ success: false, message: 'No alarm configuration data provided' });
+            }
+            const result = await svc.importAlarmConfigs(req.body, req.user?.userName || 'import');
+            res.json(successResponse(result, `Imported ${result.imported} alarm configurations`));
+        } catch (e) { next(e); }
+    }
 
     async getAlarmGroups(req: Request, res: Response, next: NextFunction) {
         try { const r = await svc.getAlarmGroups(req.query); res.json(successResponse(r.data, undefined, paginationHelper(r.page, r.limit, r.total))); } catch (e) { next(e); }
@@ -34,6 +43,9 @@ export class AlarmsController {
     }
     async testAlarmGroup(req: Request, res: Response, next: NextFunction) {
         try { res.json(successResponse(await svc.sendTestMessage(parseInt(req.params.id)), 'Telegram test message sent')); } catch (e) { next(e); }
+    }
+    async testAlarmGroupEmail(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await svc.sendTestEmail(parseInt(req.params.id)), 'Email test message sent')); } catch (e) { next(e); }
     }
     async detectTelegramChats(req: Request, res: Response, next: NextFunction) {
         try { res.json(successResponse(await svc.detectTelegramChats(req.body?.token))); } catch (e) { next(e); }

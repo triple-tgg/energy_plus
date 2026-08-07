@@ -4,7 +4,7 @@ import type { FilterValues } from '../../components/ui/FilterBar';
 import ExportButtons from '../../components/ui/ExportButtons';
 import DataTable from '../../components/ui/DataTable';
 import { reportsApi } from '../../api/client';
-import * as XLSX from 'xlsx';
+import { exportReport, fetchAllReportRows, type ReportExportFormat } from '../../utils/reportExport';
 import { LayoutGrid } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -34,6 +34,7 @@ const ComparisonReportPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [currentFilters, setCurrentFilters] = useState<FilterValues>({
         month: String(currentDate.getMonth() + 1), year: String(currentDate.getFullYear()),
     });
@@ -55,20 +56,17 @@ const ComparisonReportPage: React.FC = () => {
         setCurrentFilters(filters);
     };
 
-    const handleExport = async () => {
+    const handleExport = async (format: ReportExportFormat) => {
+        setExporting(true);
         try {
-            const first = await reportsApi.getComparison({ ...currentFilters, page: 1, limit: 100 });
-            const firstRows = first.data.data || [];
-            const pages = first.data.pagination?.totalPages || 1;
-            const remaining = pages > 1 ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) =>
-                reportsApi.getComparison({ ...currentFilters, page: i + 2, limit: 100 })
-            )) : [];
-            const rows = [...firstRows, ...remaining.flatMap(res => res.data.data || [])];
-            const sheet = XLSX.utils.json_to_sheet(rows.map(({ meter_id, ...row }: any) => row));
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, sheet, 'Comparison');
-            XLSX.writeFile(workbook, `comparison_${currentFilters.year}-${String(currentFilters.month).padStart(2, '0')}.xlsx`);
-        } catch (err) { alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed')); }
+            const rows = await fetchAllReportRows((exportPage, exportLimit) =>
+                reportsApi.getComparison({ ...currentFilters, page: exportPage, limit: exportLimit })
+            );
+            const exportRows = rows.map(({ meter_id, ...row }: any) => row);
+            exportReport(exportRows, `comparison_${currentFilters.year}-${String(currentFilters.month).padStart(2, '0')}`, 'Comparison', format);
+        } catch (err) {
+            alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
+        } finally { setExporting(false); }
     };
 
     const columns = [
@@ -127,7 +125,7 @@ const ComparisonReportPage: React.FC = () => {
                 loading={loading}
                 showDateRange={false}
                 showMonthYear
-                actions={<ExportButtons onExportExcel={handleExport} />}
+                actions={<ExportButtons onExport={handleExport} loading={exporting} />}
             />
             <DataTable title={t('เปรียบเทียบการใช้พลังงาน', 'Energy Consumption Comparison')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={(search) => { setPage(1); setCurrentFilters(prev => ({ ...prev, search })); }} />
         </div>
