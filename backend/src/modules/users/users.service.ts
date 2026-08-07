@@ -22,11 +22,16 @@ export class UsersService {
         params.push(limit, offset);
         const result = await query(
             `SELECT u.user_id, u.user_name, u.display_name, u.email, u.is_active,
-              u.group_id, g.group_name,
+              u.group_id, g.group_name, u.role, u.site_access_mode,
+              COALESCE(array_agg(DISTINCT sum.site_id) FILTER (WHERE sum.site_id IS NOT NULL), '{}') AS site_ids,
+              COALESCE(string_agg(DISTINCT s.site_name, ', '), '') AS site_names,
               u.created_by, u.created_on, u.last_modified_by, u.last_modified_on
        FROM app_user u
        LEFT JOIN group_user g ON u.group_id = g.group_id
+       LEFT JOIN site_user_map sum ON u.user_id = sum.user_id
+       LEFT JOIN sites s ON sum.site_id = s.site_id
        ${whereClause}
+       GROUP BY u.user_id, g.group_name
        ORDER BY u.user_id DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
             params
@@ -48,24 +53,35 @@ export class UsersService {
     }
 
     async createUser(data: any) {
-        const result = await query(
-            `INSERT INTO app_user (user_name, display_name, email, password_hash, group_id, is_active, created_by, created_on)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-       RETURNING *`,
-            [data.userName, data.displayName, data.email, data.passwordHash, data.groupId, true, data.createdBy]
-        );
-        return result.rows[0];
+        const client = await getClient();
+        try {
+            await client.query('BEGIN');
+            const result = await client.query(
+                `INSERT INTO app_user (user_name, display_name, email, password_hash, group_id, is_active, role, site_access_mode, created_by, created_on)
+                 VALUES ($1,$2,$3,$4,$5,true,$6,$7,$8,NOW()) RETURNING *`,
+                [data.userName, data.displayName, data.email, data.passwordHash, data.groupId, data.role || 'viewer', data.siteAccessMode || 'assigned', data.createdBy]
+            );
+            for (const siteId of data.siteIds || []) await client.query(`INSERT INTO site_user_map (site_id,user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [siteId, result.rows[0].user_id]);
+            await client.query('COMMIT');
+            return result.rows[0];
+        } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
     }
 
     async updateUser(userId: number, data: any) {
-        const result = await query(
-            `UPDATE app_user SET display_name = $1, email = $2, group_id = $3, is_active = $4,
-       last_modified_by = $5, last_modified_on = NOW()
-       WHERE user_id = $6 RETURNING *`,
-            [data.displayName, data.email, data.groupId, data.isActive, data.modifiedBy, userId]
-        );
-        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'User not found');
-        return result.rows[0];
+        const client = await getClient();
+        try {
+            await client.query('BEGIN');
+            const result = await client.query(
+                `UPDATE app_user SET display_name=$1,email=$2,group_id=$3,is_active=$4,role=$5,site_access_mode=$6,last_modified_by=$7,last_modified_on=NOW()
+                 WHERE user_id=$8 RETURNING *`,
+                [data.displayName, data.email, data.groupId, data.isActive, data.role || 'viewer', data.siteAccessMode || 'assigned', data.modifiedBy, userId]
+            );
+            if (!result.rows.length) throw new AppError(404, 'NOT_FOUND', 'User not found');
+            await client.query(`DELETE FROM site_user_map WHERE user_id=$1`, [userId]);
+            for (const siteId of data.siteIds || []) await client.query(`INSERT INTO site_user_map (site_id,user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [siteId, userId]);
+            await client.query('COMMIT');
+            return result.rows[0];
+        } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
     }
 
     async deleteUser(userId: number) {

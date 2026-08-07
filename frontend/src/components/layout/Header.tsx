@@ -15,7 +15,7 @@ interface AlertItem {
 }
 
 const Header: React.FC = () => {
-    const { user, logout } = useAuth();
+    const { user, logout, selectedSiteId, setSelectedSiteId } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const { language, toggleLanguage, t } = useLanguage();
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -117,6 +117,20 @@ const Header: React.FC = () => {
             </div>
 
             <div className="topbar__right">
+                <select
+                    className="form-control form-control-sm"
+                    style={{ width: 'auto', minWidth: 150 }}
+                    value={selectedSiteId ?? ''}
+                    onChange={event => {
+                        setSelectedSiteId(event.target.value ? Number(event.target.value) : null);
+                        window.location.reload();
+                    }}
+                    disabled={user?.siteAccessMode !== 'all' && (user?.sites?.length || 0) <= 1}
+                    title={t('เลือกสาขา', 'Select site')}
+                >
+                    {user?.siteAccessMode === 'all' && <option value="">{t('ทุกสาขา', 'All Sites')}</option>}
+                    {(user?.sites || []).map(site => <option key={site.siteId} value={site.siteId}>{site.siteName}</option>)}
+                </select>
                 {/* Date/Time Pill */}
                 <div className="topbar__datetime">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

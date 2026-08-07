@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { sitesApi, metersApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 export interface FilterValues {
     startDate?: string;
@@ -48,11 +49,12 @@ const FilterBar: React.FC<FilterBarProps> = ({
     meterOptions,
 }) => {
     const { language, t } = useLanguage();
+    const { user, selectedSiteId } = useAuth();
     const [filters, setFilters] = useState<FilterValues>({
         startDate: today,
         endDate: today,
         meterTypeId: '',
-        siteId: '',
+        siteId: selectedSiteId ? String(selectedSiteId) : '',
         buildingId: '',
         zoneId: '',
         searchMeter: '',
@@ -74,11 +76,14 @@ const FilterBar: React.FC<FilterBarProps> = ({
                     sitesApi.getAll({ limit: 200, activeOnly: true }),
                 ]);
                 setMeterTypes(typeRes.data.data || []);
-                setSites(siteRes.data.data || []);
+                const apiSites = siteRes.data.data || [];
+                setSites(user?.siteAccessMode === 'all'
+                    ? apiSites
+                    : apiSites.filter((site: any) => user?.sites?.some(allowed => allowed.siteId === site.site_id)));
             } catch (e) { console.error(e); }
         };
         loadMaster();
-    }, []);
+    }, [user?.siteAccessMode, user?.sites]);
 
     useEffect(() => {
         if (!filters.siteId) { setBuildings([]); setZones([]); return; }

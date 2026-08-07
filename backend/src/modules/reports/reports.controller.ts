@@ -15,7 +15,8 @@ export class ReportsController {
 
     async acknowledgeAlarm(req: AuthRequest, res: Response, next: NextFunction) {
         try {
-            res.json(successResponse(await svc.acknowledgeAlarm(parseInt(req.params.id), req.user?.userName), 'Alarm acknowledged'));
+            const siteId = req.query.siteId ? parseInt(String(req.query.siteId)) : undefined;
+            res.json(successResponse(await svc.acknowledgeAlarm(parseInt(req.params.id), req.user?.userName, siteId), 'Alarm acknowledged'));
         } catch (e) { next(e); }
     }
 

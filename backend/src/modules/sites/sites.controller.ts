@@ -9,9 +9,9 @@ const zonesService = new ZonesService();
 
 export class SitesController {
     // Sites
-    async getSites(req: Request, res: Response, next: NextFunction) {
+    async getSites(req: AuthRequest, res: Response, next: NextFunction) {
         try {
-            const result = await sitesService.getSites(req.query);
+            const result = await sitesService.getSites(req.query, req.user ? { siteAccessMode: req.user.siteAccessMode, siteIds: req.user.siteIds } : undefined);
             res.json(successResponse(result.data, undefined, paginationHelper(result.page, result.limit, result.total)));
         } catch (error) { next(error); }
     }

@@ -1,15 +1,17 @@
 import { Router } from 'express';
 import { DashboardController } from './dashboard.controller';
 import { authenticate } from '../../middleware/auth';
+import { enforceSiteAccess } from '../../middleware/accessControl';
 
 const router = Router();
 const c = new DashboardController();
 
-router.get('/zone', authenticate, c.getZoneDashboard);
-router.get('/zone-consumption', authenticate, c.getZoneConsumption);
-router.get('/mdb-consumption', authenticate, c.getMdbConsumption);
-router.get('/demand', authenticate, c.getDemandData);
-router.get('/consumption-table', authenticate, c.getConsumptionTable);
-router.get('/consumption-meters', authenticate, c.getConsumptionMeters);
+router.use(authenticate, enforceSiteAccess);
+router.get('/zone', c.getZoneDashboard);
+router.get('/zone-consumption', c.getZoneConsumption);
+router.get('/mdb-consumption', c.getMdbConsumption);
+router.get('/demand', c.getDemandData);
+router.get('/consumption-table', c.getConsumptionTable);
+router.get('/consumption-meters', c.getConsumptionMeters);
 
 export default router;

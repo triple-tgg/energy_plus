@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 export type ExportFormat = 'excel' | 'csv';
 
@@ -10,7 +11,10 @@ interface ExportButtonsProps {
 
 const ExportButtons: React.FC<ExportButtonsProps> = ({ onExport, loading = false }) => {
     const { t } = useLanguage();
+    const { user } = useAuth();
     const [format, setFormat] = useState<ExportFormat>('excel');
+
+    if (user?.role === 'viewer') return null;
 
     return (
         <div className="export-buttons">

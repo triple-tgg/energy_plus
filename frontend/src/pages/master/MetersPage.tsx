@@ -4,6 +4,7 @@ import Modal from '../../components/ui/Modal';
 import { metersApi, sitesApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
@@ -74,6 +75,7 @@ interface ParsedMeter {
 }
 
 const MetersPage: React.FC = () => {
+    const { user } = useAuth();
     const { t } = useLanguage();
     const { theme } = useTheme();
     const C = THEMES[theme];
@@ -628,9 +630,9 @@ const MetersPage: React.FC = () => {
             render: (_: any, row: any) => (
                 <div className="table-actions" style={{ display: 'flex', gap: 4 }}>
                     <button className="btn btn-outline btn-sm" onClick={() => handleOpenQrModal(row)} title={t('แสดง QR Code สำหรับบันทึกข้อมูล', 'Show QR Code')}>📷 {t('QR Code', 'QR')}</button>
-                    <button className="btn btn-outline btn-sm" onClick={() => handleOpenManualModal(row)} title={t('บันทึกข้อมูลแบบ Manual', 'Manual Entry')}>📝 {t('บันทึกข้อมูล', 'Manual')}</button>
-                    <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ {t('แก้ไข', 'Edit')}</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ {t('ลบ', 'Delete')}</button>
+                    {user?.role !== 'viewer' && <button className="btn btn-outline btn-sm" onClick={() => handleOpenManualModal(row)} title={t('บันทึกข้อมูลแบบ Manual', 'Manual Entry')}>📝 {t('บันทึกข้อมูล', 'Manual')}</button>}
+                    {user?.role === 'admin' && <button className="btn btn-primary btn-sm" onClick={() => handleEdit(row)}>✏️ {t('แก้ไข', 'Edit')}</button>}
+                    {user?.role === 'admin' && <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(row)}>🗑️ {t('ลบ', 'Delete')}</button>}
                 </div>
             ),
         },
@@ -755,7 +757,7 @@ const MetersPage: React.FC = () => {
                 loading={loading}
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
-                onCreate={handleCreate}
+                onCreate={user?.role === 'admin' ? handleCreate : undefined}
                 createLabel={t('เพิ่มมิเตอร์', 'Add Meter')}
                 headerActions={
                     <>
@@ -788,6 +790,7 @@ const MetersPage: React.FC = () => {
                         </button>
                         <button
                             onClick={handleImportClick}
+                            hidden={user?.role !== 'admin'}
                             style={{
                                 fontFamily: MONO, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
                                 padding: '6px 10px', background: C.infoBg,
@@ -812,6 +815,7 @@ const MetersPage: React.FC = () => {
                         </button>
                         <button
                             onClick={handleOpenManualFromHeader}
+                            hidden={user?.role === 'viewer'}
                             style={{
                                 fontFamily: MONO, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
                                 padding: '6px 10px', background: C.warnBg,

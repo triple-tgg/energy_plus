@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
-import { usersApi } from '../../api/client';
+import { usersApi, sitesApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface UserForm {
@@ -11,10 +11,14 @@ interface UserForm {
     password: string;
     groupId: number;
     isActive: boolean;
+    role: 'viewer' | 'operator' | 'admin';
+    siteAccessMode: 'assigned' | 'all';
+    siteIds: number[];
 }
 
 const emptyForm: UserForm = {
     userName: '', displayName: '', email: '', password: '', groupId: 1, isActive: true,
+    role: 'viewer', siteAccessMode: 'assigned', siteIds: [],
 };
 
 const MODULE_KEYS = [
@@ -41,6 +45,7 @@ const UsersPage: React.FC = () => {
 
     // Groups list for dropdown
     const [groups, setGroups] = useState<any[]>([]);
+    const [sites, setSites] = useState<any[]>([]);
 
     // Modal state
     const [showModal, setShowModal] = useState(false);
@@ -106,6 +111,7 @@ const UsersPage: React.FC = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
     useEffect(() => { fetchGroups(); }, [fetchGroups]);
+    useEffect(() => { sitesApi.getAll({ limit: 500, activeOnly: true }).then(res => setSites(res.data.data || [])).catch(console.error); }, []);
 
     useEffect(() => {
         if (successMsg) {
@@ -130,6 +136,9 @@ const UsersPage: React.FC = () => {
             password: '',
             groupId: row.group_id || 1,
             isActive: row.is_active ?? true,
+            role: row.role || 'viewer',
+            siteAccessMode: row.site_access_mode || 'assigned',
+            siteIds: (row.site_ids || []).map(Number),
         });
         setFormError('');
         setShowModal(true);
@@ -144,6 +153,10 @@ const UsersPage: React.FC = () => {
             setFormError(t('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร', 'Password must be at least 6 characters'));
             return;
         }
+        if (form.siteAccessMode === 'assigned' && form.siteIds.length === 0) {
+            setFormError(t('กรุณาเลือกอย่างน้อย 1 Site', 'Select at least one site'));
+            return;
+        }
         setSaving(true);
         setFormError('');
         try {
@@ -153,6 +166,7 @@ const UsersPage: React.FC = () => {
                     email: form.email,
                     groupId: form.groupId,
                     isActive: form.isActive,
+                    role: form.role, siteAccessMode: form.siteAccessMode, siteIds: form.siteIds,
                 });
                 setSuccessMsg(t('อัปเดตผู้ใช้งานสำเร็จ!', 'User updated successfully!'));
             } else {
@@ -162,6 +176,7 @@ const UsersPage: React.FC = () => {
                     email: form.email,
                     password: form.password,
                     groupId: form.groupId,
+                    role: form.role, siteAccessMode: form.siteAccessMode, siteIds: form.siteIds,
                 });
                 setSuccessMsg(t('สร้างผู้ใช้งานสำเร็จ!', 'User created successfully!'));
             }
@@ -280,6 +295,8 @@ const UsersPage: React.FC = () => {
         { key: 'user_name', title: t('ชื่อผู้ใช้งาน', 'Username') },
         { key: 'display_name', title: t('ชื่อที่แสดง', 'Display Name') },
         { key: 'email', title: t('อีเมล', 'Email') },
+        { key: 'role', title: t('สิทธิ์', 'Role'), render: (v: string) => <span className="badge badge-info">{(v || 'viewer').toUpperCase()}</span> },
+        { key: 'site_names', title: t('Site Access', 'Site Access'), render: (v: string, row: any) => row.site_access_mode === 'all' ? t('ทุกสาขา', 'All Sites') : (v || '—') },
         {
             key: 'group_name', title: t('กลุ่ม', 'Group'),
             render: (v: string) => v ? <span className="badge badge-info">{v.toUpperCase()}</span> : '—',
@@ -416,6 +433,32 @@ const UsersPage: React.FC = () => {
                             value={form.password}
                             onChange={(e) => setForm({ ...form, password: e.target.value })}
                         />
+                    </div>
+                )}
+
+                <div className="form-row">
+                    <div className="form-group">
+                        <label className="form-label">{t('ระดับสิทธิ์', 'Role')}</label>
+                        <select className="form-control" value={form.role} onChange={e => setForm({ ...form, role: e.target.value as UserForm['role'] })}>
+                            <option value="viewer">Viewer</option>
+                            <option value="operator">Operator</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">{t('รูปแบบการเข้าถึง Site', 'Site Access Mode')}</label>
+                        <select className="form-control" value={form.siteAccessMode} onChange={e => setForm({ ...form, siteAccessMode: e.target.value as UserForm['siteAccessMode'] })}>
+                            <option value="assigned">{t('เฉพาะ Site ที่กำหนด', 'Assigned Sites')}</option>
+                            <option value="all">{t('ทุกสาขา', 'All Sites')}</option>
+                        </select>
+                    </div>
+                </div>
+                {form.siteAccessMode === 'assigned' && (
+                    <div className="form-group">
+                        <label className="form-label">{t('เลือก Site', 'Select Sites')}</label>
+                        <select multiple className="form-control" style={{ minHeight: 120 }} value={form.siteIds.map(String)} onChange={e => setForm({ ...form, siteIds: Array.from(e.target.selectedOptions).map(option => Number(option.value)) })}>
+                            {sites.map(site => <option key={site.site_id} value={site.site_id}>{site.site_name}</option>)}
+                        </select>
                     </div>
                 )}
 

@@ -12,15 +12,23 @@ const refreshMeterSubscriptions = async (): Promise<void> => {
 };
 
 export class SitesService {
-    async getSites(queryParams: any) {
+    async getSites(queryParams: any, access?: { siteAccessMode: string; siteIds: number[] }) {
         const { page, limit, offset } = parsePagination(queryParams);
         const activeOnly = queryParams.activeOnly === true || queryParams.activeOnly === 'true';
-        const whereClause = activeOnly ? 'WHERE site_status = true' : '';
-        const countResult = await query(`SELECT COUNT(*) FROM sites ${whereClause}`);
+        const filters: string[] = [];
+        const accessParams: any[] = [];
+        if (activeOnly) filters.push('site_status = true');
+        if (access && access.siteAccessMode !== 'all') {
+            accessParams.push(access.siteIds || []);
+            filters.push(`site_id = ANY($${accessParams.length}::int[])`);
+        }
+        const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+        const countResult = await query(`SELECT COUNT(*) FROM sites ${whereClause}`, accessParams);
         const total = parseInt(countResult.rows[0].count);
+        const limitIndex = accessParams.length + 1;
         const result = await query(
-            `SELECT * FROM sites ${whereClause} ORDER BY site_id LIMIT $1 OFFSET $2`,
-            [limit, offset]
+            `SELECT * FROM sites ${whereClause} ORDER BY site_id LIMIT $${limitIndex} OFFSET $${limitIndex + 1}`,
+            [...accessParams, limit, offset]
         );
         return { data: result.rows, total, page, limit };
     }

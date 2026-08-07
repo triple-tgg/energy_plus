@@ -21,6 +21,7 @@ import layoutRoutes from './modules/layouts/layouts.routes';
 import reportsRoutes from './modules/reports/reports.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
+import { ensureAccessControlSchema } from './config/accessControl';
 import { alertEngine } from './modules/alarms/alert-engine.service';
 
 const app = createApp();
@@ -111,6 +112,7 @@ app.use(errorHandler);
 
 // Start server with Redis connection
 const startServer = async () => {
+    await ensureAccessControlSchema();
     let meterSubscriptionSyncTimer: NodeJS.Timeout | null = null;
 
     if (REDIS_ENABLED) {

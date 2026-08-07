@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { LayoutsController } from './layouts.controller';
 import { authenticate } from '../../middleware/auth';
+import { requireRole } from '../../middleware/accessControl';
 import multer from 'multer';
 import path from 'path';
 // Trigger restart
@@ -27,15 +28,15 @@ const upload = multer({
 // Layouts CRUD
 router.get('/', authenticate, c.getLayouts);
 router.get('/:id', authenticate, c.getLayoutById);
-router.post('/', authenticate, upload.single('image'), c.createLayout);
-router.put('/:id', authenticate, upload.single('image'), c.updateLayout);
-router.delete('/:id', authenticate, c.deleteLayout);
+router.post('/', authenticate, requireRole('admin'), upload.single('image'), c.createLayout);
+router.put('/:id', authenticate, requireRole('admin'), upload.single('image'), c.updateLayout);
+router.delete('/:id', authenticate, requireRole('admin'), c.deleteLayout);
 
 // Layout Points
 router.get('/:id/points', authenticate, c.getPoints);
-router.put('/:id/points', authenticate, c.savePoints);        // batch save
-router.post('/:id/points', authenticate, c.addPoint);         // add single
-router.put('/:id/points/:pointId', authenticate, c.updatePoint);
-router.delete('/:id/points/:pointId', authenticate, c.deletePoint);
+router.put('/:id/points', authenticate, requireRole('admin'), c.savePoints);        // batch save
+router.post('/:id/points', authenticate, requireRole('admin'), c.addPoint);         // add single
+router.put('/:id/points/:pointId', authenticate, requireRole('admin'), c.updatePoint);
+router.delete('/:id/points/:pointId', authenticate, requireRole('admin'), c.deletePoint);
 
 export default router;

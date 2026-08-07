@@ -10,7 +10,7 @@ export class AuthService {
         // Look up user by username from app_user table
         const userResult = await query(
             `SELECT u.user_id, u.user_name, u.display_name, u.email, u.password_hash,
-              u.group_id, u.is_active,
+              u.group_id, u.is_active, u.role, u.site_access_mode,
               g.group_name
        FROM app_user u
        LEFT JOIN group_user g ON u.group_id = g.group_id
@@ -87,6 +87,8 @@ export class AuthService {
             groupId: user.group_id,
             groupName: user.group_name || 'User',
             siteIds: sites.map((s: any) => s.siteId),
+            role: user.role || 'viewer',
+            siteAccessMode: user.site_access_mode || 'assigned',
         };
 
         const accessToken = jwt.sign(payload, jwtConfig.secret as string, {
@@ -106,6 +108,8 @@ export class AuthService {
             groupId: user.group_id,
             permissions,
             sites,
+            role: user.role || 'viewer',
+            siteAccessMode: user.site_access_mode || 'assigned',
         };
 
         return {
@@ -119,7 +123,7 @@ export class AuthService {
     async getProfile(userId: number): Promise<UserProfile> {
         const userResult = await query(
             `SELECT u.user_id, u.user_name, u.display_name, u.email,
-              u.group_id, g.group_name
+              u.group_id, u.role, u.site_access_mode, g.group_name
        FROM app_user u
        LEFT JOIN group_user g ON u.group_id = g.group_id
        WHERE u.user_id = $1`,
@@ -141,7 +145,7 @@ export class AuthService {
         );
 
         const permResult = await query(
-            `SELECT permission_name FROM user_permission WHERE group_id = $1`,
+            `SELECT permission_key FROM user_permission WHERE group_id = $1 AND can_view = true`,
             [user.group_id]
         );
 
@@ -152,11 +156,13 @@ export class AuthService {
             email: user.email,
             group: user.group_name || 'User',
             groupId: user.group_id,
-            permissions: permResult.rows.map((p: any) => p.permission_name),
+            permissions: permResult.rows.map((p: any) => p.permission_key),
             sites: sitesResult.rows.map((s: any) => ({
                 siteId: s.site_id,
                 siteName: s.site_name,
             })),
+            role: user.role || 'viewer',
+            siteAccessMode: user.site_access_mode || 'assigned',
         };
     }
 
@@ -171,6 +177,8 @@ export class AuthService {
                 groupId: profile.groupId,
                 groupName: profile.group,
                 siteIds: profile.sites.map(s => s.siteId),
+                role: profile.role,
+                siteAccessMode: profile.siteAccessMode,
             };
 
             const accessToken = jwt.sign(payload, jwtConfig.secret as string, {

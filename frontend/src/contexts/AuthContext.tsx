@@ -10,6 +10,8 @@ interface User {
     groupId: number;
     permissions: string[];
     sites: { siteId: number; siteName: string }[];
+    role: 'viewer' | 'operator' | 'admin';
+    siteAccessMode: 'assigned' | 'all';
 }
 
 interface AuthContextType {
@@ -18,6 +20,8 @@ interface AuthContextType {
     isLoading: boolean;
     login: (username: string, password: string) => Promise<void>;
     logout: () => void;
+    selectedSiteId: number | null;
+    setSelectedSiteId: (siteId: number | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,6 +35,16 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedSiteId, setSelectedSiteIdState] = useState<number | null>(() => {
+        const stored = localStorage.getItem('selectedSiteId');
+        return stored ? Number(stored) : null;
+    });
+
+    const setSelectedSiteId = (siteId: number | null) => {
+        setSelectedSiteIdState(siteId);
+        if (siteId == null) localStorage.removeItem('selectedSiteId');
+        else localStorage.setItem('selectedSiteId', String(siteId));
+    };
 
     useEffect(() => {
         const stored = localStorage.getItem('user');
@@ -47,6 +61,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', refreshToken);
         localStorage.setItem('user', JSON.stringify(u));
+        const storedSite = Number(localStorage.getItem('selectedSiteId'));
+        const allowedIds = (u.sites || []).map((site: any) => site.siteId);
+        if (u.siteAccessMode !== 'all' && !allowedIds.includes(storedSite)) setSelectedSiteId(allowedIds[0] || null);
         setUser(u);
     };
 
@@ -54,11 +71,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
+        localStorage.removeItem('selectedSiteId');
         setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, selectedSiteId, setSelectedSiteId }}>
             {children}
         </AuthContext.Provider>
     );

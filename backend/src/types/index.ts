@@ -33,6 +33,8 @@ export interface JwtPayload {
     groupId: number;
     groupName: string;
     siteIds: number[];
+    role: 'viewer' | 'operator' | 'admin';
+    siteAccessMode: 'assigned' | 'all';
 }
 
 export interface LoginRequest {
@@ -57,6 +59,8 @@ export interface UserProfile {
     groupId: number;
     permissions: string[];
     sites: { siteId: number; siteName: string }[];
+    role: 'viewer' | 'operator' | 'admin';
+    siteAccessMode: 'assigned' | 'all';
 }
 
 // ===== Infrastructure =====

@@ -13,6 +13,10 @@ api.interceptors.request.use((config) => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    const selectedSiteId = localStorage.getItem('selectedSiteId');
+    if (selectedSiteId) {
+        config.params = { ...config.params, siteId: config.params?.siteId || selectedSiteId };
+    }
     return config;
 });
 

@@ -39,11 +39,12 @@ export class MeterDataService {
 
     async getHistoryData(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const { meterId, startDate, endDate } = queryParams;
+        const { meterId, startDate, endDate, siteId } = queryParams;
         let whereClause = 'WHERE 1=1';
         const params: any[] = [];
 
         if (meterId) { params.push(parseInt(meterId)); whereClause += ` AND d.meter_id = $${params.length}`; }
+        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND EXISTS (SELECT 1 FROM meter sm WHERE sm.meter_id=d.meter_id AND sm.site_id=$${params.length})`; }
         if (startDate) { params.push(startDate); whereClause += ` AND d.date_keep >= $${params.length}`; }
         if (endDate) { params.push(endDate); whereClause += ` AND d.date_keep <= $${params.length}`; }
 

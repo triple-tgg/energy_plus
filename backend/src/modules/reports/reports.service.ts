@@ -23,9 +23,10 @@ export class ReportsService {
     async getAlarms(queryParams: any) {
         await this.ensureAlarmLogTable();
         const { page, limit, offset } = parsePagination(queryParams);
-        const { startDate, endDate, search } = queryParams;
+        const { startDate, endDate, search, siteId } = queryParams;
         const params: any[] = [];
         const filters: string[] = ['1=1'];
+        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
         if (startDate) { params.push(startDate); filters.push(`al.occurred_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         if (endDate) { params.push(endDate); filters.push(`al.occurred_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         if (search) {
@@ -49,13 +50,15 @@ export class ReportsService {
         return { data: result.rows.map(({ full_count, ...row }: any) => row), total, page, limit };
     }
 
-    async acknowledgeAlarm(id: number, acknowledgedBy?: string) {
+    async acknowledgeAlarm(id: number, acknowledgedBy?: string, siteId?: number) {
         await this.ensureAlarmLogTable();
         const result = await query(
             `UPDATE alarm_log
              SET acknowledged = true, acknowledged_at = NOW(), acknowledged_by = $1
-             WHERE id = $2 RETURNING *`,
-            [acknowledgedBy || null, id]
+             WHERE id = $2
+               AND ($3::int IS NULL OR meter_id IN (SELECT meter_id FROM meter WHERE site_id=$3))
+             RETURNING *`,
+            [acknowledgedBy || null, id, siteId || null]
         );
         if (!result.rows[0]) throw new Error('Alarm log not found');
         return result.rows[0];
