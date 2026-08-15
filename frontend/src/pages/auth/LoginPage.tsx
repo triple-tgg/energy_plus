@@ -10,7 +10,7 @@ const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace'
 const THEMES = {
     light: {
         bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
-        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        line: '#D4D1C0', bar: '#F1EFE3', barSub: '#8A8C7A', accent: '#2B4C7E',
         gridColor: 'rgba(43, 76, 126, 0.04)', gridColorBold: 'rgba(43, 76, 126, 0.1)',
         red: '#dc2626'
     },

@@ -10,11 +10,11 @@ const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace'
 const THEMES = {
     light: {
         bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
-        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        line: '#D4D1C0', bar: '#F1EFE3', barSub: '#8A8C7A', accent: '#2B4C7E',
     },
     dark: {
-        bg: '#F0F2F5', panel: '#FFFFFF', panel2: '#F5F6F8', ink: '#1A1D23', sub: '#5F6B7A',
-        line: '#D8DCE3', bar: '#E8EBF0', barSub: '#8892A0', accent: '#2B6CB0',
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
     },
 };
 
@@ -367,23 +367,16 @@ const LayoutViewPage: React.FC = () => {
     return (
         <div style={{ color: C.ink, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
             {/* Command Bar */}
-            <div style={{
-                background: C.bar, padding: '10px 20px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderBottom: `2px solid ${C.accent}`, flexShrink: 0,
-                flexWrap: 'wrap', gap: 8,
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
+            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
-                    <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                        {t('แผนผังตำแหน่งพื้นที่', 'Site Layout Plan')}
-                    </span>
-                    <span style={{ fontFamily: MONO, fontSize: 11, color: C.barSub || C.sub }}>
-                        {t('แผนภาพเส้นเดี่ยว / มุมมองแผนผัง', 'Layout Diagram / Layout View')}
-                    </span>
+                    <div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('การติดตาม // แผนผัง', 'MONITORING // LAYOUT')}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('แผนผังตำแหน่งมิเตอร์และจุดวัดพลังงาน', 'Meter placement layout and energy measurement points')}</div>
+                    </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <label style={{ fontFamily: MONO, fontSize: 11, color: C.barSub || C.sub }}>{t('เลือกแผนผัง:', 'Select Layout:')}</label>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px' }}>
+                    <label style={{ fontFamily: MONO, fontSize: 11, color: C.barSub }}>{t('เลือกแผนผัง:', 'Select Layout:')}</label>
                     <select value={selectedId || ''} onChange={e => setSelectedId(parseInt(e.target.value, 10))}
                         style={{ padding: '5px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none', minWidth: 200 }}>
                         {layouts.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
@@ -772,12 +765,12 @@ const LayoutViewPage: React.FC = () => {
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     fontSize: 14, color: '#fff',
                                 }}><i className={(POINT_TYPES[popupPoint.point_type] || POINT_TYPES.power).faIcon} /></span>
-                                <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '0.5px' }}>
+                                <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.ink, letterSpacing: '0.5px' }}>
                                     {popupPoint.label}
                                 </span>
                             </div>
                             <button onClick={() => setPopupPoint(null)}
-                                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}>
+                                style={{ background: 'transparent', border: 'none', color: C.ink, cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}>
                                 <X size={20} />
                             </button>
                         </div>

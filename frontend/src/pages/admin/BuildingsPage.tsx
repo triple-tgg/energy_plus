@@ -6,14 +6,16 @@ import { useLanguage } from '../../contexts/LanguageContext';
 
 interface BuildingForm {
     buildingName: string;
+    buildingNameTh: string;
+    buildingNameEn: string;
     siteId: string;
     isActive: boolean;
 }
 
-const emptyForm: BuildingForm = { buildingName: '', siteId: '', isActive: true };
+const emptyForm: BuildingForm = { buildingName: '', buildingNameTh: '', buildingNameEn: '', siteId: '', isActive: true };
 
 const BuildingsPage: React.FC = () => {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -76,6 +78,8 @@ const BuildingsPage: React.FC = () => {
         setEditId(row.building_id);
         setForm({
             buildingName: row.building_name || '',
+            buildingNameTh: row.building_name_th || row.building_name || '',
+            buildingNameEn: row.building_name_en || '',
             siteId: row.site_id?.toString() || '',
             isActive: row.is_active ?? true,
         });
@@ -84,8 +88,10 @@ const BuildingsPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.buildingName.trim()) {
-            setFormError(t('กรุณากรอกชื่ออาคาร', 'Building Name is required'));
+        const nameTh = form.buildingNameTh.trim();
+        const nameEn = form.buildingNameEn.trim();
+        if (!nameTh && !nameEn) {
+            setFormError(t('กรุณากรอกชื่ออาคารภาษาไทยหรือภาษาอังกฤษ', 'Building Name (Thai or English) is required'));
             return;
         }
         if (!form.siteId) {
@@ -96,7 +102,9 @@ const BuildingsPage: React.FC = () => {
         setFormError('');
         try {
             const payload = {
-                buildingName: form.buildingName,
+                buildingName: nameTh || nameEn,
+                buildingNameTh: nameTh,
+                buildingNameEn: nameEn,
                 siteId: parseInt(form.siteId),
                 isActive: form.isActive,
             };
@@ -136,8 +144,21 @@ const BuildingsPage: React.FC = () => {
     };
 
     const columns = [
-        { key: 'building_name', title: t('ชื่ออาคาร', 'Building Name') },
-        { key: 'site_name', title: t('ชื่อไซต์', 'Site Name') },
+        {
+            key: 'building_name_th',
+            title: t('ชื่ออาคาร (ไทย)', 'Building Name (TH)'),
+            render: (v: string, row: any) => v || row.building_name || '—',
+        },
+        {
+            key: 'building_name_en',
+            title: t('ชื่ออาคาร (อังกฤษ)', 'Building Name (EN)'),
+            render: (v: string) => v || '—',
+        },
+        {
+            key: 'site_name',
+            title: t('ชื่อไซต์', 'Site Name'),
+            render: (_: any, row: any) => (language === 'en' ? (row.site_name_en || row.site_name) : (row.site_name_th || row.site_name)) || '—',
+        },
         {
             key: 'is_active',
             title: t('สถานะ', 'Status'),
@@ -162,6 +183,11 @@ const BuildingsPage: React.FC = () => {
             ),
         },
     ];
+
+    const deleteDisplayName = deleteTarget ? (
+        language === 'en' ? (deleteTarget.building_name_en || deleteTarget.building_name_th || deleteTarget.building_name)
+                          : (deleteTarget.building_name_th || deleteTarget.building_name_en || deleteTarget.building_name)
+    ) : '';
 
     return (
         <div>
@@ -202,15 +228,28 @@ const BuildingsPage: React.FC = () => {
 
                 <div className="form-group">
                     <label className="form-label">
-                        {t('ชื่ออาคาร', 'Building Name')} <span style={{ color: 'var(--danger)' }}>*</span>
+                        {t('ชื่ออาคาร (ภาษาไทย)', 'Building Name (Thai)')} <span style={{ color: 'var(--danger)' }}>*</span>
                     </label>
                     <input
                         type="text"
                         className="form-control"
-                        placeholder={t('กรอกชื่ออาคาร', 'Enter building name')}
-                        value={form.buildingName}
-                        onChange={(e) => setForm({ ...form, buildingName: e.target.value })}
+                        placeholder={t('เช่น อาคาร A, ตึกอำนวยการ', 'e.g. Building A')}
+                        value={form.buildingNameTh}
+                        onChange={(e) => setForm({ ...form, buildingNameTh: e.target.value })}
                         autoFocus
+                    />
+                </div>
+
+                <div className="form-group">
+                    <label className="form-label">
+                        {t('ชื่ออาคาร (ภาษาอังกฤษ)', 'Building Name (English)')}
+                    </label>
+                    <input
+                        type="text"
+                        className="form-control"
+                        placeholder={t('e.g. Building A, Admin Tower', 'e.g. Building A, Admin Tower')}
+                        value={form.buildingNameEn}
+                        onChange={(e) => setForm({ ...form, buildingNameEn: e.target.value })}
                     />
                 </div>
 
@@ -225,7 +264,9 @@ const BuildingsPage: React.FC = () => {
                     >
                         <option value="">— {t('เลือกไซต์', 'Select Site')} —</option>
                         {sites.map((s: any) => (
-                            <option key={s.site_id} value={s.site_id}>{s.site_name}</option>
+                            <option key={s.site_id} value={s.site_id}>
+                                {language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}
+                            </option>
                         ))}
                     </select>
                 </div>
@@ -266,7 +307,7 @@ const BuildingsPage: React.FC = () => {
                         {t('ลบอาคาร', 'Delete building')}
                     </p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--danger)' }}>
-                        "{deleteTarget?.building_name}"
+                        "{deleteDisplayName}"
                     </p>
                 </div>
             </Modal>

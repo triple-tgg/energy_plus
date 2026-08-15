@@ -56,7 +56,7 @@ const THEMES = {
         line: '#D4D1C0', bar: '#23261E', accent: '#2B4C7E',
     },
     dark: {
-        bg: '#F0F2F5', panel: '#FFFFFF', panel2: '#F5F6F8', ink: '#1A1D23', sub: '#5F6B7A',
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
         line: '#2A313C', bar: '#080A0E', accent: '#36C2CE',
     },
 };
@@ -403,7 +403,7 @@ const LayoutSettingsPage: React.FC = () => {
                 <div className="layout-editor-overlay">
                     {/* Header */}
                     <div style={{
-                        background: C.bar, color: '#fff', padding: '10px 20px',
+                        background: C.bar, color: C.ink, padding: '10px 20px',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         borderBottom: `2px solid ${C.accent}`,
                     }}>

@@ -12,7 +12,7 @@ const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace'
 const THEMES = {
     light: {
         bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
-        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        line: '#D4D1C0', bar: '#F1EFE3', barSub: '#8A8C7A', accent: '#2B4C7E',
         successBg: '#16a34a', infoBg: '#2B4C7E', darkBg: '#23261E', warnBg: '#92400e',
     },
     dark: {
@@ -76,7 +76,7 @@ interface ParsedMeter {
 
 const MetersPage: React.FC = () => {
     const { user } = useAuth();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const { theme } = useTheme();
     const C = THEMES[theme];
     const [data, setData] = useState<any[]>([]);
@@ -701,7 +701,7 @@ const MetersPage: React.FC = () => {
                         onChange={e => { setTempSiteId(e.target.value); setTempBuildingId(''); setTempZoneId(''); }}
                     >
                         <option value="">{t('ทุกไซต์', 'All Site')}</option>
-                        {sites.map(s => <option key={s.site_id} value={s.site_id}>{s.site_name}</option>)}
+                        {sites.map(s => <option key={s.site_id} value={s.site_id}>{language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}</option>)}
                     </select>
 
                     <select
@@ -710,7 +710,7 @@ const MetersPage: React.FC = () => {
                         onChange={e => { setTempBuildingId(e.target.value); setTempZoneId(''); }}
                     >
                         <option value="">{t('ทุกอาคาร', 'All Building')}</option>
-                        {filteredFilterBuildings.map(b => <option key={b.building_id} value={b.building_id}>{b.building_name}</option>)}
+                        {filteredFilterBuildings.map(b => <option key={b.building_id} value={b.building_id}>{language === 'en' ? (b.building_name_en || b.building_name) : (b.building_name_th || b.building_name)}</option>)}
                     </select>
 
                     <select
@@ -873,14 +873,14 @@ const MetersPage: React.FC = () => {
                         <label className="form-label">{t('ไซต์', 'Site')}</label>
                         <select className="form-control" value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value, buildingId: '' })}>
                             <option value="">— {t('เลือก', 'Select')} —</option>
-                            {sites.map(s => <option key={s.site_id} value={s.site_id}>{s.site_name}</option>)}
+                            {sites.map(s => <option key={s.site_id} value={s.site_id}>{language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
                         <label className="form-label">{t('อาคาร', 'Building')}</label>
                         <select className="form-control" value={form.buildingId} onChange={e => setForm({ ...form, buildingId: e.target.value })}>
                             <option value="">— {t('เลือก', 'Select')} —</option>
-                            {filteredBuildings.map(b => <option key={b.building_id} value={b.building_id}>{b.building_name}</option>)}
+                            {filteredBuildings.map(b => <option key={b.building_id} value={b.building_id}>{language === 'en' ? (b.building_name_en || b.building_name) : (b.building_name_th || b.building_name)}</option>)}
                         </select>
                     </div>
                 </div>

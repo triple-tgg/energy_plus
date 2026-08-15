@@ -40,15 +40,15 @@ interface Theme {
 const THEMES: Record<'light' | 'dark', Theme> = {
     light: { // Engineering Paper
         bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
-        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        line: '#D4D1C0', bar: '#F1EFE3', barSub: '#8A8C7A', accent: '#2B4C7E',
         green: '#2E7D46', yellow: '#C08A1E', red: '#B4452E', grey: '#9AA08C',
         palette: ['#2B4C7E', '#B45309', '#2E7D46', '#8C2F39', '#5B6B2E', '#6B4E86', '#9A6B2F', '#356E73'],
     },
-    dark: { // Soft Light
-        bg: '#F0F2F5', panel: '#FFFFFF', panel2: '#F5F6F8', ink: '#1A1D23', sub: '#5F6B7A',
-        line: '#D8DCE3', bar: '#E8EBF0', barSub: '#8892A0', accent: '#2B6CB0',
-        green: '#2E7D46', yellow: '#C08A1E', red: '#C53030', grey: '#A0AEC0',
-        palette: ['#2B6CB0', '#C05621', '#2E7D46', '#9B2C2C', '#5B6B2E', '#6B4E86', '#9A6B2F', '#356E73'],
+    dark: { // Control Room
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
+        green: '#3FB950', yellow: '#D29922', red: '#F85149', grey: '#6E7681',
+        palette: ['#58A6FF', '#36C2CE', '#3FB950', '#F85149', '#BC8CFF', '#D29922', '#39C5CF', '#FF7B72'],
     },
 };
 
@@ -1147,24 +1147,24 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
             `}</style>
 
             {/* Command bar */}
-            <div style={{ background: C.bar, color: '#fff', display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderRight: `1px solid #ffffff1a` }}>
+            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderRight: `1px solid ${C.line}` }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}>{variant === 'mdb' ? <LayoutGrid size={16} /> : <Gauge size={16} />}</div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{variant === 'mdb' ? 'MDB//CONSOLE' : 'ENERGY//CONSOLE'}</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{variant === 'mdb' ? 'DASHBOARD // MDB' : 'DASHBOARD // METER'}</div>
                         <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{variant === 'mdb' ? t('ติดตามการใช้พลังงานเฉพาะตู้ MDB', 'MDB Energy Monitoring · Console') : t('ระบบติดตามการใช้พลังงาน', 'Energy Consumption Monitoring · Console')}</div>
                     </div>
                 </div>
 
                 <div style={{ display: 'flex' }}>
                     {([['monitor', t('สถานะปัจจุบัน', 'Current Status'), Activity], ['compare', t('วิเคราะห์เปรียบเทียบ', 'Comparative Analysis'), BarChart3]] as [string, string, any][]).map(([k, lb, Ic]) => (
-                        <button key={k} onClick={() => setMode(k)} style={{ ...tabBar(mode === k), borderRight: `1px solid #ffffff14` }}>
+                        <button key={k} onClick={() => setMode(k)} style={{ ...tabBar(mode === k), borderRight: `1px solid ${C.line}` }}>
                             <Ic size={14} /> {lb}
                         </button>
                     ))}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 1, padding: '0 8px', borderLeft: `1px solid #ffffff14` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 1, padding: '0 8px', borderLeft: `1px solid ${C.line}` }}>
                     {[
                         { k: 'e', icon: Zap, label: t('ไฟฟ้า', 'Electricity'), on: true },
                         { k: 'w', icon: Droplet, label: t('น้ำ', 'Water') },
@@ -1175,7 +1175,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                         return (
                             <div key={item.k} title={item.on ? '' : t('เร็วๆ นี้', 'Coming Soon')} style={{
                                 display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', fontFamily: MONO, fontSize: 11,
-                                cursor: item.on ? 'default' : 'not-allowed', color: item.on ? '#fff' : '#6b6e5f',
+                                cursor: item.on ? 'default' : 'not-allowed', color: item.on ? C.ink : C.sub,
                                 borderBottom: item.on ? `2px solid ${C.accent}` : '2px solid transparent'
                             }}>
                                 <Ico size={13} /> {item.label}
@@ -1185,7 +1185,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.ink }}>
                         <StatusDot s="normal" size={8} pulse C={C} /> LIVE
                     </span>
                     <span style={{ color: C.barSub, fontVariantNumeric: 'tabular-nums' }}>{new Date(now).toLocaleTimeString(t('th-TH', 'en-US'))}</span>

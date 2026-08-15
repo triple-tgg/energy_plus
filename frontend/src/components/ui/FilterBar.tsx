@@ -188,7 +188,9 @@ const FilterBar: React.FC<FilterBarProps> = ({
                         <select className="form-control form-control-sm" value={filters.siteId} onChange={e => { update('siteId', e.target.value); update('buildingId', ''); update('zoneId', ''); update('meterId', ''); }}>
                             <option value="">{t('ไซต์ทั้งหมด', 'All Sites')}</option>
                             {sites.map((s: any) => (
-                                <option key={s.site_id} value={s.site_id}>{s.site_name}</option>
+                                <option key={s.site_id} value={s.site_id}>
+                                    {language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -199,7 +201,9 @@ const FilterBar: React.FC<FilterBarProps> = ({
                         <select className="form-control form-control-sm" value={filters.buildingId} onChange={e => { update('buildingId', e.target.value); update('zoneId', ''); update('meterId', ''); }}>
                             <option value="">{t('อาคารทั้งหมด', 'All Buildings')}</option>
                             {buildings.map((b: any) => (
-                                <option key={b.building_id} value={b.building_id}>{b.building_name}</option>
+                                <option key={b.building_id} value={b.building_id}>
+                                    {language === 'en' ? (b.building_name_en || b.building_name) : (b.building_name_th || b.building_name)}
+                                </option>
                             ))}
                         </select>
                     </div>

@@ -11,12 +11,12 @@ const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace'
 const THEMES = {
     light: {
         bg: '#EAE7DA', panel: '#FBFAF4', panel2: '#F1EFE3', ink: '#23261E', sub: '#6E705F',
-        line: '#D4D1C0', bar: '#23261E', barSub: '#A6A892', accent: '#2B4C7E',
+        line: '#D4D1C0', bar: '#F1EFE3', barSub: '#8A8C7A', accent: '#2B4C7E',
         red: '#dc2626', yellow: '#C08A1E', green: '#16a34a',
     },
     dark: {
-        bg: '#F0F2F5', panel: '#FFFFFF', panel2: '#F5F6F8', ink: '#1A1D23', sub: '#5F6B7A',
-        line: '#D8DCE3', bar: '#E8EBF0', barSub: '#8892A0', accent: '#2B6CB0',
+        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
         red: '#f85149', yellow: '#D29922', green: '#34d399',
     },
 };
@@ -153,8 +153,8 @@ const RealtimePage: React.FC = () => {
     // Filters
     const [selectedSiteId, setSelectedSiteId] = useState<number | undefined>(undefined);
     const [selectedBuildingId, setSelectedBuildingId] = useState<number | undefined>(undefined);
-    const [siteOptions, setSiteOptions] = useState<{ id: number; name: string }[]>([]);
-    const [allBuildings, setAllBuildings] = useState<{ id: number; name: string; site_id: number }[]>([]);
+    const [siteOptions, setSiteOptions] = useState<{ id: number; nameTh: string; nameEn: string; name: string }[]>([]);
+    const [allBuildings, setAllBuildings] = useState<{ id: number; nameTh: string; nameEn: string; name: string; site_id: number }[]>([]);
 
     // Track previous timestamps for flash detection
     const previousTimestamps = useRef<Record<string, string>>({});
@@ -169,9 +169,20 @@ const RealtimePage: React.FC = () => {
                     sitesApi.getAllBuildings({ limit: 200 }),
                 ]);
                 const sites = sitesRes.data?.data || [];
-                setSiteOptions(sites.map((s: any) => ({ id: s.site_id, name: s.site_name })));
+                setSiteOptions(sites.map((s: any) => ({
+                    id: s.site_id,
+                    nameTh: s.site_name_th || s.site_name,
+                    nameEn: s.site_name_en || s.site_name,
+                    name: s.site_name,
+                })));
                 const buildings = buildingsRes.data?.data || [];
-                setAllBuildings(buildings.map((b: any) => ({ id: b.building_id, name: b.building_name, site_id: b.site_id })));
+                setAllBuildings(buildings.map((b: any) => ({
+                    id: b.building_id,
+                    nameTh: b.building_name_th || b.building_name,
+                    nameEn: b.building_name_en || b.building_name,
+                    name: b.building_name,
+                    site_id: b.site_id,
+                })));
             } catch (err) {
                 console.error('Failed to load sites/buildings for filter:', err);
             }
@@ -180,9 +191,12 @@ const RealtimePage: React.FC = () => {
 
     // Building options filtered by selected site
     const buildingOptions = React.useMemo(() => {
-        if (!selectedSiteId) return allBuildings.map(b => ({ id: b.id, name: b.name }));
-        return allBuildings.filter(b => b.site_id === selectedSiteId).map(b => ({ id: b.id, name: b.name }));
-    }, [allBuildings, selectedSiteId]);
+        const list = selectedSiteId ? allBuildings.filter(b => b.site_id === selectedSiteId) : allBuildings;
+        return list.map(b => ({
+            id: b.id,
+            name: language === 'en' ? (b.nameEn || b.name) : (b.nameTh || b.name),
+        }));
+    }, [allBuildings, selectedSiteId, language]);
 
     // Persisted alarms: same source used by Alarm Report, so alerts survive refreshes.
     const fetchAlerts = useCallback(async () => {
@@ -359,7 +373,7 @@ const RealtimePage: React.FC = () => {
     return (
         <div style={{ color: C.ink, padding: '10px 0' }}>
             {/* Command bar */}
-            <div style={{ background: C.bar, color: '#fff', display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16, flexWrap: 'wrap' }}>
+            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
@@ -377,13 +391,13 @@ const RealtimePage: React.FC = () => {
                         onChange={e => { setSelectedSiteId(e.target.value ? parseInt(e.target.value) : undefined); setSelectedBuildingId(undefined); }}
                         style={{
                             fontFamily: MONO, fontSize: 11, padding: '5px 8px',
-                            background: 'transparent', color: '#fff', border: '1px solid #ffffff33',
+                            background: C.panel, color: C.ink, border: `1px solid ${C.line}`,
                             cursor: 'pointer', outline: 'none',
                         }}
                     >
-                        <option value="" style={{ color: '#000' }}>{t('ทุกสาขา', 'All Sites')}</option>
+                        <option value="">{t('ทุกสาขา', 'All Sites')}</option>
                         {siteOptions.map(s => (
-                            <option key={s.id} value={s.id} style={{ color: '#000' }}>{s.name}</option>
+                            <option key={s.id} value={s.id}>{language === 'en' ? (s.nameEn || s.name) : (s.nameTh || s.name)}</option>
                         ))}
                     </select>
 
@@ -392,13 +406,13 @@ const RealtimePage: React.FC = () => {
                         onChange={e => setSelectedBuildingId(e.target.value ? parseInt(e.target.value) : undefined)}
                         style={{
                             fontFamily: MONO, fontSize: 11, padding: '5px 8px',
-                            background: 'transparent', color: '#fff', border: '1px solid #ffffff33',
+                            background: C.panel, color: C.ink, border: `1px solid ${C.line}`,
                             cursor: 'pointer', outline: 'none',
                         }}
                     >
-                        <option value="" style={{ color: '#000' }}>{t('ทุกอาคาร', 'All Buildings')}</option>
+                        <option value="">{t('ทุกอาคาร', 'All Buildings')}</option>
                         {buildingOptions.map(b => (
-                            <option key={b.id} value={b.id} style={{ color: '#000' }}>{b.name}</option>
+                            <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                     </select>
                 </div>

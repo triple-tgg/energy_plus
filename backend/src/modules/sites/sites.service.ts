@@ -161,7 +161,7 @@ export class BuildingsService {
 
         params.push(limit, offset);
         const result = await query(
-            `SELECT b.*, s.site_name FROM buildings b
+            `SELECT b.*, s.site_name, s.site_name_th, s.site_name_en FROM buildings b
        LEFT JOIN sites s ON b.site_id = s.site_id
        ${whereClause}
        ORDER BY b.building_id
@@ -173,7 +173,7 @@ export class BuildingsService {
 
     async getBuildingById(buildingId: number) {
         const result = await query(
-            `SELECT b.*, s.site_name FROM buildings b
+            `SELECT b.*, s.site_name, s.site_name_th, s.site_name_en FROM buildings b
        LEFT JOIN sites s ON b.site_id = s.site_id
        WHERE b.building_id = $1`, [buildingId]
         );
@@ -182,20 +182,26 @@ export class BuildingsService {
     }
 
     async createBuilding(data: any) {
+        const nameTh = data.buildingNameTh || data.buildingName || '';
+        const nameEn = data.buildingNameEn || data.buildingName || '';
+        const primaryName = nameTh || nameEn;
         const result = await query(
-            `INSERT INTO buildings (building_name, site_id, is_active, created_by, created_on)
-       VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
-            [data.buildingName, data.siteId, true, data.createdBy]
+            `INSERT INTO buildings (building_name, building_name_th, building_name_en, site_id, is_active, created_by, created_on)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
+            [primaryName, nameTh, nameEn, data.siteId, data.isActive !== false, data.createdBy || 'system']
         );
         return result.rows[0];
     }
 
     async updateBuilding(buildingId: number, data: any) {
+        const nameTh = data.buildingNameTh || data.buildingName || '';
+        const nameEn = data.buildingNameEn || data.buildingName || '';
+        const primaryName = nameTh || nameEn;
         const result = await query(
-            `UPDATE buildings SET building_name = $1, site_id = $2, is_active = $3,
-       last_modified_by = $4, last_modified_on = NOW()
-       WHERE building_id = $5 RETURNING *`,
-            [data.buildingName, data.siteId, data.isActive, data.modifiedBy, buildingId]
+            `UPDATE buildings SET building_name = $1, building_name_th = $2, building_name_en = $3, site_id = $4, is_active = $5,
+       last_modified_by = $6, last_modified_on = NOW()
+       WHERE building_id = $7 RETURNING *`,
+            [primaryName, nameTh, nameEn, data.siteId, data.isActive !== false, data.modifiedBy || 'system', buildingId]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Building not found');
         return result.rows[0];
