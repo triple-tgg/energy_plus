@@ -54,12 +54,14 @@ const THEMES: Record<'light' | 'dark', Theme> = {
 
 const getStatusInfo = (s: string, C: Theme) => {
     switch (s) {
-        case 'over':
-            return { color: C.red, labelTh: 'เกินเกณฑ์', labelEn: 'Over Limit' };
         case 'offline':
-            return { color: C.grey, labelTh: 'ไม่มีสัญญาณ', labelEn: 'Offline' };
+            return { color: '#EF4444', labelTh: 'ออฟไลน์', labelEn: 'Offline' };
+        case 'inactive':
+            return { color: '#6B7280', labelTh: 'ไม่ใช้งาน', labelEn: 'Inactive' };
+        case 'online':
+        case 'normal':
         default:
-            return { color: C.green, labelTh: 'ปกติ', labelEn: 'Normal' };
+            return { color: '#10B981', labelTh: 'ออนไลน์', labelEn: 'Online' };
     }
 };
 
@@ -92,6 +94,7 @@ interface MeterData {
     pathNames: string[];
     threshold: number;
     disabled: boolean;
+    is_active?: boolean;
     inputMode: string;
     periodStart_kwhr: number;
     import_kwhr: number;
@@ -160,25 +163,26 @@ const getMeterTypeInfo = (id: number) => METER_TYPE_INFO[id] || METER_TYPE_INFO[
 const period = (m: MeterData) => Math.max(0, m.import_kwhr - m.periodStart_kwhr);
 const isRealtime = (m: MeterData) => m.data_source === 'realtime' || m.data_source === 'actual';
 function meterStatus(m: MeterData, now: number): string {
-    if (m.disabled) return 'offline';
+    if (m.disabled || m.is_active === false) return 'inactive';
     if (now - m.received_at > STALE_MS) return 'offline';
     // Treat all-zero readings as offline (meter communicating but no real data)
     if (m.vl1 === 0 && m.vl2 === 0 && m.vl3 === 0
         && m.il1 === 0 && m.il2 === 0 && m.il3 === 0
         && m.kw_3ph === 0 && m.kva_3ph === 0
         && m.hz === 0 && m.import_kwhr === 0) return 'offline';
-    const p = period(m), t = m.threshold;
-    if (t > 0 && p > t) return 'over';
-    return 'normal';
+    return 'online';
 }
 function aggStatus(list: MeterData[], now: number): string {
-    let n = false;
+    let hasOnline = false;
+    let hasOffline = false;
     for (const m of list) {
         const s = meterStatus(m, now);
-        if (s === 'over') return 'over';
-        if (s === 'normal') n = true;
+        if (s === 'offline') hasOffline = true;
+        if (s === 'online' || s === 'normal') hasOnline = true;
     }
-    return n ? 'normal' : 'offline';
+    if (hasOffline) return 'offline';
+    if (hasOnline) return 'online';
+    return 'inactive';
 }
 function latestAge(list: MeterData[], now: number): number | null {
     const active = list.filter((m) => !m.disabled && m.received_at > 0);
@@ -1093,7 +1097,6 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
 
     const renderCard = (it: ItemData) => {
         const st = getStatusInfo(it.status, C);
-        const over = it.node.level === 'room' && it.m && period(it.m) > it.m.threshold;
         return (
             <button key={it.node.id} className="ec-card" onClick={() => openItem(it)} style={{
                 textAlign: 'left', background: C.panel, border: `1px solid ${C.line}`, borderTop: `2px solid ${st.color}`,
@@ -1109,15 +1112,18 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 </div>
                 <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10.5, color: C.sub, display: 'flex', justifyContent: 'space-between', letterSpacing: 0.3 }}>
                     <span>{it.node.level === 'room' ? `${it.m!.device} · L${it.m!.loop}` : `${it.count} MTR`}</span>
-                    {over && <span style={{ color: C.red, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <AlertTriangle size={10} /> {fmt((period(it.m!) / it.m!.threshold) * 100)}%</span>}
+                    <span style={{ color: st.color, fontWeight: 600 }}>{t(st.labelTh, st.labelEn)}</span>
                 </div>
             </button>
         );
     };
 
     const scope = metersUnder(path);
-    const counts = scope.reduce((acc: Record<string, number>, m) => { acc[meterStatus(m, now)]++; return acc; }, { normal: 0, over: 0, offline: 0 });
+    const counts = scope.reduce((acc: Record<string, number>, m) => {
+        const s = meterStatus(m, now);
+        acc[s] = (acc[s] || 0) + 1;
+        return acc;
+    }, { online: 0, offline: 0, inactive: 0 });
     const totalKwh = scope.reduce((s, m) => s + period(m), 0);
 
     const go = (id: string) => { setPath([...path, id]); setSelected(null); };
@@ -1244,12 +1250,12 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
                             </div>
                         </div>
-                        {['normal', 'over', 'offline'].map((s) => (
+                        {['online', 'offline', 'inactive'].map((s) => (
                             <div key={s} style={{ padding: '11px 16px', borderRight: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 9, minWidth: 110 }}>
                                 <StatusDot s={s} size={11} C={C} />
                                 <div>
                                     <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: 0.5, color: C.sub, textTransform: 'uppercase' }}>{t(getStatusInfo(s, C).labelTh, getStatusInfo(s, C).labelEn)}</div>
-                                    <div style={{ fontFamily: MONO, fontSize: 17, fontWeight: 700, color: C.ink }}>{counts[s]}</div>
+                                    <div style={{ fontFamily: MONO, fontSize: 17, fontWeight: 700, color: C.ink }}>{counts[s] || 0}</div>
                                 </div>
                             </div>
                         ))}
@@ -1279,14 +1285,14 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                     </div>
                                 )} />
 
-                            {(counts.over > 0 || counts.offline > 0) && (
+                            {counts.offline > 0 && (
                                 <div style={{
                                     display: 'flex', alignItems: 'center', gap: 9, background: C.panel,
-                                    borderLeft: `3px solid ${C.red}`, border: `1px solid ${C.line}`, padding: '9px 12px', marginBottom: 12
+                                    borderLeft: `3px solid #EF4444`, border: `1px solid ${C.line}`, padding: '9px 12px', marginBottom: 12
                                 }}>
-                                    <Bell size={14} color={C.red} />
+                                    <Bell size={14} color="#EF4444" />
                                     <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.ink, letterSpacing: 0.3 }}>
-                                        {t('แจ้งเตือน', 'ALERT')} · <b style={{ color: C.red }}>{counts.over}</b> {t('เกินเกณฑ์', 'Over Limit')} · <b>{counts.offline}</b> {t('ไม่มีสัญญาณ/ปิด', 'Offline/Disabled')}
+                                        {t('แจ้งเตือน', 'ALERT')} · <b style={{ color: '#EF4444' }}>{counts.offline}</b> {t('มิเตอร์ออฟไลน์ (ไม่มีสัญญาณ)', 'Offline Meters (No Signal)')}
                                     </span>
                                 </div>
                             )}

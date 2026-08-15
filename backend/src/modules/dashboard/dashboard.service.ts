@@ -32,7 +32,7 @@ export class DashboardService {
                 : '';
 
         const params: any[] = [];
-        let meterFilter = 'WHERE m.is_active IS DISTINCT FROM false';
+        let meterFilter = 'WHERE 1=1';
         if (siteId) {
             params.push(siteId);
             meterFilter += ` AND m.site_id = $${params.length}`;
@@ -100,7 +100,7 @@ export class DashboardService {
             )
             SELECT
                 m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name, m.address,
-                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status, m.meter_type_id,
+                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status, m.is_active, m.meter_type_id,
                 s.site_name, b.building_name, z.zone_name,
                 COALESCE(latest_realtime.received_at, latest.date_keep) AS date_keep,
                 COALESCE(latest_realtime.device_datetime, latest_realtime.received_at, latest.date_keep) AS device_datetime,
@@ -397,10 +397,11 @@ export class DashboardService {
 
     private mapZoneMeter(row: any) {
         const floorValue = row.floor ?? 1;
-        const isActive = row.meter_status !== 'Inactive' && row.meter_status !== 'Disabled';
+        const isActive = row.is_active !== false && row.meter_status !== 'Inactive' && row.meter_status !== 'Disabled';
         return {
             id: `meter-${row.meter_id}`,
             code: row.room_code || row.meter_code || `M${row.meter_id}`,
+            is_active: row.is_active !== false,
             channel: row.realtime_channel || row.meter_code || '',
             site_id: row.site_id,
             address_id: row.realtime_address_id || row.address || row.meter_id,
