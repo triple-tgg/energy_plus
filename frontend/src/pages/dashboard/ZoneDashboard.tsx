@@ -1057,7 +1057,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 </div>
 
                 <div style={{ display: 'flex' }}>
-                    {([['monitor', 'REALTIME', Activity], ...(variant !== 'mdb' ? [['compare', t('เปรียบเทียบ', 'Comparison'), BarChart3]] : [])] as [string, string, any][]).map(([k, lb, Ic]) => (
+                    {([['monitor', 'REALTIME', Activity], ['compare', t('เปรียบเทียบ', 'Comparison'), BarChart3]] as [string, string, any][]).map(([k, lb, Ic]) => (
                         <button key={k} onClick={() => setMode(k)} style={{ ...tabBar(mode === k), borderRight: `1px solid #ffffff14` }}>
                             <Ic size={14} /> {lb}
                         </button>
@@ -1367,9 +1367,9 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                         })()}
                     </div>
                 </React.Fragment>
-            ) : variant !== 'mdb' ? (
+            ) : (
                 <Compare meters={meters} tree={tree} now={now} C={C} comparison={dashboardData.comparison} />
-            ) : null}
+            )}
 
             {selected && <MeterDetail m={selected} now={now} onClose={() => setSelected(null)} C={C} />}
         </div>
