@@ -35,6 +35,9 @@ interface RealtimeMeterData {
     loop_id: number;
     meter_status: string;
     is_active: boolean;
+    meter_type_id?: number;
+    meter_type_name?: string;
+    icon_name?: string;
     is_all_zero: boolean;
     site_name: string;
     building_name: string;
@@ -106,8 +109,10 @@ const parseNum = (v: any, fallback = 0): number => {
     return isFinite(n) ? n : fallback;
 };
 
-/** Detect meter as "offline" when all key measurement values are zero */
+/** Detect meter as "offline" when active but all key measurement values are zero */
 const isMeterOffline = (m: RealtimeMeterData): boolean => {
+    // Inactive meters are classified as "inactive", not "offline"
+    if (m.is_active === false) return false;
     // Backend may provide is_all_zero flag
     if (m.is_all_zero === true) return true;
     // Fallback: check client-side
@@ -749,16 +754,29 @@ const RealtimePage: React.FC = () => {
                                             onMouseLeave={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = offline ? (theme === 'light' ? 'rgba(239,68,68,0.04)' : 'rgba(248,81,73,0.06)') : 'transparent'; }}
                                         >
                                             <td style={{ padding: '14px 8px', textAlign: 'center' }}>
-                                                <span style={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                                                    padding: '2px 8px', fontSize: 10, fontWeight: 700, fontFamily: MONO,
-                                                    background: offline ? C.red + '18' : C.green + '18',
-                                                    color: offline ? C.red : C.green,
-                                                    border: `1px solid ${offline ? C.red : C.green}30`,
-                                                }}>
-                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: offline ? C.red : C.green, display: 'inline-block', boxShadow: offline ? 'none' : `0 0 6px ${C.green}` }} />
-                                                    {offline ? t('ออฟไลน์', 'OFFLINE') : t('ออนไลน์', 'ONLINE')}
-                                                </span>
+                                                {m.is_active === false ? (
+                                                    <span style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                        padding: '2px 8px', fontSize: 10, fontWeight: 700, fontFamily: MONO,
+                                                        background: 'rgba(107, 114, 128, 0.15)',
+                                                        color: '#6B7280',
+                                                        border: '1px solid rgba(107, 114, 128, 0.3)',
+                                                    }}>
+                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6B7280', display: 'inline-block' }} />
+                                                        {t('ไม่ใช้งาน', 'INACTIVE')}
+                                                    </span>
+                                                ) : (
+                                                    <span style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                        padding: '2px 8px', fontSize: 10, fontWeight: 700, fontFamily: MONO,
+                                                        background: offline ? C.red + '18' : C.green + '18',
+                                                        color: offline ? C.red : C.green,
+                                                        border: `1px solid ${offline ? C.red : C.green}30`,
+                                                    }}>
+                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: offline ? C.red : C.green, display: 'inline-block', boxShadow: offline ? 'none' : `0 0 6px ${C.green}` }} />
+                                                        {offline ? t('ออฟไลน์', 'OFFLINE') : t('ออนไลน์', 'ONLINE')}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td style={{ padding: '14px 8px', fontWeight: 700 }}>{m.meter_code}</td>
                                             <td style={{ padding: '14px 8px', color: offline ? C.sub : C.accent, fontWeight: 700 }}>{m.meter_name || m.room_code || `M${m.meter_id}`}</td>

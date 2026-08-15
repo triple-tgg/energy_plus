@@ -25,7 +25,7 @@ export class ReportsService {
         const { page, limit, offset } = parsePagination(queryParams);
         const { startDate, endDate, search, siteId } = queryParams;
         const params: any[] = [];
-        const filters: string[] = ['1=1'];
+        const filters: string[] = ['m.is_active = true'];
         if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
         if (startDate) { params.push(startDate); filters.push(`al.occurred_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         if (endDate) { params.push(endDate); filters.push(`al.occurred_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
@@ -40,7 +40,7 @@ export class ReportsService {
                     al.resolved_at, al.resolved_by, al.acknowledged, al.acknowledged_at, al.acknowledged_by,
                     m.meter_code, m.meter_name, COUNT(*) OVER()::int AS full_count
              FROM alarm_log al
-             LEFT JOIN meter m ON m.meter_id = al.meter_id
+             JOIN meter m ON m.meter_id = al.meter_id
              WHERE ${filters.join(' AND ')}
              ORDER BY al.occurred_at DESC, al.id DESC
              LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,

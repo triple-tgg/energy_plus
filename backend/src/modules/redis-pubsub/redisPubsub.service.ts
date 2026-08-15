@@ -98,7 +98,7 @@ export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?
     )`);
 
     const params: any[] = [];
-    const filtersSql = ['al.acknowledged = false'];
+    const filtersSql = ['al.acknowledged = false', 'm.is_active = true'];
     if (filters?.siteId) { params.push(filters.siteId); filtersSql.push(`m.site_id = $${params.length}`); }
     if (filters?.buildingId) { params.push(filters.buildingId); filtersSql.push(`m.building_id = $${params.length}`); }
 
@@ -106,7 +106,7 @@ export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?
         `SELECT al.id, al.message, al.alarm_type, al.occurred_at, al.meter_id,
                 m.meter_code, m.meter_name
          FROM alarm_log al
-         LEFT JOIN meter m ON m.meter_id = al.meter_id
+         JOIN meter m ON m.meter_id = al.meter_id
          WHERE ${filtersSql.join(' AND ')}
          ORDER BY al.occurred_at DESC, al.id DESC
          LIMIT 20`,
@@ -275,6 +275,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
             m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name,
             m.site_id, m.building_id, m.zone_id, m.floor, m.loop_id,
             m.status AS meter_status, m.is_active,
+            m.meter_type_id, mt.meter_type_name, mt.icon_name,
             s.site_name,
             b.building_name,
             z.zone_name,
@@ -295,6 +296,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
            AND rmm.id IS NULL
         JOIN meter m
             ON m.meter_id = COALESCE(rmm.meter_id, m_fallback.meter_id)
+        LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
         LEFT JOIN sites s ON m.site_id = s.site_id
         LEFT JOIN buildings b ON m.building_id = b.building_id
         LEFT JOIN zones z ON m.zone_id = z.zone_id

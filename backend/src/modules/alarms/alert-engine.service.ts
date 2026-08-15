@@ -158,13 +158,14 @@ export class AlertEngine {
                    ag.telegram_token, ag.telegram_chat_id, ag.email, ag.group_name,
                    ev.energy_value_name
             FROM alarm_config ac
-            LEFT JOIN meter m ON ac.meter_id = m.meter_id
+            JOIN meter m ON ac.meter_id = m.meter_id
             LEFT JOIN sites s ON m.site_id = s.site_id
             LEFT JOIN buildings b ON m.building_id = b.building_id
             LEFT JOIN zones z ON m.zone_id = z.zone_id
             LEFT JOIN alarm_group ag ON ac.alarm_group_id = ag.alarm_group_id AND ag.is_active = true
             LEFT JOIN energy_value ev ON ac.energy_value_id = ev.energy_value_id
             WHERE ac.is_active = true
+              AND m.is_active = true
         `);
         return result.rows;
     }

@@ -236,8 +236,9 @@ export class AlarmsService {
         const result = await query(`
             SELECT al.*, m.meter_code, m.meter_name
             FROM alarm_log al
-            LEFT JOIN meter m ON al.meter_id = m.meter_id
+            JOIN meter m ON al.meter_id = m.meter_id
             WHERE al.acknowledged = false
+              AND m.is_active = true
               AND al.occurred_at >= NOW() - ($1 || ' minutes')::interval
             ORDER BY al.occurred_at DESC
             LIMIT 20
