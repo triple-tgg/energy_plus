@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { alarmsApi, sitesApi } from '../../api/client';
+import { alarmsApi, reportsApi, sitesApi } from '../../api/client';
 
 interface AlertItem {
     id: number;
@@ -89,6 +89,30 @@ const Header: React.FC = () => {
         setAlertCount(0);
     };
 
+    const handleAcknowledgeAll = async () => {
+        try {
+            const unacknowledged = alerts.filter(a => !a.acknowledged);
+            await Promise.allSettled(unacknowledged.map(a => reportsApi.acknowledgeAlarm(a.id)));
+            alerts.forEach(a => readIdsRef.current.add(a.id));
+            setAlerts(prev => prev.map(a => ({ ...a, acknowledged: true })));
+            setAlertCount(0);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleAcknowledgeItem = async (id: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await reportsApi.acknowledgeAlarm(id);
+            readIdsRef.current.add(id);
+            setAlerts(prev => prev.map(a => a.id === id ? { ...a, acknowledged: true } : a));
+            setAlertCount(prev => Math.max(0, prev - 1));
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     // Poll alerts
     const fetchAlerts = useCallback(async () => {
         try {
@@ -155,20 +179,6 @@ const Header: React.FC = () => {
             </div>
 
             <div className="topbar__right">
-                <select
-                    className="form-control form-control-sm"
-                    style={{ width: 'auto', minWidth: 150 }}
-                    value={selectedSiteId ?? ''}
-                    onChange={event => {
-                        setSelectedSiteId(event.target.value ? Number(event.target.value) : null);
-                        window.location.reload();
-                    }}
-                    disabled={user?.siteAccessMode !== 'all' && sitesList.length <= 1}
-                    title={t('เลือกสาขา', 'Select site')}
-                >
-                    {user?.siteAccessMode === 'all' && <option value="">{t('ทุกสาขา', 'All Sites')}</option>}
-                    {sitesList.map(site => <option key={site.siteId} value={site.siteId}>{site.siteName}</option>)}
-                </select>
                 {/* Date/Time Pill */}
                 <div className="topbar__datetime">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -246,19 +256,39 @@ const Header: React.FC = () => {
                         }}>
                             {/* Header */}
                             <div style={{
-                                padding: '14px 16px', borderBottom: '1px solid var(--border)',
+                                padding: '12px 16px', borderBottom: '1px solid var(--border)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             }}>
-                                <span style={{ fontWeight: 700, fontSize: 15 }}>
-                                    🔔 {t('การแจ้งเตือน', 'Notifications')}
-                                </span>
-                                {alertCount > 0 && (
-                                    <span style={{
-                                        padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                                        background: '#EF444420', color: '#EF4444',
-                                    }}>
-                                        {alertCount} {t('รายการใหม่', 'new')}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontWeight: 700, fontSize: 14 }}>
+                                        🔔 {t('การแจ้งเตือน', 'Notifications')}
                                     </span>
+                                    {alertCount > 0 && (
+                                        <span style={{
+                                            padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                                            background: '#EF444420', color: '#EF4444',
+                                        }}>
+                                            {alertCount} {t('รายการใหม่', 'new')}
+                                        </span>
+                                    )}
+                                </div>
+                                {alertCount > 0 && (
+                                    <button
+                                        onClick={handleAcknowledgeAll}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--accent, #2B4C7E)',
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            textDecoration: 'underline',
+                                            padding: 0,
+                                        }}
+                                        title={t('รับทราบการแจ้งเตือนทั้งหมด', 'Acknowledge all alerts')}
+                                    >
+                                        ✓ {t('รับทราบทั้งหมด', 'Acknowledge all')}
+                                    </button>
                                 )}
                             </div>
 
@@ -293,11 +323,28 @@ const Header: React.FC = () => {
                                                 }}>
                                                     {getAlertLabel(alert.alarm_type)}
                                                 </span>
-                                                {!alert.acknowledged && (
-                                                    <span style={{
-                                                        width: 6, height: 6, borderRadius: '50%',
-                                                        background: '#EF4444', flexShrink: 0,
-                                                    }} />
+                                                {!alert.acknowledged ? (
+                                                    <button
+                                                        onClick={(e) => handleAcknowledgeItem(alert.id, e)}
+                                                        style={{
+                                                            marginLeft: 'auto',
+                                                            background: '#EF444415',
+                                                            color: '#EF4444',
+                                                            border: '1px solid #EF444440',
+                                                            borderRadius: 4,
+                                                            fontSize: 10,
+                                                            fontWeight: 600,
+                                                            padding: '2px 6px',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                        title={t('รับทราบการแจ้งเตือนนี้', 'Acknowledge this alert')}
+                                                    >
+                                                        {t('รับทราบ', 'Acknowledge')}
+                                                    </button>
+                                                ) : (
+                                                    <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>
+                                                        ✓ {t('รับทราบแล้ว', 'Acknowledged')}
+                                                    </span>
                                                 )}
                                             </div>
                                             <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

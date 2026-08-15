@@ -2059,7 +2059,13 @@ body {
 
 .ec-theme-light .topbar__datetime {
   color: #6E705F;
+  background: #FBFAF4;
+  border: 1px solid #D4D1C0;
   font-family: ui-monospace, monospace;
+}
+
+.ec-theme-light .topbar__datetime svg {
+  color: #2B4C7E;
 }
 
 .ec-theme-light .topbar__icon-btn {
@@ -2230,7 +2236,13 @@ body {
 
 .ec-theme-dark .topbar__datetime {
   color: #8B98A6;
+  background: #161B22;
+  border: 1px solid #2A313C;
   font-family: ui-monospace, monospace;
+}
+
+.ec-theme-dark .topbar__datetime svg {
+  color: #36C2CE;
 }
 
 .ec-theme-dark .topbar__icon-btn {
