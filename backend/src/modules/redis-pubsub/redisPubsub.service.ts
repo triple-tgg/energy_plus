@@ -311,14 +311,17 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
 /**
  * Get realtime history data for chart display.
  * Returns time-bucketed aggregated data from meter_data_realtime
- * for the last N minutes (default 30).
+ * for the last N minutes (d/**
+ * Get 15-minute summary history data for chart display.
+ * Returns 15-minute time-bucketed aggregated data from actual_meter_data / meter_data_realtime
+ * for the specified time window (default 1440 minutes / 24h).
  */
 export const getRealtimeHistory = async (filters?: {
     minutes?: number;
     siteId?: number;
     buildingId?: number;
 }): Promise<any[]> => {
-    const minutes = filters?.minutes || 30;
+    const minutes = filters?.minutes || 1440;
     const params: any[] = [minutes];
     let whereClause = '';
 
@@ -331,10 +334,37 @@ export const getRealtimeHistory = async (filters?: {
         whereClause += ` AND m.building_id = $${params.length}`;
     }
 
+    // Try actual_meter_data first (15-min summary logs)
+    const actualResult = await pool.query(
+        `SELECT
+            to_char(d.date_keep, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char(d.date_keep, 'HH24:MI') AS time,
+            m.meter_id, m.meter_code, m.meter_name, m.room_code,
+            ROUND(COALESCE(d.energy_kw, 0)::numeric, 2)::float AS kw_3ph,
+            ROUND(COALESCE(d.energy_kva, 0)::numeric, 2)::float AS kva_3ph,
+            ROUND(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0)::numeric, 1)::float AS avg_voltage,
+            ROUND(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0)::numeric, 2)::float AS avg_current,
+            ROUND(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0)::numeric, 3)::float AS avg_pf,
+            ROUND(COALESCE(d.energy_frequency, 0)::numeric, 2)::float AS hz,
+            1 AS readings
+        FROM actual_meter_data d
+        JOIN meter m ON m.meter_id = d.meter_id
+        WHERE m.is_active IS DISTINCT FROM false
+          AND d.date_keep >= NOW() - ($1 || ' minutes')::interval
+          ${whereClause}
+        ORDER BY d.date_keep ASC, m.meter_code`,
+        params
+    );
+
+    if (actualResult.rows.length > 0) {
+        return actualResult.rows;
+    }
+
+    // Fallback: Aggregate meter_data_realtime into 15-minute summary buckets (900 seconds)
     const result = await pool.query(
         `WITH mapped_readings AS (
             SELECT
-                date_trunc('minute', r.received_at) AS bucket,
+                to_timestamp(floor(extract(epoch from r.received_at) / 900) * 900) AS bucket,
                 COALESCE(rmm.meter_id, m_fallback.meter_id) AS meter_id,
                 r.kw_3ph, r.kva_3ph, r.kvar_3ph,
                 r.vl1, r.vl2, r.vl3,
@@ -355,14 +385,15 @@ export const getRealtimeHistory = async (filters?: {
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) IS NOT NULL
         )
         SELECT
-            mr.bucket AS t,
+            to_char(mr.bucket, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char(mr.bucket, 'HH24:MI') AS time,
             m.meter_id, m.meter_code, m.meter_name, m.room_code,
-            AVG(mr.kw_3ph) AS kw_3ph,
-            AVG(mr.kva_3ph) AS kva_3ph,
-            AVG((mr.vl1 + mr.vl2 + mr.vl3) / 3.0) AS avg_voltage,
-            AVG((mr.il1 + mr.il2 + mr.il3) / 3.0) AS avg_current,
-            AVG((mr.pf1 + mr.pf2 + mr.pf3) / 3.0) AS avg_pf,
-            AVG(mr.hz) AS hz,
+            ROUND(AVG(mr.kw_3ph)::numeric, 2)::float AS kw_3ph,
+            ROUND(AVG(mr.kva_3ph)::numeric, 2)::float AS kva_3ph,
+            ROUND(AVG((mr.vl1 + mr.vl2 + mr.vl3) / 3.0)::numeric, 1)::float AS avg_voltage,
+            ROUND(AVG((mr.il1 + mr.il2 + mr.il3) / 3.0)::numeric, 2)::float AS avg_current,
+            ROUND(AVG((mr.pf1 + mr.pf2 + mr.pf3) / 3.0)::numeric, 3)::float AS avg_pf,
+            ROUND(AVG(mr.hz)::numeric, 2)::float AS hz,
             COUNT(*)::int AS readings
         FROM mapped_readings mr
         JOIN meter m ON m.meter_id = mr.meter_id
@@ -374,3 +405,122 @@ export const getRealtimeHistory = async (filters?: {
     );
     return result.rows;
 };
+
+/**
+ * Get 15-minute interval summary history for a specific meter.
+ * Fetches 15-minute log records from actual_meter_data or aggregates from meter_data_realtime.
+ */
+export const getMeterRealtimeHistory = async (filters: {
+    meterId: number;
+    minutes?: number;
+}): Promise<any[]> => {
+    const minutes = filters.minutes || 1440;
+    const params: any[] = [minutes, filters.meterId];
+
+    // 1. Check actual_meter_data for official 15-minute summary intervals
+    const actualResult = await pool.query(
+        `SELECT
+            to_char(d.date_keep, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char(d.date_keep, 'HH24:MI') AS time,
+            to_char(d.date_keep, 'DD/MM HH24:MI') AS full_time,
+            ROUND(COALESCE(d.energy_kw, 0)::numeric, 2)::float AS kw_3ph,
+            ROUND(COALESCE(d.energy_kva, 0)::numeric, 2)::float AS kva_3ph,
+            ROUND(COALESCE(d.energy_kvar, 0)::numeric, 2)::float AS kvar_3ph,
+            ROUND(COALESCE(d.energy_volt_p1, 0)::numeric, 1)::float AS vl1,
+            ROUND(COALESCE(d.energy_volt_p2, 0)::numeric, 1)::float AS vl2,
+            ROUND(COALESCE(d.energy_volt_p3, 0)::numeric, 1)::float AS vl3,
+            ROUND(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0)::numeric, 1)::float AS avg_voltage,
+            ROUND(COALESCE(d.energy_volt_l1, 0)::numeric, 1)::float AS vl12,
+            ROUND(COALESCE(d.energy_volt_l2, 0)::numeric, 1)::float AS vl23,
+            ROUND(COALESCE(d.energy_volt_l3, 0)::numeric, 1)::float AS vl31,
+            ROUND(COALESCE(d.energy_amp1, 0)::numeric, 2)::float AS il1,
+            ROUND(COALESCE(d.energy_amp2, 0)::numeric, 2)::float AS il2,
+            ROUND(COALESCE(d.energy_amp3, 0)::numeric, 2)::float AS il3,
+            ROUND(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0)::numeric, 2)::float AS avg_current,
+            ROUND(COALESCE(d.energy_pf1, 0)::numeric, 3)::float AS pf1,
+            ROUND(COALESCE(d.energy_pf2, 0)::numeric, 3)::float AS pf2,
+            ROUND(COALESCE(d.energy_pf3, 0)::numeric, 3)::float AS pf3,
+            ROUND(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0)::numeric, 3)::float AS avg_pf,
+            ROUND(COALESCE(d.energy_frequency, 0)::numeric, 2)::float AS hz,
+            ROUND(COALESCE(d.energy_kwh, 0)::numeric, 1)::float AS import_kwhr,
+            1 AS readings
+        FROM actual_meter_data d
+        WHERE d.meter_id = $2
+          AND d.date_keep >= NOW() - ($1 || ' minutes')::interval
+        ORDER BY d.date_keep ASC`,
+        params
+    );
+
+    if (actualResult.rows.length > 0) {
+        return actualResult.rows;
+    }
+
+    // 2. Fallback: Aggregate readings into 15-minute summary intervals (900 seconds)
+    const fallbackResult = await pool.query(
+        `WITH mapped_readings AS (
+            SELECT
+                r.received_at,
+                r.kw1, r.kw2, r.kw3, r.kw_3ph,
+                r.kva1, r.kva2, r.kva3, r.kva_3ph,
+                r.kvar1, r.kvar2, r.kvar3, r.kvar_3ph,
+                r.vl1, r.vl2, r.vl3,
+                r.vl12, r.vl23, r.vl31,
+                r.il1, r.il2, r.il3,
+                r.pf1, r.pf2, r.pf3,
+                r.hz, r.import_kwhr
+            FROM meter_data_realtime r
+            LEFT JOIN realtime_meter_map rmm
+                ON rmm.realtime_site_id = r.site_id
+               AND rmm.realtime_address_id = r.address_id
+               AND rmm.is_active = true
+               AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+            LEFT JOIN meter m_fallback
+                ON m_fallback.site_el = r.site_id
+               AND m_fallback.address::text = r.address_id::text
+               AND rmm.id IS NULL
+            WHERE r.received_at >= NOW() - ($1 || ' minutes')::interval
+              AND COALESCE(rmm.meter_id, m_fallback.meter_id) = $2
+        )
+        SELECT
+            to_char(to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900), 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char(to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900), 'HH24:MI') AS time,
+            to_char(to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900), 'DD/MM HH24:MI') AS full_time,
+            ROUND(AVG(mr.kw_3ph)::numeric, 2)::float AS kw_3ph,
+            ROUND(AVG(mr.kw1)::numeric, 2)::float AS kw1,
+            ROUND(AVG(mr.kw2)::numeric, 2)::float AS kw2,
+            ROUND(AVG(mr.kw3)::numeric, 2)::float AS kw3,
+            ROUND(AVG(mr.kva_3ph)::numeric, 2)::float AS kva_3ph,
+            ROUND(AVG(mr.kva1)::numeric, 2)::float AS kva1,
+            ROUND(AVG(mr.kva2)::numeric, 2)::float AS kva2,
+            ROUND(AVG(mr.kva3)::numeric, 2)::float AS kva3,
+            ROUND(AVG(mr.kvar_3ph)::numeric, 2)::float AS kvar_3ph,
+            ROUND(AVG(mr.kvar1)::numeric, 2)::float AS kvar1,
+            ROUND(AVG(mr.kvar2)::numeric, 2)::float AS kvar2,
+            ROUND(AVG(mr.kvar3)::numeric, 2)::float AS kvar3,
+            ROUND(AVG(mr.vl1)::numeric, 1)::float AS vl1,
+            ROUND(AVG(mr.vl2)::numeric, 1)::float AS vl2,
+            ROUND(AVG(mr.vl3)::numeric, 1)::float AS vl3,
+            ROUND(AVG((mr.vl1 + mr.vl2 + mr.vl3) / 3.0)::numeric, 1)::float AS avg_voltage,
+            ROUND(AVG(mr.vl12)::numeric, 1)::float AS vl12,
+            ROUND(AVG(mr.vl23)::numeric, 1)::float AS vl23,
+            ROUND(AVG(mr.vl31)::numeric, 1)::float AS vl31,
+            ROUND(AVG(mr.il1)::numeric, 2)::float AS il1,
+            ROUND(AVG(mr.il2)::numeric, 2)::float AS il2,
+            ROUND(AVG(mr.il3)::numeric, 2)::float AS il3,
+            ROUND(AVG((mr.il1 + mr.il2 + mr.il3) / 3.0)::numeric, 2)::float AS avg_current,
+            ROUND(AVG(mr.pf1)::numeric, 3)::float AS pf1,
+            ROUND(AVG(mr.pf2)::numeric, 3)::float AS pf2,
+            ROUND(AVG(mr.pf3)::numeric, 3)::float AS pf3,
+            ROUND(AVG((mr.pf1 + mr.pf2 + mr.pf3) / 3.0)::numeric, 3)::float AS avg_pf,
+            ROUND(AVG(mr.hz)::numeric, 2)::float AS hz,
+            ROUND(MAX(mr.import_kwhr)::numeric, 1)::float AS import_kwhr,
+            COUNT(*)::int AS readings
+        FROM mapped_readings mr
+        GROUP BY to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)
+        ORDER BY t ASC`,
+        params
+    );
+
+    return fallbackResult.rows;
+};
+

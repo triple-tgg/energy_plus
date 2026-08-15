@@ -6,6 +6,7 @@ import {
     getActiveChannels,
     getLatestRealtimeData,
     getRealtimeHistory,
+    getMeterRealtimeHistory,
     getRealtimeAlerts,
 } from './redisPubsub.service';
 
@@ -136,3 +137,25 @@ export const realtimeAlerts = async (req: Request, res: Response): Promise<void>
         res.status(500).json(errorResponse('REALTIME_ALERTS_ERROR', error.message));
     }
 };
+
+/**
+ * GET /meter-history
+ * Fetch detailed parameter history for a specific meter.
+ * Query params: meterId (required), minutes (default 60)
+ */
+export const meterRealtimeHistory = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const meterId = req.query.meterId ? parseInt(req.query.meterId as string) : undefined;
+        if (!meterId) {
+            res.status(400).json(errorResponse('VALIDATION_ERROR', 'meterId is required'));
+            return;
+        }
+        const minutes = req.query.minutes ? parseInt(req.query.minutes as string) : 60;
+        const data = await getMeterRealtimeHistory({ meterId, minutes });
+        res.json(successResponse(data));
+    } catch (error: any) {
+        console.error('Meter realtime history error:', error);
+        res.status(500).json(errorResponse('METER_REALTIME_HISTORY_ERROR', error.message));
+    }
+};
+

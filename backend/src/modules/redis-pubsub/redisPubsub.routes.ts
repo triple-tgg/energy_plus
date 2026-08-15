@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { publish, subscribe, channels, latest, realtimeHistory, realtimeAlerts } from './redisPubsub.controller';
+import { publish, subscribe, channels, latest, realtimeHistory, realtimeAlerts, meterRealtimeHistory } from './redisPubsub.controller';
 import { authenticate } from '../../middleware/auth';
 import { enforceSiteAccess, requireRole } from '../../middleware/accessControl';
 
@@ -19,6 +19,7 @@ router.get('/latest', authenticate, enforceSiteAccess, latest);
 
 // GET /api/v1/redis/history — Get time-bucketed realtime history for charts
 router.get('/history', authenticate, enforceSiteAccess, realtimeHistory);
+router.get('/meter-history', authenticate, enforceSiteAccess, meterRealtimeHistory);
 router.get('/alerts', authenticate, enforceSiteAccess, realtimeAlerts);
 
 export default router;

@@ -204,6 +204,7 @@ export const demandPeakApi = {
 export const realtimeApi = {
     getLatest: (params?: any) => api.get('/redis/latest', { params }),
     getHistory: (params?: any) => api.get('/redis/history', { params }),
+    getMeterHistory: (params: { meterId: number; minutes?: number }) => api.get('/redis/meter-history', { params }),
     getAlerts: (params?: any) => api.get('/redis/alerts', { params }),
     getChannels: () => api.get('/redis/channels'),
 };

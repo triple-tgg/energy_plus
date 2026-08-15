@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid, X, ChevronDown, Gauge, BatteryCharging } from 'lucide-react';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+    Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid, X,
+    ChevronDown, Gauge, BatteryCharging, TrendingUp, BarChart2, Check, RotateCcw,
+    SlidersHorizontal, Layers, Filter, Sparkles, Clock, Eye, EyeOff
+} from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { realtimeApi } from '../../api/client';
@@ -75,6 +79,59 @@ const CHART_METRICS: { key: ChartMetric; labelTh: string; labelEn: string; unit:
     { key: 'pf', labelTh: 'ตัวประกอบกำลัง (PF)', labelEn: 'Power Factor', unit: '' },
 ];
 
+export interface MetricDef {
+    key: string;
+    labelTh: string;
+    labelEn: string;
+    unit: string;
+    color: string;
+    category: 'power' | 'voltage' | 'current' | 'energy' | 'pf' | 'other';
+    defaultOn?: boolean;
+}
+
+export const METRIC_DEFS: MetricDef[] = [
+    // Power (kW)
+    { key: 'kw_3ph', labelTh: 'กำลังไฟฟ้ารวม (kW)', labelEn: 'Total Active Power (kW)', unit: 'kW', color: '#F59E0B', category: 'power', defaultOn: true },
+    { key: 'kw1', labelTh: 'กำลังไฟฟ้า L1 (kW)', labelEn: 'Power L1 (kW)', unit: 'kW', color: '#FBBF24', category: 'power' },
+    { key: 'kw2', labelTh: 'กำลังไฟฟ้า L2 (kW)', labelEn: 'Power L2 (kW)', unit: 'kW', color: '#D97706', category: 'power' },
+    { key: 'kw3', labelTh: 'กำลังไฟฟ้า L3 (kW)', labelEn: 'Power L3 (kW)', unit: 'kW', color: '#B45309', category: 'power' },
+
+    // Voltage (V)
+    { key: 'avg_voltage', labelTh: 'แรงดันเฉลี่ย L-N (V)', labelEn: 'Avg Voltage L-N (V)', unit: 'V', color: '#3B82F6', category: 'voltage', defaultOn: true },
+    { key: 'vl1', labelTh: 'แรงดัน VL1 (V)', labelEn: 'Voltage L1 (V)', unit: 'V', color: '#60A5FA', category: 'voltage' },
+    { key: 'vl2', labelTh: 'แรงดัน VL2 (V)', labelEn: 'Voltage L2 (V)', unit: 'V', color: '#93C5FD', category: 'voltage' },
+    { key: 'vl3', labelTh: 'แรงดัน VL3 (V)', labelEn: 'Voltage L3 (V)', unit: 'V', color: '#2563EB', category: 'voltage' },
+    { key: 'vl12', labelTh: 'แรงดัน VL1-L2 (V)', labelEn: 'Voltage L1-L2 (V)', unit: 'V', color: '#6366F1', category: 'voltage' },
+    { key: 'vl23', labelTh: 'แรงดัน VL2-L3 (V)', labelEn: 'Voltage L2-L3 (V)', unit: 'V', color: '#818CF8', category: 'voltage' },
+    { key: 'vl31', labelTh: 'แรงดัน VL3-L1 (V)', labelEn: 'Voltage L3-L1 (V)', unit: 'V', color: '#A5B4FC', category: 'voltage' },
+
+    // Current (A)
+    { key: 'avg_current', labelTh: 'กระแสเฉลี่ย (A)', labelEn: 'Avg Current (A)', unit: 'A', color: '#EC4899', category: 'current', defaultOn: true },
+    { key: 'il1', labelTh: 'กระแส IL1 (A)', labelEn: 'Current L1 (A)', unit: 'A', color: '#F472B6', category: 'current' },
+    { key: 'il2', labelTh: 'กระแส IL2 (A)', labelEn: 'Current L2 (A)', unit: 'A', color: '#DB2777', category: 'current' },
+    { key: 'il3', labelTh: 'กระแส IL3 (A)', labelEn: 'Current L3 (A)', unit: 'A', color: '#BE185D', category: 'current' },
+
+    // Energy (kWh)
+    { key: 'import_kwhr', labelTh: 'พลังงานไฟฟ้ารวม (kWh)', labelEn: 'Total Energy (kWh)', unit: 'kWh', color: '#10B981', category: 'energy' },
+
+    // Power Factor (PF) & Frequency
+    { key: 'avg_pf', labelTh: 'ตัวประกอบกำลังเฉลี่ย (PF)', labelEn: 'Avg Power Factor', unit: '', color: '#14B8A6', category: 'pf', defaultOn: true },
+    { key: 'pf1', labelTh: 'PF เฟส 1', labelEn: 'PF Phase 1', unit: '', color: '#2DD4BF', category: 'pf' },
+    { key: 'pf2', labelTh: 'PF เฟส 2', labelEn: 'PF Phase 2', unit: '', color: '#0D9488', category: 'pf' },
+    { key: 'pf3', labelTh: 'PF เฟส 3', labelEn: 'PF Phase 3', unit: '', color: '#115E59', category: 'pf' },
+    { key: 'hz', labelTh: 'ความถี่ (Hz)', labelEn: 'Frequency (Hz)', unit: 'Hz', color: '#8B5CF6', category: 'pf' },
+
+    // kVA & kVAR
+    { key: 'kva_3ph', labelTh: 'กำลังปรากฏรวม (kVA)', labelEn: 'Total Apparent (kVA)', unit: 'kVA', color: '#06B6D4', category: 'other' },
+    { key: 'kva1', labelTh: 'กำลังปรากฏ L1 (kVA)', labelEn: 'Apparent L1 (kVA)', unit: 'kVA', color: '#67E8F9', category: 'other' },
+    { key: 'kva2', labelTh: 'กำลังปรากฏ L2 (kVA)', labelEn: 'Apparent L2 (kVA)', unit: 'kVA', color: '#0891B2', category: 'other' },
+    { key: 'kva3', labelTh: 'กำลังปรากฏ L3 (kVA)', labelEn: 'Apparent L3 (kVA)', unit: 'kVA', color: '#0E7490', category: 'other' },
+    { key: 'kvar_3ph', labelTh: 'รีแอคทีฟรวม (kVAR)', labelEn: 'Total Reactive (kVAR)', unit: 'kVAR', color: '#64748B', category: 'other' },
+    { key: 'kvar1', labelTh: 'รีแอคทีฟ L1 (kVAR)', labelEn: 'Reactive L1 (kVAR)', unit: 'kVAR', color: '#94A3B8', category: 'other' },
+    { key: 'kvar2', labelTh: 'รีแอคทีฟ L2 (kVAR)', labelEn: 'Reactive L2 (kVAR)', unit: 'kVAR', color: '#475569', category: 'other' },
+    { key: 'kvar3', labelTh: 'รีแอคทีฟ L3 (kVAR)', labelEn: 'Reactive L3 (kVAR)', unit: 'kVAR', color: '#334155', category: 'other' },
+];
+
 const DETAIL_FIELDS: { key: string; labelTh: string; labelEn: string; unit: string }[] = [
     { key: 'vl1', labelTh: 'แรงดัน L1 (V)', labelEn: 'Voltage L1', unit: 'V' },
     { key: 'vl2', labelTh: 'แรงดัน L2 (V)', labelEn: 'Voltage L2', unit: 'V' },
@@ -138,6 +195,454 @@ const formatDeviceTime = (dt: string | null | undefined, mode: 'time' | 'full' =
     } catch { return '—'; }
 };
 
+const CATEGORY_TABS = [
+    { key: 'all', labelTh: 'ทั้งหมด', labelEn: 'All' },
+    { key: 'power', labelTh: 'กำลังไฟฟ้า (kW)', labelEn: 'Power (kW)' },
+    { key: 'voltage', labelTh: 'แรงดัน (V)', labelEn: 'Voltage (V)' },
+    { key: 'current', labelTh: 'กระแส (A)', labelEn: 'Current (A)' },
+    { key: 'energy', labelTh: 'พลังงาน (kWh)', labelEn: 'Energy (kWh)' },
+    { key: 'pf', labelTh: 'PF & ความถี่', labelEn: 'PF & Frequency' },
+    { key: 'other', labelTh: 'kVA & kVAR', labelEn: 'kVA & kVAR' },
+];
+
+const TIME_RANGES = [
+    { minutes: 360, labelTh: '6 ชม. (24 จุด)', labelEn: '6h (24 pts)' },
+    { minutes: 720, labelTh: '12 ชม. (48 จุด)', labelEn: '12h (48 pts)' },
+    { minutes: 1440, labelTh: '24 ชม. (96 จุด)', labelEn: '24h (96 pts)' },
+    { minutes: 4320, labelTh: '3 วัน', labelEn: '3 Days' },
+    { minutes: 10080, labelTh: '7 วัน', labelEn: '7 Days' },
+];
+
+interface MeterGraphModalProps {
+    meter: RealtimeMeterData;
+    onClose: () => void;
+    theme: 'light' | 'dark';
+    language: 'th' | 'en';
+    C: typeof THEMES['light'];
+    isOffline: boolean;
+}
+
+const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
+    meter, onClose, theme, language, C, isOffline
+}) => {
+    const { t } = useLanguage();
+    const [minutes, setMinutes] = useState(1440);
+    const [activeCategory, setActiveCategory] = useState<string>('all');
+    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => {
+        const defaults = new Set<string>();
+        METRIC_DEFS.filter(m => m.defaultOn).forEach(m => defaults.add(m.key));
+        return defaults;
+    });
+    const [historyData, setHistoryData] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [lastSync, setLastSync] = useState<string>('');
+
+    const loadHistory = useCallback(async (isSilent = false) => {
+        if (!isSilent) setLoading(true);
+        else setRefreshing(true);
+        try {
+            const res = await realtimeApi.getMeterHistory({ meterId: meter.meter_id, minutes });
+            if (res.data?.success && Array.isArray(res.data.data)) {
+                setHistoryData(res.data.data);
+                setLastSync(new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'));
+            }
+        } catch (err) {
+            console.error('Failed to fetch meter history:', err);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [meter.meter_id, minutes, language]);
+
+    useEffect(() => {
+        loadHistory();
+        const timer = setInterval(() => loadHistory(true), 10000);
+        return () => clearInterval(timer);
+    }, [loadHistory]);
+
+    const toggleKey = (key: string) => {
+        setSelectedKeys(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    };
+
+    const selectAllCategory = (cat: string) => {
+        setSelectedKeys(prev => {
+            const next = new Set(prev);
+            const targets = cat === 'all' ? METRIC_DEFS : METRIC_DEFS.filter(m => m.category === cat);
+            targets.forEach(m => next.add(m.key));
+            return next;
+        });
+    };
+
+    const clearCategory = (cat: string) => {
+        setSelectedKeys(prev => {
+            const next = new Set(prev);
+            const targets = cat === 'all' ? METRIC_DEFS : METRIC_DEFS.filter(m => m.category === cat);
+            targets.forEach(m => next.delete(m.key));
+            return next;
+        });
+    };
+
+    const resetDefaults = () => {
+        const defaults = new Set<string>();
+        METRIC_DEFS.filter(m => m.defaultOn).forEach(m => defaults.add(m.key));
+        setSelectedKeys(defaults);
+    };
+
+    const displayedMetricDefs = activeCategory === 'all'
+        ? METRIC_DEFS
+        : METRIC_DEFS.filter(m => m.category === activeCategory);
+
+    const activeMetricDefs = METRIC_DEFS.filter(m => selectedKeys.has(m.key));
+
+    const locationParts = [meter.building_name, meter.zone_name, meter.floor != null ? `${t('ชั้น', 'Fl.')} ${meter.floor}` : ''].filter(Boolean);
+
+    // Summary calculations
+    const latestKwh = meter.import_kwhr;
+    const currentKw = meter.kw_3ph;
+    const currentPf = (meter.pf1 + meter.pf2 + meter.pf3) / 3;
+    const currentAvgV = (meter.vl1 + meter.vl2 + meter.vl3) / 3;
+    const currentAvgA = (meter.il1 + meter.il2 + meter.il3) / 3;
+
+    return (
+        <div
+            style={{
+                position: 'fixed', inset: 0, zIndex: 1300,
+                background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+            }}
+            onClick={onClose}
+        >
+            <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                    background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8,
+                    width: 'min(1180px, 96vw)', maxHeight: '92vh', overflow: 'hidden',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+                    display: 'flex', flexDirection: 'column',
+                }}
+            >
+                {/* Header */}
+                <div style={{
+                    padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: C.bar, borderBottom: `2px solid ${C.accent}`, flexWrap: 'wrap', gap: 10,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                            width: 36, height: 36, borderRadius: 6,
+                            background: `${C.accent}22`, color: C.accent,
+                            display: 'grid', placeItems: 'center', border: `1px solid ${C.accent}44`
+                        }}>
+                            <TrendingUp size={20} />
+                        </div>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.ink }}>
+                                    {meter.meter_name || meter.meter_code}
+                                </span>
+                                <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>
+                                    [{meter.meter_code}]
+                                </span>
+                                {meter.is_active === false ? (
+                                    <span style={{
+                                        fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
+                                        background: 'rgba(107,114,128,0.15)', color: '#6B7280', border: '1px solid rgba(107,114,128,0.3)'
+                                    }}>⚪ {t('ไม่ใช้งาน', 'INACTIVE')}</span>
+                                ) : isOffline ? (
+                                    <span style={{
+                                        fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
+                                        background: `${C.red}18`, color: C.red, border: `1px solid ${C.red}30`
+                                    }}>🔴 {t('ออฟไลน์', 'OFFLINE')}</span>
+                                ) : (
+                                    <span style={{
+                                        fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
+                                        background: `${C.green}18`, color: C.green, border: `1px solid ${C.green}30`
+                                    }}>🟢 {t('ออนไลน์', 'ONLINE')}</span>
+                                )}
+                                <span style={{
+                                    fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
+                                    background: `${C.accent}20`, color: C.accent, border: `1px solid ${C.accent}40`
+                                }}>
+                                    📊 {t('ข้อมูลสรุปทุก 15 นาที', '15-MIN INTERVAL SUMMARY')}
+                                </span>
+                            </div>
+                            <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.barSub, marginTop: 2 }}>
+                                {locationParts.length > 0 ? locationParts.join(' › ') : meter.site_name || '—'}
+                                {meter.device && ` · ${meter.device}`}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {/* Time Range Pills */}
+                        <div style={{ display: 'flex', border: `1px solid ${C.line}`, background: C.panel2, borderRadius: 4, overflow: 'hidden' }}>
+                            {TIME_RANGES.map(tr => (
+                                <button
+                                    key={tr.minutes}
+                                    onClick={() => setMinutes(tr.minutes)}
+                                    style={{
+                                        fontFamily: MONO, fontSize: 11, fontWeight: 600, padding: '5px 10px',
+                                        border: 'none', cursor: 'pointer',
+                                        background: minutes === tr.minutes ? C.accent : 'transparent',
+                                        color: minutes === tr.minutes ? '#fff' : C.sub,
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                >
+                                    {t(tr.labelTh, tr.labelEn)}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Refresh Button */}
+                        <button
+                            onClick={() => loadHistory(false)}
+                            title={t('รีเฟรชข้อมูล', 'Refresh Data')}
+                            style={{
+                                background: C.panel2, border: `1px solid ${C.line}`, color: C.ink,
+                                cursor: 'pointer', padding: '6px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4,
+                                fontFamily: MONO, fontSize: 11,
+                            }}
+                        >
+                            <RefreshCw size={13} className={refreshing || loading ? 'spin' : ''} />
+                            {lastSync && <span style={{ fontSize: 10, color: C.sub }}>{lastSync}</span>}
+                        </button>
+
+                        {/* Close Button */}
+                        <button
+                            onClick={onClose}
+                            style={{ background: 'transparent', border: 'none', color: C.ink, cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Sub-header Controls / Toggles */}
+                <div style={{
+                    padding: '12px 18px', background: C.panel2, borderBottom: `1px solid ${C.line}`,
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                }}>
+                    {/* Category tabs & action buttons */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                        {/* Category filter tabs */}
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {CATEGORY_TABS.map(tab => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveCategory(tab.key)}
+                                    style={{
+                                        fontFamily: MONO, fontSize: 10.5, fontWeight: activeCategory === tab.key ? 700 : 500,
+                                        padding: '4px 10px', borderRadius: 3,
+                                        background: activeCategory === tab.key ? C.accent : 'transparent',
+                                        color: activeCategory === tab.key ? '#fff' : C.ink,
+                                        border: `1px solid ${activeCategory === tab.key ? C.accent : C.line}`,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {t(tab.labelTh, tab.labelEn)}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Presets & Bulk buttons */}
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <button
+                                onClick={() => selectAllCategory(activeCategory)}
+                                style={{
+                                    fontFamily: MONO, fontSize: 10, padding: '3px 8px', borderRadius: 3,
+                                    background: C.panel, border: `1px solid ${C.line}`, color: C.ink, cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 3
+                                }}
+                            >
+                                <Check size={11} color={C.green} /> {t('เลือกทั้งหมด', 'Select All')}
+                            </button>
+                            <button
+                                onClick={() => clearCategory(activeCategory)}
+                                style={{
+                                    fontFamily: MONO, fontSize: 10, padding: '3px 8px', borderRadius: 3,
+                                    background: C.panel, border: `1px solid ${C.line}`, color: C.ink, cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 3
+                                }}
+                            >
+                                <X size={11} color={C.red} /> {t('ปิดทั้งหมด', 'Clear')}
+                            </button>
+                            <button
+                                onClick={resetDefaults}
+                                style={{
+                                    fontFamily: MONO, fontSize: 10, padding: '3px 8px', borderRadius: 3,
+                                    background: C.panel, border: `1px solid ${C.line}`, color: C.sub, cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 3
+                                }}
+                            >
+                                <RotateCcw size={11} /> {t('ค่าเริ่มต้น', 'Default')}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Chips Grid */}
+                    <div style={{
+                        display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: '110px', overflowY: 'auto',
+                        padding: '2px 0'
+                    }}>
+                        {displayedMetricDefs.map(mDef => {
+                            const isSelected = selectedKeys.has(mDef.key);
+                            const rawVal = (meter as any)[mDef.key];
+                            const curVal = parseNum(rawVal);
+                            const formattedVal = curVal.toLocaleString(undefined, { minimumFractionDigits: mDef.unit === 'V' || mDef.unit === 'Hz' ? 1 : mDef.unit === '' ? 3 : 2, maximumFractionDigits: 3 });
+
+                            return (
+                                <button
+                                    key={mDef.key}
+                                    onClick={() => toggleKey(mDef.key)}
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                        padding: '4px 9px', borderRadius: 4,
+                                        background: isSelected ? `${mDef.color}15` : C.panel,
+                                        border: `1px solid ${isSelected ? mDef.color : C.line}`,
+                                        color: isSelected ? C.ink : C.sub,
+                                        cursor: 'pointer', fontFamily: MONO, fontSize: 11,
+                                        boxShadow: isSelected ? `0 1px 4px ${mDef.color}25` : 'none',
+                                        transition: 'all 0.12s ease',
+                                    }}
+                                >
+                                    <span style={{
+                                        width: 8, height: 8, borderRadius: '50%', background: mDef.color,
+                                        opacity: isSelected ? 1 : 0.4,
+                                        boxShadow: isSelected ? `0 0 5px ${mDef.color}` : 'none'
+                                    }} />
+                                    <span style={{ fontWeight: isSelected ? 700 : 500 }}>
+                                        {t(mDef.labelTh, mDef.labelEn)}
+                                    </span>
+                                    <span style={{
+                                        fontSize: 9.5, opacity: 0.75, fontFamily: MONO,
+                                        paddingLeft: 2, borderLeft: `1px solid ${C.line}`
+                                    }}>
+                                        {formattedVal} {mDef.unit}
+                                    </span>
+                                    {isSelected ? (
+                                        <Check size={11} color={mDef.color} style={{ strokeWidth: 3 }} />
+                                    ) : (
+                                        <span style={{ width: 11 }} />
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Main Graph Area */}
+                <div style={{ flex: 1, padding: '16px 20px', minHeight: 340, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                    {loading && historyData.length === 0 ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.sub, fontFamily: MONO, gap: 10 }}>
+                            <RefreshCw size={20} className="spin" />
+                            <span>{t('กำลังโหลดข้อมูลสรุปทุก 15 นาที...', 'Loading 15-minute summary data...')}</span>
+                        </div>
+                    ) : activeMetricDefs.length === 0 ? (
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.sub, fontFamily: MONO, gap: 8 }}>
+                            <SlidersHorizontal size={28} color={C.accent} />
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{t('กรุณากดเลือกค่าที่ต้องการแสดงในกราฟด้านบน', 'Please select at least one metric to display in the graph')}</span>
+                            <button onClick={resetDefaults} style={{
+                                marginTop: 6, padding: '6px 14px', background: C.accent, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: MONO, fontSize: 11
+                            }}>{t('เปิดค่าเริ่มต้น (Power / Voltage / Current / PF)', 'Reset to Default Metrics')}</button>
+                        </div>
+                    ) : (
+                        <div style={{ width: '100%', height: 350 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={historyData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={C.line} opacity={0.6} />
+                                    <XAxis
+                                        dataKey={minutes > 1440 ? 'full_time' : 'time'}
+                                        stroke={C.sub}
+                                        style={{ fontSize: 10, fontFamily: MONO, fontWeight: 600 }}
+                                    />
+                                    <YAxis
+                                        stroke={C.sub}
+                                        style={{ fontSize: 10, fontFamily: MONO, fontWeight: 600 }}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: C.panel,
+                                            borderColor: C.line,
+                                            color: C.ink,
+                                            borderRadius: 6,
+                                            fontFamily: MONO,
+                                            boxShadow: '0 8px 24px rgba(0,0,0,0.25)'
+                                        }}
+                                        labelStyle={{ fontWeight: 'bold', color: C.ink, marginBottom: 6, borderBottom: `1px solid ${C.line}`, paddingBottom: 4 }}
+                                        formatter={(val: any, name: string) => {
+                                            const def = METRIC_DEFS.find(d => d.key === name);
+                                            const num = typeof val === 'number' ? val.toFixed(2) : val;
+                                            return [`${num} ${def?.unit || ''}`, def ? t(def.labelTh, def.labelEn) : name];
+                                        }}
+                                    />
+                                    <Legend
+                                        formatter={(value) => {
+                                            const def = METRIC_DEFS.find(d => d.key === value);
+                                            return <span style={{ fontFamily: MONO, fontSize: 11, color: C.ink, fontWeight: 600 }}>{def ? t(def.labelTh, def.labelEn) : value}</span>;
+                                        }}
+                                    />
+                                    {activeMetricDefs.map(mDef => (
+                                        <Line
+                                            key={mDef.key}
+                                            type="monotone"
+                                            dataKey={mDef.key}
+                                            stroke={mDef.color}
+                                            strokeWidth={2}
+                                            dot={false}
+                                            activeDot={{ r: 4, stroke: C.panel, strokeWidth: 2 }}
+                                            isAnimationActive={false}
+                                        />
+                                    ))}
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer Telemetry Stat Bar */}
+                <div style={{
+                    padding: '10px 18px', background: C.bar, borderTop: `1px solid ${C.line}`,
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12,
+                }}>
+                    <div style={{ fontFamily: MONO }}>
+                        <div style={{ fontSize: 9.5, color: C.sub, textTransform: 'uppercase' }}>{t('กำลังไฟฟ้าจริง', 'Active Power')}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B' }}>{currentKw.toFixed(2)} <span style={{ fontSize: 10, color: C.sub }}>kW</span></div>
+                    </div>
+                    <div style={{ fontFamily: MONO }}>
+                        <div style={{ fontSize: 9.5, color: C.sub, textTransform: 'uppercase' }}>{t('แรงดันเฉลี่ย', 'Avg Voltage')}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#3B82F6' }}>{currentAvgV.toFixed(1)} <span style={{ fontSize: 10, color: C.sub }}>V</span></div>
+                    </div>
+                    <div style={{ fontFamily: MONO }}>
+                        <div style={{ fontSize: 9.5, color: C.sub, textTransform: 'uppercase' }}>{t('กระแสเฉลี่ย', 'Avg Current')}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#EC4899' }}>{currentAvgA.toFixed(2)} <span style={{ fontSize: 10, color: C.sub }}>A</span></div>
+                    </div>
+                    <div style={{ fontFamily: MONO }}>
+                        <div style={{ fontSize: 9.5, color: C.sub, textTransform: 'uppercase' }}>{t('ตัวประกอบกำลัง', 'Power Factor')}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: currentPf > 0.85 ? C.green : C.red }}>{currentPf.toFixed(3)}</div>
+                    </div>
+                    <div style={{ fontFamily: MONO }}>
+                        <div style={{ fontSize: 9.5, color: C.sub, textTransform: 'uppercase' }}>{t('ความถี่', 'Frequency')}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#8B5CF6' }}>{meter.hz.toFixed(2)} <span style={{ fontSize: 10, color: C.sub }}>Hz</span></div>
+                    </div>
+                    <div style={{ fontFamily: MONO }}>
+                        <div style={{ fontSize: 9.5, color: C.sub, textTransform: 'uppercase' }}>{t('พลังงานสะสม', 'Total Energy')}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: C.green }}>{latestKwh.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span style={{ fontSize: 10, color: C.sub }}>kWh</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const RealtimePage: React.FC = () => {
     const { theme } = useTheme();
     const { t, language } = useLanguage();
@@ -154,6 +659,7 @@ const RealtimePage: React.FC = () => {
     const [flashingRows, setFlashingRows] = useState<Record<string, boolean>>({});
     const [lastFetchTime, setLastFetchTime] = useState<string>('');
     const [selectedMeter, setSelectedMeter] = useState<RealtimeMeterData | null>(null);
+    const [graphMeter, setGraphMeter] = useState<RealtimeMeterData | null>(null);
 
     // Filters
     const [selectedSiteId, setSelectedSiteId] = useState<number | undefined>(undefined);
@@ -721,6 +1227,7 @@ const RealtimePage: React.FC = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', fontFamily: MONO }}>
                         <thead>
                             <tr style={{ borderBottom: `2px solid ${C.line}`, color: C.sub, fontWeight: 700 }}>
+                                <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px', textAlign: 'center' }}>{t('กราฟ', 'Chart')}</th>
                                 <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('สถานะ', 'Status')}</th>
                                 <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('รหัส', 'Code')}</th>
                                 <th style={{ padding: '12px 8px', fontSize: '11px', letterSpacing: '0.5px' }}>{t('ชื่อมิเตอร์', 'Meter Name')}</th>
@@ -762,6 +1269,36 @@ const RealtimePage: React.FC = () => {
                                             onMouseEnter={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = theme === 'light' ? '#f0efe5' : '#1f2937'; }}
                                             onMouseLeave={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = offline ? (theme === 'light' ? 'rgba(239,68,68,0.04)' : 'rgba(248,81,73,0.06)') : 'transparent'; }}
                                         >
+                                            <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setGraphMeter(m);
+                                                    }}
+                                                    title={t('ดูกราฟการวิเคราะห์แบบเรียลไทม์ (ทุกค่า)', 'View Realtime Diagnostics Graph (All Parameters)')}
+                                                    style={{
+                                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                        width: 30, height: 30, borderRadius: 4,
+                                                        background: theme === 'light' ? 'rgba(43,76,126,0.1)' : 'rgba(54,194,206,0.15)',
+                                                        color: C.accent,
+                                                        border: `1px solid ${C.accent}40`,
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s ease',
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.background = C.accent;
+                                                        e.currentTarget.style.color = '#fff';
+                                                        e.currentTarget.style.transform = 'scale(1.1)';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.background = theme === 'light' ? 'rgba(43,76,126,0.1)' : 'rgba(54,194,206,0.15)';
+                                                        e.currentTarget.style.color = C.accent;
+                                                        e.currentTarget.style.transform = 'scale(1)';
+                                                    }}
+                                                >
+                                                    <TrendingUp size={15} />
+                                                </button>
+                                            </td>
                                             <td style={{ padding: '14px 8px', textAlign: 'center' }}>
                                                 {m.is_active === false ? (
                                                     <span style={{
@@ -934,6 +1471,18 @@ const RealtimePage: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Realtime Graph Modal */}
+            {graphMeter && (
+                <MeterGraphModal
+                    meter={graphMeter}
+                    onClose={() => setGraphMeter(null)}
+                    theme={theme}
+                    language={language}
+                    C={C}
+                    isOffline={isMeterOffline(graphMeter)}
+                />
             )}
 
             {/* Injected css for animations */}
