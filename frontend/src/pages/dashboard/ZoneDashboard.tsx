@@ -550,12 +550,12 @@ function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: 14, color: '#fff',
                         }}>{getMeterTypeInfo(m.meter_type_id).icon}</span>
-                        <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '0.5px' }}>
+                        <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.ink, letterSpacing: '0.5px' }}>
                             {m.code}
                         </span>
                     </div>
                     <button onClick={onClose}
-                        style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}>
+                        style={{ background: 'transparent', border: 'none', color: C.ink, cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}>
                         <X size={20} />
                     </button>
                 </div>

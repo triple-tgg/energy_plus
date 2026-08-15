@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid, X, ChevronDown } from 'lucide-react';
+import { Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid, X, ChevronDown, Gauge, BatteryCharging } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { realtimeApi } from '../../api/client';
@@ -354,8 +354,15 @@ const RealtimePage: React.FC = () => {
     const onlineMeters = activeMeters.filter(m => !isMeterOffline(m));
     const offlineMeters = activeMeters.filter(m => isMeterOffline(m));
     const totalPower = onlineMeters.reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
-    const avgVoltage = onlineMeters.length > 0
-        ? onlineMeters.reduce((sum, m) => sum + ((m.vl1 + m.vl2 + m.vl3) / 3 || 0), 0) / onlineMeters.length
+    const totalEnergy = meters.reduce((sum, m) => sum + (m.import_kwhr || 0), 0);
+
+    // Calculate Average Power Factor across online meters with valid readings
+    const pfMeters = onlineMeters.map(m => {
+        const vals = [m.pf1, m.pf2, m.pf3].filter(v => v !== null && v !== undefined && v > 0);
+        return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    }).filter(pf => pf > 0);
+    const avgPowerFactor = pfMeters.length > 0
+        ? pfMeters.reduce((sum, pf) => sum + pf, 0) / pfMeters.length
         : 0;
 
     // Chart colors
@@ -372,7 +379,6 @@ const RealtimePage: React.FC = () => {
         return Array.from(labels);
     }, [chartData]);
 
-    const syncColor = dbSyncStatus === 'active' ? C.green : dbSyncStatus === 'syncing' ? C.yellow : C.red;
     const selectedMetricInfo = CHART_METRICS.find(m => m.key === chartMetric)!;
 
     if (initialLoading) return <LoadingScreen theme={theme} />;
@@ -425,36 +431,67 @@ const RealtimePage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Metrics cards grid */}
+            {/* 4 Key Electrical KPI Cards */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                 gap: '16px',
                 marginBottom: '24px'
             }}>
-                {/* Sync Status Card */}
+                {/* 1. Total Active Load */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานะการซิงค์', 'Sync Status')}</span>
-                        <Radio size={20} style={{ color: syncColor }} />
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('โหลดกำลังไฟฟ้ารวม', 'Total Active Load')}</span>
+                        <Zap size={20} style={{ color: C.yellow }} />
                     </div>
-                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
-                        {dbSyncStatus === 'active' ? t('เชื่อมต่อแล้ว', 'Connected') : dbSyncStatus === 'syncing' ? t('กำลังซิงค์...', 'Syncing...') : t('ขัดข้อง', 'Error')}
+                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.yellow }}>
+                        {totalPower.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW
                     </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: MONO, color: syncColor, fontWeight: 600 }}>
-                        <span style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            backgroundColor: syncColor,
-                            boxShadow: dbSyncStatus === 'active' ? `0 0 8px ${C.green}` : 'none'
-                        }} />
-                        {dbSyncStatus === 'active' ? t('ดึงข้อมูลสด (5วินาที)', 'LIVE TELEMETRY (5S)') : t('กำลังอัปเดตแคช...', 'UPDATING CACHE...')}
-                    </div>
+                    <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
+                        {t('ความต้องการกำลังไฟฟ้ารวมเรียลไทม์', 'AGGREGATED REALTIME POWER DEMAND')}
+                    </span>
                 </div>
 
-                {/* Active Meters Card */}
+                {/* 2. Total Energy */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('มิเตอร์ที่กำลังทำงาน', 'Active Power Meters')}</span>
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('พลังงานไฟฟ้ารวม', 'Total Energy')}</span>
+                        <BatteryCharging size={20} style={{ color: C.green }} />
+                    </div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.green }}>
+                        {totalEnergy.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kWh
+                    </h3>
+                    <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
+                        {t('พลังงานไฟฟ้าสะสมรวมทุกมิเตอร์', 'ACCUMULATED ENERGY ACROSS METERS')}
+                    </span>
+                </div>
+
+                {/* 3. Average Power Factor */}
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('เพาเวอร์แฟกเตอร์เฉลี่ย (PF)', 'Avg Power Factor')}</span>
+                        <Gauge size={20} style={{ color: C.accent }} />
+                    </div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
+                        {avgPowerFactor > 0 ? avgPowerFactor.toFixed(2) : '—'}
+                    </h3>
+                    <span style={{
+                        fontSize: '11px',
+                        color: avgPowerFactor >= 0.85 ? C.green : avgPowerFactor > 0 ? C.red : C.sub,
+                        fontWeight: 600, fontFamily: MONO
+                    }}>
+                        {avgPowerFactor >= 0.85
+                            ? t('คุณภาพกำลังไฟฟ้าปกติ (≥ 0.85)', 'POWER FACTOR NOMINAL (≥ 0.85)')
+                            : avgPowerFactor > 0
+                                ? t('ต่ำกว่าเกณฑ์มาตรฐาน (< 0.85)', 'BELOW TARGET (< 0.85)')
+                                : t('ไม่มีข้อมูล', 'NO DATA')}
+                    </span>
+                </div>
+
+                {/* 4. Active Meters */}
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานะมิเตอร์', 'Active Meters')}</span>
                         <Cpu size={20} style={{ color: C.accent }} />
                     </div>
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
@@ -478,34 +515,6 @@ const RealtimePage: React.FC = () => {
                             </span>
                         )}
                     </div>
-                </div>
-
-                {/* Total Load Card */}
-                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('โหลดกำลังไฟฟ้ารวม', 'Total Active Load')}</span>
-                        <Zap size={20} style={{ color: C.yellow }} />
-                    </div>
-                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.yellow }}>
-                        {totalPower.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW
-                    </h3>
-                    <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
-                        {t('ความต้องการกำลังไฟฟ้ารวมเรียลไทม์', 'AGGREGATED REALTIME POWER DEMAND')}
-                    </span>
-                </div>
-
-                {/* Avg Voltage Card */}
-                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontFamily: MONO, color: C.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('แรงดันไฟฟ้าเฉลี่ย (L-N)', 'Avg Line-to-Neutral')}</span>
-                        <Activity size={20} style={{ color: C.accent }} />
-                    </div>
-                    <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
-                        {avgVoltage.toFixed(1)} V
-                    </h3>
-                    <span style={{ fontSize: '11px', color: avgVoltage > 215 && avgVoltage < 230 ? C.green : C.red, fontWeight: 600, fontFamily: MONO }}>
-                        {avgVoltage > 215 && avgVoltage < 230 ? t('แรงดันไฟฟ้าปกติ', 'VOLTAGE NOMINAL') : avgVoltage === 0 ? t('ไม่มีข้อมูล', 'NO DATA') : t('แรงดันไฟฟ้านอกขอบเขต', 'VOLTAGE OUT OF TOLERANCE')}
-                    </span>
                 </div>
             </div>
 
@@ -849,7 +858,7 @@ const RealtimePage: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <Zap size={20} style={{ color: C.accent }} />
                                 <div>
-                                    <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.5px' }}>
+                                    <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: '0.5px' }}>
                                         {selectedMeter.meter_name || selectedMeter.meter_code}
                                     </div>
                                     <div style={{ fontFamily: MONO, fontSize: 10, color: C.barSub }}>
@@ -858,7 +867,7 @@ const RealtimePage: React.FC = () => {
                                 </div>
                             </div>
                             <button onClick={() => setSelectedMeter(null)}
-                                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}>
+                                style={{ background: 'transparent', border: 'none', color: C.ink, cursor: 'pointer', padding: 4, display: 'grid', placeItems: 'center' }}>
                                 <X size={20} />
                             </button>
                         </div>
