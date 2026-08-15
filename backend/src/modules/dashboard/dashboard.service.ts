@@ -215,17 +215,6 @@ export class DashboardService {
             trendParams
         );
 
-        // Build comparison params
-        const compParams: any[] = [];
-        if (siteId) compParams.push(siteId);
-        if (buildingId) compParams.push(buildingId);
-        if (floor !== null) compParams.push(floor);
-        if (zoneId) compParams.push(zoneId);
-        const compSiteFilter = siteId ? `AND m.site_id = $${compParams.indexOf(siteId) + 1}` : '';
-        const compBuildingFilter = buildingId ? `AND m.building_id = $${compParams.indexOf(buildingId) + 1}` : '';
-        const compFloorFilter = floor !== null ? `AND m.floor = $${compParams.indexOf(floor) + 1}` : '';
-        const compZoneFilter = zoneId ? `AND m.zone_id = $${compParams.indexOf(zoneId) + 1}` : '';
-
         const comparisonResult = await query(
             `WITH meter_scope AS (
                 SELECT m.meter_id, m.site_id, m.building_id, s.site_name, b.building_name
@@ -233,10 +222,6 @@ export class DashboardService {
                 LEFT JOIN sites s ON m.site_id = s.site_id
                 LEFT JOIN buildings b ON m.building_id = b.building_id
                 WHERE m.is_active IS DISTINCT FROM false
-                  ${compSiteFilter}
-                  ${compBuildingFilter}
-                  ${compFloorFilter}
-                  ${compZoneFilter}
                   ${mdbSql}
             ),
             hourly_meter AS (
@@ -264,7 +249,7 @@ export class DashboardService {
             hourly AS (
                 SELECT
                     'day' AS gran,
-                    hm.bucket,
+                    to_char(hm.bucket, 'YYYY-MM-DD"T"HH24:MI:SS') AS bucket,
                     ms.site_id, ms.site_name, ms.building_id, ms.building_name,
                     SUM(hm.kwh) AS kwh
                 FROM hourly_meter hm
@@ -313,11 +298,11 @@ export class DashboardService {
             yearly AS (
                 SELECT
                     'yearly' AS gran,
-                    to_char(date_trunc('year', date_trunc('month', d.date_keep)), 'YYYY-01-01') AS bucket,
+                    to_char(date_trunc('year', bucket::date), 'YYYY-01-01') AS bucket,
                     site_id, site_name, building_id, building_name,
                     SUM(kwh) AS kwh
                 FROM monthly
-                GROUP BY date_trunc('year', date_trunc('month', d.date_keep)), site_id, site_name, building_id, building_name
+                GROUP BY date_trunc('year', bucket::date), site_id, site_name, building_id, building_name
             ),
             unioned AS (
                 SELECT * FROM hourly
@@ -338,8 +323,7 @@ export class DashboardService {
             FROM unioned
             WHERE building_id IS NOT NULL
             GROUP BY gran, bucket, building_id, site_name, building_name
-            ORDER BY gran, bucket, entity_type, entity_name`,
-            compParams
+            ORDER BY gran, bucket, entity_type, entity_name`
         );
 
 

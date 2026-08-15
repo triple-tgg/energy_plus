@@ -915,23 +915,6 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
         return parts.length >= 3 ? parts[1] : undefined;
     })() : undefined;
 
-    // Load comparison data once (no site/building filter — always shows all sites)
-    useEffect(() => {
-        let mounted = true;
-        const loadComparison = async () => {
-            try {
-                const params: any = { mdb: variant === 'mdb' ? 'only' : 'exclude' };
-                const res = await dashboardApi.getZoneDashboard(params);
-                if (!mounted) return;
-                const next = res.data.data as ZoneDashboardPayload;
-                setDashboardData((prev) => ({ ...prev, comparison: next.comparison || [] }));
-            } catch (_) { /* comparison failure is non-critical */ }
-        };
-        loadComparison();
-        return () => { mounted = false; };
-    }, [variant]);
-
-    // Load realtime/trend data filtered by current path (polls every 10s)
     useEffect(() => {
         let mounted = true;
         const load = async () => {
@@ -944,12 +927,12 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 const res = await dashboardApi.getZoneDashboard(params);
                 if (!mounted) return;
                 const next = res.data.data as ZoneDashboardPayload;
-                setDashboardData((prev) => ({
+                setDashboardData({
                     tree: next.tree || [],
                     meters: next.meters || [],
                     trend: next.trend || [],
-                    comparison: prev.comparison, // keep comparison from separate load
-                }));
+                    comparison: next.comparison || [],
+                });
                 histRef.current = (next.trend || []).slice(-120);
                 setLoadError(null);
                 setTick((t) => t + 1);
