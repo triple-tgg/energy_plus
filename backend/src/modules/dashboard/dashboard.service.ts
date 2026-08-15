@@ -284,6 +284,16 @@ export class DashboardService {
                 JOIN meter_scope ms ON ms.meter_id = d.meter_id
                 WHERE d.date_keep >= CURRENT_DATE - INTERVAL '7 days'
                 GROUP BY d.date_keep, ms.site_id, ms.site_name, ms.building_id, ms.building_name
+                UNION ALL
+                SELECT
+                    'day' AS gran,
+                    to_char(d.date_keep, 'YYYY-MM-DD') AS bucket,
+                    ms.site_id, ms.site_name, ms.building_id, ms.building_name,
+                    SUM(d.kwh) AS kwh
+                FROM daily_diff d
+                JOIN meter_scope ms ON ms.meter_id = d.meter_id
+                WHERE d.date_keep >= date_trunc('month', CURRENT_DATE)
+                GROUP BY d.date_keep, ms.site_id, ms.site_name, ms.building_id, ms.building_name
             ),
             monthly AS (
                 SELECT

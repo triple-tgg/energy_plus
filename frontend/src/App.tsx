@@ -42,6 +42,7 @@ import ConsumptionTable from './pages/dashboard/ConsumptionTable';
 
 // Reports
 import EnergyReportPage from './pages/reports/EnergyReportPage';
+import TouReportPage from './pages/reports/TouReportPage';
 import HistoryReportPage from './pages/reports/HistoryReportPage';
 import ComparisonReportPage from './pages/reports/ComparisonReportPage';
 import AlarmReportPage from './pages/reports/AlarmReportPage';
@@ -86,7 +87,9 @@ const App: React.FC = () => {
                                 <Route path="/monitoring/demand-peak" element={<ProtectedRoute permissionKey="monitoring"><DemandPeakPage /></ProtectedRoute>} />
 
                                 {/* Reports */}
+                                <Route path="/reports/consumption" element={<ProtectedRoute permissionKey="reports"><ConsumptionTable /></ProtectedRoute>} />
                                 <Route path="/reports/energy" element={<ProtectedRoute permissionKey="reports"><EnergyReportPage /></ProtectedRoute>} />
+                                <Route path="/reports/tou" element={<ProtectedRoute permissionKey="reports"><TouReportPage /></ProtectedRoute>} />
                                 <Route path="/reports/history" element={<ProtectedRoute permissionKey="reports"><HistoryReportPage /></ProtectedRoute>} />
                                 <Route path="/reports/comparison" element={<ProtectedRoute permissionKey="reports"><ComparisonReportPage /></ProtectedRoute>} />
                                 <Route path="/reports/alarms" element={<ProtectedRoute permissionKey="reports"><AlarmReportPage /></ProtectedRoute>} />

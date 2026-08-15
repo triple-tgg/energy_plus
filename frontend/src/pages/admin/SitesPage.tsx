@@ -6,14 +6,16 @@ import { useLanguage } from '../../contexts/LanguageContext';
 
 interface SiteForm {
     siteName: string;
+    siteNameTh: string;
+    siteNameEn: string;
     siteAddress: string;
     siteStatus: boolean;
 }
 
-const emptyForm: SiteForm = { siteName: '', siteAddress: '', siteStatus: true };
+const emptyForm: SiteForm = { siteName: '', siteNameTh: '', siteNameEn: '', siteAddress: '', siteStatus: true };
 
 const SitesPage: React.FC = () => {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -81,6 +83,8 @@ const SitesPage: React.FC = () => {
         setEditId(row.site_id);
         setForm({
             siteName: row.site_name || '',
+            siteNameTh: row.site_name_th || row.site_name || '',
+            siteNameEn: row.site_name_en || '',
             siteAddress: row.site_address || '',
             siteStatus: row.site_status ?? true,
         });
@@ -89,18 +93,26 @@ const SitesPage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!form.siteName.trim()) {
-            setFormError(t('กรุณากรอกชื่อไซต์', 'Site Name is required'));
+        const nameTh = form.siteNameTh.trim();
+        const nameEn = form.siteNameEn.trim();
+        if (!nameTh && !nameEn) {
+            setFormError(t('กรุณากรอกชื่อไซต์ภาษาไทยหรือภาษาอังกฤษ', 'Site Name (Thai or English) is required'));
             return;
         }
         setSaving(true);
         setFormError('');
         try {
+            const payload = {
+                ...form,
+                siteName: nameTh || nameEn,
+                siteNameTh: nameTh,
+                siteNameEn: nameEn,
+            };
             if (editId) {
-                await sitesApi.update(editId, form);
+                await sitesApi.update(editId, payload);
                 setSuccessMsg(t('อัปเดตไซต์สำเร็จ!', 'Site updated successfully!'));
             } else {
-                await sitesApi.create(form);
+                await sitesApi.create(payload);
                 setSuccessMsg(t('สร้างไซต์สำเร็จ!', 'Site created successfully!'));
             }
             setShowModal(false);
@@ -141,8 +153,8 @@ const SitesPage: React.FC = () => {
             const res = await sitesApi.getSiteUsers(row.site_id);
             const mapped = res.data.data || [];
             setMappedUserIds(mapped.map((u: any) => u.user_id));
-        } catch (err) {
-            setUsersError(t('โหลดข้อมูลผู้ใช้งานที่เชื่อมโยงล้มเหลว', 'Failed to load mapped users'));
+        } catch (err: any) {
+            setUsersError(err.response?.data?.message || t('โหลดรายชื่อผู้ใช้งานล้มเหลว', 'Failed to load mapped users'));
         }
     };
 
@@ -160,7 +172,8 @@ const SitesPage: React.FC = () => {
         setUsersError('');
         try {
             await sitesApi.updateSiteUsers(usersTarget.site_id, { userIds: mappedUserIds });
-            setSuccessMsg(t(`อัปเดตสิทธิ์การเข้าถึงไซต์ "${usersTarget.site_name}" สำหรับผู้ใช้งานสำเร็จ!`, `Updated user permissions for site "${usersTarget.site_name}" successfully!`));
+            const displayName = language === 'en' ? (usersTarget.site_name_en || usersTarget.site_name) : (usersTarget.site_name_th || usersTarget.site_name);
+            setSuccessMsg(t(`อัปเดตสิทธิ์การเข้าถึงไซต์ "${displayName}" สำหรับผู้ใช้งานสำเร็จ!`, `Updated user permissions for site "${displayName}" successfully!`));
             setShowUsersModal(false);
         } catch (err: any) {
             setUsersError(err.response?.data?.message || t('บันทึกสิทธิ์การเข้าถึงไซต์ล้มเหลว', 'Failed to save site user permissions'));
@@ -169,7 +182,16 @@ const SitesPage: React.FC = () => {
     };
 
     const columns = [
-        { key: 'site_name', title: t('ชื่อไซต์', 'Site Name') },
+        {
+            key: 'site_name_th',
+            title: t('ชื่อไซต์ (ไทย)', 'Site Name (TH)'),
+            render: (v: string, row: any) => v || row.site_name || '—',
+        },
+        {
+            key: 'site_name_en',
+            title: t('ชื่อไซต์ (อังกฤษ)', 'Site Name (EN)'),
+            render: (v: string) => v || '—',
+        },
         { key: 'site_address', title: t('ที่อยู่', 'Address') },
         {
             key: 'site_status',
@@ -237,14 +259,25 @@ const SitesPage: React.FC = () => {
                 {formError && <div className="form-error-banner">{formError}</div>}
 
                 <div className="form-group">
-                    <label className="form-label">{t('ชื่อไซต์', 'Site Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <label className="form-label">{t('ชื่อไซต์ (ภาษาไทย)', 'Site Name (Thai)')} <span style={{ color: 'var(--danger)' }}>*</span></label>
                     <input
                         type="text"
                         className="form-control"
-                        placeholder={t('กรอกชื่อไซต์', 'Enter site name')}
-                        value={form.siteName}
-                        onChange={(e) => setForm({ ...form, siteName: e.target.value })}
+                        placeholder={t('เช่น สาขาภูเก็ต, สาขาเชียงใหม่', 'e.g. สาขาภูเก็ต')}
+                        value={form.siteNameTh}
+                        onChange={(e) => setForm({ ...form, siteNameTh: e.target.value })}
                         autoFocus
+                    />
+                </div>
+
+                <div className="form-group">
+                    <label className="form-label">{t('ชื่อไซต์ (ภาษาอังกฤษ)', 'Site Name (English)')}</label>
+                    <input
+                        type="text"
+                        className="form-control"
+                        placeholder={t('เช่น Phuket, Chiang Mai', 'e.g. Phuket, Chiang Mai')}
+                        value={form.siteNameEn}
+                        onChange={(e) => setForm({ ...form, siteNameEn: e.target.value })}
                     />
                 </div>
 

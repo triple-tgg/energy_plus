@@ -36,9 +36,8 @@ const navGroups: NavGroup[] = [
         icon: LayoutDashboard,
         items: [
             { labelEn: 'Meter Dashboard', labelTh: 'แดชบอร์ดมิเตอร์', path: '/dashboard/zone', icon: MapPinned, permissionKey: 'dashboard' },
-            { labelEn: 'MDB Consumption', labelTh: 'ปริมาณการใช้ไฟรายตู้ MDB', path: '/dashboard/mdb', icon: Gauge, permissionKey: 'dashboard' },
+            { labelEn: 'MDB Dashboard', labelTh: 'แดชบอร์ด MDB', path: '/dashboard/mdb', icon: Gauge, permissionKey: 'dashboard' },
             { labelEn: 'Demand Dashboard', labelTh: 'แดชบอร์ดดีมานด์พีค', path: '/dashboard/demand', icon: TrendingDown, permissionKey: 'dashboard' },
-            { labelEn: 'Consumption Table', labelTh: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: Table, permissionKey: 'dashboard' },
         ],
     },
     {
@@ -48,7 +47,7 @@ const navGroups: NavGroup[] = [
         items: [
             { labelEn: 'Realtime Data', labelTh: 'ข้อมูลเรียลไทม์', path: '/monitoring/realtime', icon: Activity, permissionKey: 'monitoring' },
             { labelEn: 'Layout Diagram', labelTh: 'แผนผังระบบไฟฟ้า', path: '/monitoring/layout', icon: Network, permissionKey: 'monitoring' },
-            { labelEn: 'Demand Peak Forecast', labelTh: 'คาดการณ์ดีมานด์สูงสุด', path: '/monitoring/demand-peak', icon: Zap, permissionKey: 'monitoring' },
+            // { labelEn: 'Demand Peak Forecast', labelTh: 'คาดการณ์ดีมานด์สูงสุด', path: '/monitoring/demand-peak', icon: Zap, permissionKey: 'monitoring' },
         ],
     },
     {
@@ -56,9 +55,11 @@ const navGroups: NavGroup[] = [
         titleTh: 'รายงาน',
         icon: FileText,
         items: [
+            { labelEn: 'Consumption Report', labelTh: 'รายงานการใช้พลังงาน', path: '/reports/consumption', icon: Table, permissionKey: 'reports' },
             { labelEn: 'Energy Report', labelTh: 'รายงานการใช้พลังงาน', path: '/reports/energy', icon: BarChartBig, permissionKey: 'reports' },
-            { labelEn: 'Historical Report', labelTh: 'รายงานข้อมูลย้อนหลัง', path: '/reports/history', icon: History, permissionKey: 'reports' },
+            { labelEn: 'TOU Report', labelTh: 'รายงาน TOU', path: '/reports/tou', icon: Clock, permissionKey: 'reports' },
             { labelEn: 'Monthly Comparison', labelTh: 'รายงานเปรียบเทียบรายเดือน', path: '/reports/comparison', icon: GitCompare, permissionKey: 'reports' },
+            { labelEn: 'Historical Report', labelTh: 'รายงานข้อมูลย้อนหลัง', path: '/reports/history', icon: History, permissionKey: 'reports' },
             { labelEn: 'Alarm Reports', labelTh: 'รายงานการแจ้งเตือน', path: '/reports/alarms', icon: Clock, permissionKey: 'reports' },
         ],
     },

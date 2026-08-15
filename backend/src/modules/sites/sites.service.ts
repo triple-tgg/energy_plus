@@ -69,21 +69,27 @@ export class SitesService {
     }
 
     async createSite(data: any) {
+        const nameTh = data.siteNameTh || data.siteName || '';
+        const nameEn = data.siteNameEn || data.siteName || '';
+        const primaryName = nameTh || nameEn;
         const result = await query(
-            `INSERT INTO sites (site_name, site_address, site_status, created_by, created_on)
-       VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
-            [data.siteName, data.siteAddress || null, data.siteStatus !== false, data.createdBy || 'system']
+            `INSERT INTO sites (site_name, site_name_th, site_name_en, site_address, site_status, created_by, created_on)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
+            [primaryName, nameTh, nameEn, data.siteAddress || null, data.siteStatus !== false, data.createdBy || 'system']
         );
         await refreshMeterSubscriptions();
         return result.rows[0];
     }
 
     async updateSite(siteId: number, data: any) {
+        const nameTh = data.siteNameTh || data.siteName || '';
+        const nameEn = data.siteNameEn || data.siteName || '';
+        const primaryName = nameTh || nameEn;
         const result = await query(
-            `UPDATE sites SET site_name = $1, site_address = $2, site_status = $3,
-       last_modified_on = NOW()
-       WHERE site_id = $4 RETURNING *`,
-            [data.siteName, data.siteAddress || null, data.siteStatus !== false, siteId]
+            `UPDATE sites SET site_name = $1, site_name_th = $2, site_name_en = $3, site_address = $4, site_status = $5,
+             last_modified_on = NOW()
+             WHERE site_id = $6 RETURNING *`,
+            [primaryName, nameTh, nameEn, data.siteAddress || null, data.siteStatus !== false, siteId]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Site not found');
         await refreshMeterSubscriptions();

@@ -119,8 +119,8 @@ const ConsumptionTable: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('แดชบอร์ด // การใช้ไฟ', 'DASHBOARD // CONSUMPTION')}</div>
-                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ตารางแสดงการใช้พลังงานจำแนกตามมิเตอร์และช่วงเวลา', 'Table displaying energy consumption classified by meter and time period')}</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('รายงาน // การใช้พลังงาน', 'REPORT // CONSUMPTION')}</div>
+                        <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('รายงานแสดงการใช้พลังงานจำแนกตามมิเตอร์และช่วงเวลา', 'Report displaying energy consumption classified by meter and time period')}</div>
                     </div>
                 </div>
             </div>

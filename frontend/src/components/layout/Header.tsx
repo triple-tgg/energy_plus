@@ -31,7 +31,9 @@ const Header: React.FC = () => {
                 const data = res.data.data || [];
                 const mapped = data.map((s: any) => ({
                     siteId: s.site_id,
-                    siteName: s.site_name,
+                    siteName: language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name),
+                    siteNameTh: s.site_name_th || s.site_name,
+                    siteNameEn: s.site_name_en || s.site_name,
                 }));
                 if (isMounted) {
                     let activeSites = mapped;

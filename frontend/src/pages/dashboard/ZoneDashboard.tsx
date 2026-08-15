@@ -199,9 +199,10 @@ const formatNodeName = (name: string, t: (th: string, en: string) => string) => 
 
 const formatShortBranchName = (name: string, t: (th: string, en: string) => string) => {
     return name
+        .replace('ภูเก็ต', t('ภูเก็ต', 'Phuket'))
+        .replace('เชียงใหม่', t('เชียงใหม่', 'Chiang Mai'))
         .replace('สุขุมวิท', t('สุขุมวิท', 'Sukhumvit'))
-        .replace('พระราม 9', t('พระราม 9', 'Rama 9'))
-        .replace('เชียงใหม่', t('เชียงใหม่', 'Chiang Mai'));
+        .replace('พระราม 9', t('พระราม 9', 'Rama 9'));
 };
 
 /* ----------------------------- atoms ----------------------------- */
@@ -732,12 +733,17 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                 t('ก.ย.', 'Sep'), t('ต.ค.', 'Oct'), t('พ.ย.', 'Nov'), t('ธ.ค.', 'Dec')
             ];
         }
+        if (gran === 'day') {
+            // ข้อมูลรายวันของเดือนปัจจุบัน 1 ถึง วันนี้ (เช่น วันที่ 1-15)
+            const currentDay = now2.getDate();
+            return Array.from({ length: currentDay }, (_, i) => String(i + 1));
+        }
         // weekly — จันทร์ ถึง อาทิตย์
         return [
             t('จ.', 'Mon'), t('อ.', 'Tue'), t('พ.', 'Wed'), t('พฤ.', 'Thu'),
             t('ศ.', 'Fri'), t('ส.', 'Sat'), t('อา.', 'Sun')
         ];
-    }, [gran, t, yearBuckets]);
+    }, [gran, t, yearBuckets, now2]);
 
     const data = useMemo(() => buckets.map((lb, bi) => {
         const row: Record<string, any> = { label: lb };
@@ -745,7 +751,7 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
         entities.forEach((e) => {
             const entityId = Number(e.id.replace(/^\D+/, ''));
             // Map gran to backend gran name
-            const backendGran = gran === 'year' ? 'yearly' : gran === 'month' ? 'year' : 'week';
+            const backendGran = gran === 'year' ? 'yearly' : gran === 'month' ? 'year' : gran === 'week' ? 'week' : 'day';
             const v = comparison
                 .filter((item) => item.gran === backendGran && item.entityType === entityType && item.entityId === entityId)
                 .filter((item) => {
@@ -753,8 +759,10 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                     const parts = str.split(/[-T :]/);
                     const y = Number(parts[0]);
                     const m = Number(parts[1]) - 1;
+                    const d = Number(parts[2]);
                     if (gran === 'year') return y === yearBuckets[bi];
                     if (gran === 'month') return m === bi;
+                    if (gran === 'day') return d === bi + 1 && m === now2.getMonth() && y === curYear;
                     if (gran === 'week') {
                         const dt = new Date(str);
                         return ((dt.getDay() + 6) % 7) === bi;
@@ -765,7 +773,7 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
             row[e.name] = +v.toFixed(1);
         });
         return row;
-    }), [buckets, comparison, dim, entities, gran, yearBuckets]);
+    }), [buckets, comparison, dim, entities, gran, yearBuckets, curYear, now2]);
 
     const [hiddenEntities, setHiddenEntities] = useState<Set<string>>(new Set());
 
@@ -792,14 +800,22 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
     const grand = totals.reduce((s, t) => s + t.value, 0) || 1;
     const colorOf: Record<string, string> = {}; entities.forEach((e, i) => (colorOf[e.name] = C.palette[i % C.palette.length]));
 
+    const monthNames = [
+        t('ม.ค.', 'Jan'), t('ก.พ.', 'Feb'), t('มี.ค.', 'Mar'), t('เม.ย.', 'Apr'),
+        t('พ.ค.', 'May'), t('มิ.ย.', 'Jun'), t('ก.ค.', 'Jul'), t('ส.ค.', 'Aug'),
+        t('ก.ย.', 'Sep'), t('ต.ค.', 'Oct'), t('พ.ย.', 'Nov'), t('ธ.ค.', 'Dec')
+    ];
+
     const windowText = gran === 'year'
         ? t(`เปรียบเทียบรายปี · ${yearBuckets[0] || ''} − ${yearBuckets[yearBuckets.length - 1] || ''}`, `Yearly Comparison · ${yearBuckets[0] || ''} − ${yearBuckets[yearBuckets.length - 1] || ''}`)
         : gran === 'month'
             ? t(`ข้อมูลรายเดือน ปี ${thisYear} · ม.ค. − ธ.ค. (เดือนที่ยังไม่มีข้อมูล = 0)`, `Monthly Data ${curYear} · Jan − Dec (months with no data = 0)`)
-            : t('สัปดาห์ล่าสุด · จันทร์ − อาทิตย์', 'Last Week · Mon − Sun');
+            : gran === 'day'
+                ? t(`ข้อมูลรายวัน (1 − ${now2.getDate()} ${monthNames[now2.getMonth()]} ${thisYear})`, `Daily Data (1 − ${now2.getDate()} ${monthNames[now2.getMonth()]} ${curYear})`)
+                : t('สัปดาห์ล่าสุด · จันทร์ − อาทิตย์', 'Last Week · Mon − Sun');
 
-    const DIMS = [['overview', t('ภาพรวม', 'Overview')], ['branch', t('ตามสาขา', 'By Branch')], ['building', t('ตามตึก', 'By Building')]];
-    const GRANS = [['year', t('รายปี', 'Yearly')], ['month', t('รายเดือน', 'Monthly')], ['week', t('รายสัปดาห์', 'Weekly')]];
+    const DIMS = [['overview', t('ภาพรวม', 'Overview')], ['branch', t('ตามไซต์', 'By Site')], ['building', t('ตามตึก', 'By Building')]];
+    const GRANS = [['year', t('รายปี', 'Yearly')], ['month', t('รายเดือน', 'Monthly')], ['week', t('รายสัปดาห์', 'Weekly')], ['day', t('รายวัน', 'Daily')]];
     const chip = (a: boolean): React.CSSProperties => ({
         fontFamily: MONO, fontSize: 11.5, letterSpacing: 0.3, padding: '6px 12px', border: `1px solid ${a ? C.accent : C.line}`,
         cursor: 'pointer', background: a ? C.accent : C.panel, color: a ? '#fff' : C.sub, marginRight: 6, marginBottom: 6,
@@ -809,13 +825,15 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
 
     const dimLabel = DIMS.find((d) => d[0] === dim)![1];
     const dimLabelClean = dim === 'overview' 
-        ? t('สาขา', 'Branch') 
+        ? t('ไซต์', 'Site') 
         : dimLabel.replace(t('ตาม', 'By '), '');
     const granLabel = gran === 'year' 
         ? t('รายปี', 'Yearly') 
         : gran === 'month'
             ? t('รายเดือน', 'Monthly')
-            : t('รายวัน', 'Daily');
+            : gran === 'day'
+                ? t('รายวัน', 'Daily')
+                : t('รายวัน', 'Daily');
     const thText = `(kWh) ${granLabel} · ${dimLabelClean}`;
 
     return (
