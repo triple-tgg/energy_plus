@@ -19,6 +19,8 @@ const ICON_OPTIONS = [
     { icon: 'fa fa-tint', label: 'Water', color: '#3B82F6', emoji: '💧' },
     { icon: 'fa fa-fire', label: 'Gas', color: '#EF4444', emoji: '🔥' },
     { icon: 'fa fa-plug', label: 'MDB', color: '#8B5CF6', emoji: '🔌' },
+    { icon: 'fa fa-thermometer-half', label: 'Temperature', color: '#F43F5E', emoji: '🌡️' },
+    { icon: 'fa fa-smog', label: 'Humidity', color: '#14B8A6', emoji: '🌫️' },
     { icon: 'fa fa-satellite-dish', label: 'Sensor', color: '#06B6D4', emoji: '📡' },
     { icon: 'fa fa-car-battery', label: 'Generator', color: '#10B981', emoji: '🔋' },
     { icon: 'fa fa-solar-panel', label: 'Solar', color: '#F97316', emoji: '☀️' },

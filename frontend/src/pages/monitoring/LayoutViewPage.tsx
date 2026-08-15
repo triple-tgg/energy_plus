@@ -23,12 +23,16 @@ const POINT_TYPES: Record<string, { icon: string; faIcon: string; color: string;
     water: { icon: '💧', faIcon: 'fa fa-tint', color: '#3B82F6', labelTh: 'น้ำ (Water)', labelEn: 'Water' },
     gas: { icon: '🔥', faIcon: 'fa fa-fire', color: '#EF4444', labelTh: 'แก๊ส (Gas)', labelEn: 'Gas' },
     mdb: { icon: '🔌', faIcon: 'fa fa-plug', color: '#8B5CF6', labelTh: 'MDB', labelEn: 'MDB' },
+    temp: { icon: '🌡️', faIcon: 'fa fa-thermometer-half', color: '#F43F5E', labelTh: 'อุณหภูมิ (Temp)', labelEn: 'Temp' },
+    humidity: { icon: '🌫️', faIcon: 'fa fa-smog', color: '#14B8A6', labelTh: 'ความชื้น (Humidity)', labelEn: 'Humidity' },
     
     // Fallback for old layout points stored in DB
     meter: { icon: '⚡', faIcon: 'fa fa-bolt', color: '#F59E0B', labelTh: 'ไฟฟ้า (Power)', labelEn: 'Power' },
     sensor: { icon: '💧', faIcon: 'fa fa-tint', color: '#3B82F6', labelTh: 'น้ำ (Water)', labelEn: 'Water' },
     gen: { icon: '🔥', faIcon: 'fa fa-fire', color: '#EF4444', labelTh: 'แก๊ส (Gas)', labelEn: 'Gas' },
     ups: { icon: '🔌', faIcon: 'fa fa-plug', color: '#8B5CF6', labelTh: 'MDB', labelEn: 'MDB' },
+    temperature: { icon: '🌡️', faIcon: 'fa fa-thermometer-half', color: '#F43F5E', labelTh: 'อุณหภูมิ (Temp)', labelEn: 'Temp' },
+    hum: { icon: '🌫️', faIcon: 'fa fa-smog', color: '#14B8A6', labelTh: 'ความชื้น (Humidity)', labelEn: 'Humidity' },
 };
 
 /** Meter type definitions: meter_type_id → display info (FA class from DB) */
@@ -37,11 +41,13 @@ const METER_TYPES: Record<number, { faIcon: string; color: string; labelTh: stri
     2: { faIcon: 'fa fa-tint', color: '#3B82F6', labelTh: 'Water', labelEn: 'Water' },
     3: { faIcon: 'fa fa-fire', color: '#EF4444', labelTh: 'Gas', labelEn: 'Gas' },
     4: { faIcon: 'fa fa-plug', color: '#8B5CF6', labelTh: 'MDB', labelEn: 'MDB' },
+    11: { faIcon: 'fa fa-smog', color: '#14B8A6', labelTh: 'Humidity', labelEn: 'Humidity' },
+    12: { faIcon: 'fa fa-thermometer-half', color: '#F43F5E', labelTh: 'Temperature', labelEn: 'Temperature' },
 };
 
 const DEFAULT_TYPE = { faIcon: 'fa fa-chart-bar', color: '#6B7280', labelTh: 'อื่นๆ', labelEn: 'Other' };
 
-/** Get meter type info — dynamically categorizes types based on name/id for Power/Water/Gas/MDB matching */
+/** Get meter type info — dynamically categorizes types based on name/id for Power/Water/Gas/MDB/Temp/Humidity matching */
 const getMeterTypeInfo = (typeId: number, iconName?: string, typeName?: string) => {
     const name = (typeName || '').toLowerCase();
     let category = 'power';
@@ -64,6 +70,16 @@ const getMeterTypeInfo = (typeId: number, iconName?: string, typeName?: string) 
         color = '#8B5CF6';
         label = 'MDB';
         faIcon = iconName || 'fa fa-plug';
+    } else if (name.includes('temp') || name.includes('อุณหภูมิ')) {
+        category = 'temp';
+        color = '#F43F5E';
+        label = 'Temp';
+        faIcon = iconName || 'fa fa-thermometer-half';
+    } else if (name.includes('hum') || name.includes('ความชื้น')) {
+        category = 'humidity';
+        color = '#14B8A6';
+        label = 'Humidity';
+        faIcon = iconName || 'fa fa-smog';
     } else if (name.includes('ele') || name.includes('volt') || name.includes('amp') || name.includes('power')) {
         category = 'power';
         color = '#F59E0B';
@@ -75,8 +91,12 @@ const getMeterTypeInfo = (typeId: number, iconName?: string, typeName?: string) 
             category = 'water'; color = '#3B82F6'; label = 'Water'; faIcon = iconName || 'fa fa-tint';
         } else if (typeId === 3) {
             category = 'gas'; color = '#EF4444'; label = 'Gas'; faIcon = iconName || 'fa fa-fire';
-        } else if (typeId === 4) {
+        } else if (typeId === 4 || typeId === 8) {
             category = 'mdb'; color = '#8B5CF6'; label = 'MDB'; faIcon = iconName || 'fa fa-plug';
+        } else if (typeId === 11) {
+            category = 'humidity'; color = '#14B8A6'; label = 'Humidity'; faIcon = iconName || 'fa fa-smog';
+        } else if (typeId === 12) {
+            category = 'temp'; color = '#F43F5E'; label = 'Temp'; faIcon = iconName || 'fa fa-thermometer-half';
         }
     }
     
@@ -616,7 +636,7 @@ const LayoutViewPage: React.FC = () => {
                                             }}>
                                             {t('ทั้งหมด', 'ALL')}
                                         </button>
-                                        {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb'].includes(k)).map(([key, info]) => (
+                                        {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb', 'temp', 'humidity'].includes(k)).map(([key, info]) => (
                                             <button
                                                 key={key}
                                                 onClick={() => setMeterTypeFilter(meterTypeFilter === key ? null : key)}

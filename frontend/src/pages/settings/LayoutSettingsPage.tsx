@@ -36,6 +36,8 @@ const POINT_TYPES = [
     { key: 'water', labelTh: 'น้ำ (Water)', labelEn: 'Water', icon: 'fa fa-tint', color: '#3B82F6', emoji: '💧' },
     { key: 'gas', labelTh: 'แก๊ส (Gas)', labelEn: 'Gas', icon: 'fa fa-fire', color: '#EF4444', emoji: '🔥' },
     { key: 'mdb', labelTh: 'MDB', labelEn: 'MDB', icon: 'fa fa-plug', color: '#8B5CF6', emoji: '🔌' },
+    { key: 'temp', labelTh: 'อุณหภูมิ (Temp)', labelEn: 'Temperature', icon: 'fa fa-thermometer-half', color: '#F43F5E', emoji: '🌡️' },
+    { key: 'humidity', labelTh: 'ความชื้น (Humidity)', labelEn: 'Humidity', icon: 'fa fa-smog', color: '#14B8A6', emoji: '🌫️' },
 ];
 
 /** Resolve layout point type details safely with backward compatibility */
@@ -45,6 +47,8 @@ const getPointTypeInfo = (type: string | null | undefined) => {
     if (key === 'sensor') key = 'water';
     if (key === 'gen') key = 'gas';
     if (key === 'ups') key = 'mdb';
+    if (key === 'temperature') key = 'temp';
+    if (key === 'hum') key = 'humidity';
     return POINT_TYPES.find(t => t.key === key) || POINT_TYPES[0];
 };
 

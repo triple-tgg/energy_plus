@@ -150,7 +150,10 @@ const METER_TYPE_INFO: Record<number, { icon: string; color: string }> = {
     2: { icon: '💧', color: '#3B82F6' },  // Water
     3: { icon: '🔥', color: '#EF4444' },  // Gas
     4: { icon: '☀️', color: '#10B981' },  // Solar
-    8: { icon: '⚡', color: '#F59E0B' },  // ELE
+    8: { icon: '🔌', color: '#8B5CF6' },  // MDB
+    10: { icon: '☀️', color: '#F97316' }, // Solar
+    11: { icon: '🌫️', color: '#14B8A6' }, // Humidity
+    12: { icon: '🌡️', color: '#F43F5E' }, // Temperature
 };
 const getMeterTypeInfo = (id: number) => METER_TYPE_INFO[id] || METER_TYPE_INFO[1];
 
