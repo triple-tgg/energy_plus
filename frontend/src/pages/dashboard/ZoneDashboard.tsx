@@ -1139,7 +1139,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 </div>
 
                 <div style={{ display: 'flex' }}>
-                    {([['monitor', 'REALTIME', Activity], ['compare', t('เปรียบเทียบ', 'Comparison'), BarChart3]] as [string, string, any][]).map(([k, lb, Ic]) => (
+                    {([['monitor', t('สถานะปัจจุบัน', 'Current Status'), Activity], ['compare', t('วิเคราะห์เปรียบเทียบ', 'Comparative Analysis'), BarChart3]] as [string, string, any][]).map(([k, lb, Ic]) => (
                         <button key={k} onClick={() => setMode(k)} style={{ ...tabBar(mode === k), borderRight: `1px solid #ffffff14` }}>
                             <Ic size={14} /> {lb}
                         </button>
@@ -1317,7 +1317,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                             <div style={{ background: C.panel, border: `1px solid ${C.line}` }}>
                                 <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 8, background: C.panel2 }}>
                                     <Activity size={14} color={C.accent} />
-                                    <span style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: 1, fontWeight: 700 }}>REALTIME</span>
+                                    <span style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: 1, fontWeight: 700 }}>{t('สถานะปัจจุบัน', 'CURRENT STATUS')}</span>
                                     <button onClick={() => setSortDesc((v) => !v)} style={{
                                         marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5,
                                         color: C.accent, background: 'transparent', border: `1px solid ${C.line}`, padding: '4px 8px', cursor: 'pointer',
