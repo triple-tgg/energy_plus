@@ -27,6 +27,7 @@ import BillingPage from './pages/settings/BillingPage';
 import DemandPage from './pages/settings/DemandPage';
 import LayoutSettingsPage from './pages/settings/LayoutSettingsPage';
 import ExportSettingsPage from './pages/settings/ExportSettingsPage';
+import DataCleanupPage from './pages/settings/DataCleanupPage';
 
 // Monitoring
 import RealtimePage from './pages/monitoring/RealtimePage';
@@ -77,6 +78,7 @@ const App: React.FC = () => {
                                 <Route path="/settings/demand" element={<ProtectedRoute permissionKey="settings"><DemandPage /></ProtectedRoute>} />
                                 <Route path="/settings/layouts" element={<ProtectedRoute permissionKey="settings"><LayoutSettingsPage /></ProtectedRoute>} />
                                 <Route path="/settings/export" element={<ProtectedRoute permissionKey="settings"><ExportSettingsPage /></ProtectedRoute>} />
+                                <Route path="/settings/data-cleanup" element={<ProtectedRoute permissionKey="settings"><DataCleanupPage /></ProtectedRoute>} />
 
                                 {/* Monitoring */}
                                 <Route path="/monitoring/realtime" element={<ProtectedRoute permissionKey="monitoring"><RealtimePage /></ProtectedRoute>} />

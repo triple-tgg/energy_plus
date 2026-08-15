@@ -6,7 +6,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import {
     Settings, Building2, Users, User, MapPin, Construction,
     Package, Plug, Tag, RefreshCw, Zap,
-    Wrench, Bell, AlertTriangle, Coins, TrendingDown, Map, Upload,
+    Wrench, Bell, AlertTriangle, Coins, TrendingDown, Map, Upload, Trash2,
     Radio, BarChart3, Network, Activity,
     FileText, BarChartBig, History, GitCompare, Clock,
     LayoutDashboard, MapPinned, Gauge, Table,
@@ -73,6 +73,7 @@ const navGroups: NavGroup[] = [
             { labelEn: 'Demand & Savings', labelTh: 'ดีมานด์ & ประหยัด', path: '/settings/demand', icon: TrendingDown, permissionKey: 'settings' },
             { labelEn: 'Layout Settings', labelTh: 'ตั้งค่าแผนผัง', path: '/settings/layouts', icon: Map, permissionKey: 'settings' },
             { labelEn: 'Export Settings', labelTh: 'ตั้งค่าการ Export', path: '/settings/export', icon: Upload, permissionKey: 'settings' },
+            { labelEn: 'Data Cleanup', labelTh: 'ล้างข้อมูล Realtime', path: '/settings/data-cleanup', icon: Trash2, permissionKey: 'settings' },
         ],
     },
     {

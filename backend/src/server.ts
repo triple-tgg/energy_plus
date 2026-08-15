@@ -19,6 +19,7 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import redisPubsubRoutes from './modules/redis-pubsub/redisPubsub.routes';
 import layoutRoutes from './modules/layouts/layouts.routes';
 import reportsRoutes from './modules/reports/reports.routes';
+import dataCleanupRoutes from './modules/data-cleanup/dataCleanup.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 import { ensureAccessControlSchema } from './config/accessControl';
@@ -64,6 +65,7 @@ app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
 app.use(`${API_PREFIX}/redis`, redisPubsubRoutes);
 app.use(`${API_PREFIX}/layouts`, layoutRoutes);
 app.use(`${API_PREFIX}/reports`, reportsRoutes);
+app.use(`${API_PREFIX}/data-cleanup`, dataCleanupRoutes);
 
 // DEBUG: List databases and tables
 app.get(`${API_PREFIX}/debug/tables`, async (req, res) => {

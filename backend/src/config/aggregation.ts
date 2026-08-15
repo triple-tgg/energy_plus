@@ -21,6 +21,7 @@ export const aggregationConfig = {
     monthlyCron: process.env.AGGREGATION_MONTHLY_CRON || '0 0 20 * *',
     retentionCron: process.env.AGGREGATION_RETENTION_CRON || '30 2 * * *',
     retentionMonths: parseNumber(process.env.AGGREGATION_RETENTION_MONTHS, 3),
+    retentionHours: parseNumber(process.env.AGGREGATION_RETENTION_HOURS, 24),
     timezone: process.env.AGGREGATION_TIMEZONE || 'Asia/Bangkok',
     intervalMinutes: parseNumber(process.env.AGGREGATION_INTERVAL_MINUTES, 15),
     lookbackMinutes: parseNumber(process.env.AGGREGATION_LOOKBACK_MINUTES, 15),

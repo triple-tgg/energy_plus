@@ -205,3 +205,9 @@ export const realtimeApi = {
     getAlerts: (params?: any) => api.get('/redis/alerts', { params }),
     getChannels: () => api.get('/redis/channels'),
 };
+
+// Data Cleanup (Admin)
+export const dataCleanupApi = {
+    getRealtimeStats: () => api.get('/data-cleanup/realtime-stats'),
+    purgeRealtime: (retentionHours: number) => api.post('/data-cleanup/purge-realtime', { retentionHours }),
+};

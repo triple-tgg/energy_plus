@@ -436,7 +436,7 @@ export class AggregationService {
         });
     }
 
-    async cleanupRealtimeData(retentionMonths = aggregationConfig.retentionMonths): Promise<void> {
+    async cleanupRealtimeData(retentionHours = aggregationConfig.retentionHours): Promise<void> {
         await this.runWithLock('retention', async (client) => {
             const startedAt = new Date();
             let totalDeleted = 0;
@@ -450,7 +450,7 @@ export class AggregationService {
                             WHERE id IN (
                                 SELECT id
                                 FROM meter_data_realtime
-                                WHERE received_at < NOW() - ($1::text || ' months')::interval
+                                WHERE received_at < NOW() - ($1::text || ' hours')::interval
                                 ORDER BY received_at
                                 LIMIT $2
                             )
@@ -458,13 +458,17 @@ export class AggregationService {
                         )
                         SELECT COUNT(*)::int AS deleted_count FROM deleted
                         `,
-                        [retentionMonths, aggregationConfig.cleanupBatchSize]
+                        [retentionHours, aggregationConfig.cleanupBatchSize]
                     );
                     const deletedCount = result.rows[0]?.deleted_count || 0;
                     totalDeleted += deletedCount;
                     if (deletedCount < aggregationConfig.cleanupBatchSize) {
                         break;
                     }
+                }
+
+                if (totalDeleted > 0) {
+                    console.log(`🗑️  Retention cleanup: deleted ${totalDeleted} realtime records older than ${retentionHours}h`);
                 }
 
                 await this.logJob(client, {
