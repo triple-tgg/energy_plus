@@ -58,14 +58,17 @@ export class AuthService {
             throw new AppError(401, 'UNAUTHORIZED', 'Invalid username or password');
         }
 
-        // Get user's site assignments
-        const sitesResult = await query(
-            `SELECT s.site_id, s.site_name
-       FROM site_user_map sum
-       JOIN sites s ON sum.site_id = s.site_id
-       WHERE sum.user_id = $1`,
-            [user.user_id]
-        );
+        // Get user's site assignments (only active sites)
+        const sitesResult = user.site_access_mode === 'all'
+            ? await query(`SELECT site_id, site_name FROM sites WHERE site_status = true ORDER BY site_id`)
+            : await query(
+                `SELECT s.site_id, s.site_name
+           FROM site_user_map sum
+           JOIN sites s ON sum.site_id = s.site_id
+           WHERE sum.user_id = $1 AND (s.site_status = true OR s.site_status IS NULL)
+           ORDER BY s.site_id`,
+                [user.user_id]
+            );
 
         const sites = sitesResult.rows.map((s: any) => ({
             siteId: s.site_id,
@@ -136,13 +139,16 @@ export class AuthService {
 
         const user = userResult.rows[0];
 
-        const sitesResult = await query(
-            `SELECT s.site_id, s.site_name
-       FROM site_user_map sum
-       JOIN sites s ON sum.site_id = s.site_id
-       WHERE sum.user_id = $1`,
-            [userId]
-        );
+        const sitesResult = user.site_access_mode === 'all'
+            ? await query(`SELECT site_id, site_name FROM sites WHERE site_status = true ORDER BY site_id`)
+            : await query(
+                `SELECT s.site_id, s.site_name
+           FROM site_user_map sum
+           JOIN sites s ON sum.site_id = s.site_id
+           WHERE sum.user_id = $1 AND (s.site_status = true OR s.site_status IS NULL)
+           ORDER BY s.site_id`,
+                [userId]
+            );
 
         const permResult = await query(
             `SELECT permission_key FROM user_permission WHERE group_id = $1 AND can_view = true`,

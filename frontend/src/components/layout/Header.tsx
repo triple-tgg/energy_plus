@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { alarmsApi } from '../../api/client';
+import { alarmsApi, sitesApi } from '../../api/client';
 
 interface AlertItem {
     id: number;
@@ -20,6 +20,36 @@ const Header: React.FC = () => {
     const { language, toggleLanguage, t } = useLanguage();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const [sitesList, setSitesList] = useState<{ siteId: number; siteName: string }[]>(() => user?.sites || []);
+
+    // Load active sites only
+    useEffect(() => {
+        let isMounted = true;
+        const fetchActiveSites = async () => {
+            try {
+                const res = await sitesApi.getAll({ limit: 200, activeOnly: true });
+                const data = res.data.data || [];
+                const mapped = data.map((s: any) => ({
+                    siteId: s.site_id,
+                    siteName: s.site_name,
+                }));
+                if (isMounted) {
+                    if (user?.siteAccessMode !== 'all' && user?.sites) {
+                        const allowedIds = new Set(user.sites.map((us: any) => us.siteId));
+                        setSitesList(mapped.filter((s: any) => allowedIds.has(s.siteId)));
+                    } else {
+                        setSitesList(mapped);
+                    }
+                }
+            } catch {
+                if (isMounted && user?.sites) {
+                    setSitesList(user.sites);
+                }
+            }
+        };
+        fetchActiveSites();
+        return () => { isMounted = false; };
+    }, [user?.siteAccessMode, user?.sites]);
 
     // Notification state
     const [notifOpen, setNotifOpen] = useState(false);
@@ -125,11 +155,11 @@ const Header: React.FC = () => {
                         setSelectedSiteId(event.target.value ? Number(event.target.value) : null);
                         window.location.reload();
                     }}
-                    disabled={user?.siteAccessMode !== 'all' && (user?.sites?.length || 0) <= 1}
+                    disabled={user?.siteAccessMode !== 'all' && sitesList.length <= 1}
                     title={t('เลือกสาขา', 'Select site')}
                 >
                     {user?.siteAccessMode === 'all' && <option value="">{t('ทุกสาขา', 'All Sites')}</option>}
-                    {(user?.sites || []).map(site => <option key={site.siteId} value={site.siteId}>{site.siteName}</option>)}
+                    {sitesList.map(site => <option key={site.siteId} value={site.siteId}>{site.siteName}</option>)}
                 </select>
                 {/* Date/Time Pill */}
                 <div className="topbar__datetime">
