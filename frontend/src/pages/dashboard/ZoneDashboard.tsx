@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Zap, Droplet, Flame, Sun, Home, Activity, ArrowUpDown, X, Gauge, Search,
-    Wifi, WifiOff, AlertTriangle, Network, Pencil, Bell, PowerOff, LayoutGrid, BarChart3, Moon,
+    Wifi, WifiOff, AlertTriangle, Network, Pencil, Bell, PowerOff, LayoutGrid, BarChart3, Moon, ChevronRight,
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -1302,30 +1302,95 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                     <SingleLine main={{ name: currentName, kwh: totalKwh, status: aggStatus(scope, now) }}
                                         feeders={[...items].sort((a, b) => fnum(a.node.name) - fnum(b.node.name))} onPick={go} C={C} />
                                 ) : (
-                                    <div style={{ border: `2px solid ${C.ink}`, background: C.panel }}>
-                                        <div style={{ height: 16, background: `repeating-linear-gradient(135deg, ${C.ink}, ${C.ink} 6px, ${C.panel2} 6px, ${C.panel2} 12px)` }} />
+                                    <div style={{
+                                        border: `1px solid ${C.line}`, background: C.panel,
+                                        boxShadow: theme === 'light' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                                    }}>
+                                        {/* Floor View Header Bar */}
+                                        <div style={{
+                                            padding: '10px 16px', background: C.bar,
+                                            borderBottom: `1px solid ${C.line}`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            fontFamily: MONO, fontSize: 11, color: C.sub,
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: C.ink }}>
+                                                <span>🏢</span>
+                                                <span>{formatNodeName(currentName || '', t)}</span>
+                                            </div>
+                                            <div>
+                                                <span>{floorItems.length} {t('ชั้น', 'Floors')} · {t('เรียงจากชั้นบนลงล่าง', 'Top to Bottom')}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Floor Rows */}
                                         {floorItems.map((it, idx) => {
                                             const st = getStatusInfo(it.status, C);
+                                            const floorPct = maxFloorKwh > 0 ? (it.kwh / maxFloorKwh) * 100 : 0;
+                                            const totalPct = totalKwh > 0 ? ((it.kwh / totalKwh) * 100).toFixed(1) : '0';
+
                                             return (
                                                 <button key={it.node.id} className="ec-row" onClick={() => openItem(it)} style={{
-                                                    display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
-                                                    background: 'transparent', border: 'none', borderTop: idx === 0 ? 'none' : `1px solid ${C.line}`,
-                                                    borderLeft: `4px solid ${st.color}`, padding: '12px 14px'
+                                                    display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
+                                                    background: 'transparent', border: 'none',
+                                                    borderTop: idx === 0 ? 'none' : `1px solid ${C.line}`,
+                                                    borderLeft: `4px solid ${st.color}`, padding: '14px 18px',
+                                                    cursor: 'pointer', transition: 'background-color 0.15s ease',
                                                 }}>
-                                                    <div style={{ width: 52, fontFamily: MONO, fontWeight: 700, fontSize: 13, color: C.ink }}>{formatNodeName(it.node.name, t)}</div>
-                                                    <div style={{ flex: 1, height: 22, background: C.panel2, position: 'relative', border: `1px solid ${C.line}` }}>
-                                                        <div style={{ width: `${(it.kwh / maxFloorKwh) * 100}%`, height: '100%', background: st.color, opacity: 0.3 }} />
-                                                        <span style={{ position: 'absolute', left: 8, top: 0, lineHeight: '22px', fontFamily: MONO, fontSize: 10, color: C.sub }}>{it.count} MTR</span>
+                                                    {/* Floor Label Badge */}
+                                                    <div style={{
+                                                        minWidth: 90, display: 'flex', alignItems: 'center', gap: 6,
+                                                        fontFamily: MONO, fontWeight: 700, fontSize: 13, color: C.ink,
+                                                    }}>
+                                                        <span style={{
+                                                            display: 'inline-block', padding: '3px 8px', background: C.panel2,
+                                                            border: `1px solid ${C.line}`, fontSize: 12,
+                                                        }}>
+                                                            {formatNodeName(it.node.name, t)}
+                                                        </span>
                                                     </div>
-                                                    <div style={{ textAlign: 'right', minWidth: 92, fontFamily: MONO, color: C.ink }}>
-                                                        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 15, fontWeight: 700 }}>{fmt(it.kwh)}</span>
-                                                        <span style={{ fontSize: 10, color: C.sub }}> kWh</span>
+
+                                                    {/* Meter count pill */}
+                                                    <div style={{
+                                                        minWidth: 64, fontFamily: MONO, fontSize: 11, color: C.sub,
+                                                        display: 'flex', alignItems: 'center', gap: 4,
+                                                    }}>
+                                                        <span style={{
+                                                            padding: '2px 6px', background: C.panel2, border: `1px solid ${C.line}80`,
+                                                            fontSize: 10.5, fontWeight: 600,
+                                                        }}>
+                                                            {it.count} {t('มิเตอร์', 'MTR')}
+                                                        </span>
                                                     </div>
-                                                    <StatusDot s={it.status} pulse C={C} />
+
+                                                    {/* Energy Distribution Bar */}
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 120 }}>
+                                                        <div style={{ height: 10, background: C.panel2, position: 'relative', border: `1px solid ${C.line}`, borderRadius: 2, overflow: 'hidden' }}>
+                                                            <div style={{
+                                                                width: `${Math.max(floorPct, 1)}%`, height: '100%',
+                                                                background: `linear-gradient(90deg, ${C.accent}aa, ${st.color})`,
+                                                                transition: 'width 0.5s ease',
+                                                            }} />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Total energy & % of building */}
+                                                    <div style={{ textAlign: 'right', minWidth: 110, fontFamily: MONO }}>
+                                                        <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 15, fontWeight: 700, color: C.ink }}>
+                                                            {fmt(it.kwh)} <span style={{ fontSize: 10, color: C.sub, fontWeight: 500 }}>kWh</span>
+                                                        </div>
+                                                        <div style={{ fontSize: 10, color: C.sub }}>
+                                                            {totalPct}% {t('ของทั้งตึก', 'of bldg')}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Status & Navigation */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <StatusDot s={it.status} pulse C={C} />
+                                                        <ChevronRight size={14} style={{ color: C.sub }} />
+                                                    </div>
                                                 </button>
                                             );
                                         })}
-                                        <div style={{ height: 10, background: C.ink }} />
                                     </div>
                                 )
                             ) : level === 3 ? (
