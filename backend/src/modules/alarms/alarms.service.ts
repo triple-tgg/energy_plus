@@ -160,6 +160,9 @@ export class AlarmsService {
         return result.rows[0];
     }
     async deleteAlarmGroup(id: number) {
+        // Remove FK references first
+        await query(`UPDATE alarm_config SET alarm_group_id = NULL WHERE alarm_group_id = $1`, [id]);
+        await query(`DELETE FROM alarm_group_mapping WHERE alarm_group_id = $1`, [id]);
         const result = await query(`DELETE FROM alarm_group WHERE alarm_group_id=$1 RETURNING alarm_group_id`, [id]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Alarm group not found');
         return result.rows[0];
