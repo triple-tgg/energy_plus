@@ -20,7 +20,7 @@ const Header: React.FC = () => {
     const { language, toggleLanguage, t } = useLanguage();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [sitesList, setSitesList] = useState<{ siteId: number; siteName: string }[]>(() => user?.sites || []);
+    const [sitesList, setSitesList] = useState<{ siteId: number; siteName: string }[]>([]);
 
     // Load active sites only
     useEffect(() => {
@@ -34,17 +34,23 @@ const Header: React.FC = () => {
                     siteName: s.site_name,
                 }));
                 if (isMounted) {
+                    let activeSites = mapped;
                     if (user?.siteAccessMode !== 'all' && user?.sites) {
                         const allowedIds = new Set(user.sites.map((us: any) => us.siteId));
-                        setSitesList(mapped.filter((s: any) => allowedIds.has(s.siteId)));
-                    } else {
-                        setSitesList(mapped);
+                        activeSites = mapped.filter((s: any) => allowedIds.has(s.siteId));
+                    }
+                    setSitesList(activeSites);
+
+                    // Reset selectedSiteId if current selection is inactive
+                    if (selectedSiteId) {
+                        const stillExists = activeSites.some((s: { siteId: number }) => s.siteId === selectedSiteId);
+                        if (!stillExists) {
+                            setSelectedSiteId(activeSites.length > 0 ? activeSites[0].siteId : null);
+                        }
                     }
                 }
             } catch {
-                if (isMounted && user?.sites) {
-                    setSitesList(user.sites);
-                }
+                // silent — keep empty list until next retry
             }
         };
         fetchActiveSites();
