@@ -35,7 +35,7 @@ const navGroups: NavGroup[] = [
         titleTh: 'แดชบอร์ด',
         icon: LayoutDashboard,
         items: [
-            { labelEn: 'Zone Consumption', labelTh: 'ปริมาณการใช้ไฟรายโซน', path: '/dashboard/zone', icon: MapPinned, permissionKey: 'dashboard' },
+            { labelEn: 'Meter Dashboard', labelTh: 'แดชบอร์ดมิเตอร์', path: '/dashboard/zone', icon: MapPinned, permissionKey: 'dashboard' },
             { labelEn: 'MDB Consumption', labelTh: 'ปริมาณการใช้ไฟรายตู้ MDB', path: '/dashboard/mdb', icon: Gauge, permissionKey: 'dashboard' },
             { labelEn: 'Demand Dashboard', labelTh: 'แดชบอร์ดดีมานด์พีค', path: '/dashboard/demand', icon: TrendingDown, permissionKey: 'dashboard' },
             { labelEn: 'Consumption Table', labelTh: 'ตารางการใช้พลังงาน', path: '/dashboard/consumption', icon: Table, permissionKey: 'dashboard' },

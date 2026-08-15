@@ -684,57 +684,77 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
         }));
     }, [dim, tree, meters, t]);
 
+    const now2 = new Date();
+    const curYear = now2.getFullYear();
+    const thisYear = curYear + 543; // พ.ศ.
+
+    // Build dynamic year buckets from comparison data
+    const yearBuckets = useMemo(() => {
+        const years = new Set<number>();
+        comparison.filter(c => c.gran === 'yearly').forEach(c => {
+            years.add(new Date(c.bucket).getFullYear());
+        });
+        if (years.size === 0) {
+            // fallback: show last 3 years
+            return [curYear - 2, curYear - 1, curYear];
+        }
+        return Array.from(years).sort((a, b) => a - b);
+    }, [comparison, curYear]);
+
     const buckets = useMemo(() => {
         if (gran === 'year') {
+            // เปรียบเทียบระหว่างปี — แต่ละแท่งคือ 1 ปี
+            return yearBuckets.map(y => String(y));
+        }
+        if (gran === 'month') {
+            // กราฟ 12 แท่ง เดือน 1-12
             return [
                 t('ม.ค.', 'Jan'), t('ก.พ.', 'Feb'), t('มี.ค.', 'Mar'), t('เม.ย.', 'Apr'),
                 t('พ.ค.', 'May'), t('มิ.ย.', 'Jun'), t('ก.ค.', 'Jul'), t('ส.ค.', 'Aug'),
                 t('ก.ย.', 'Sep'), t('ต.ค.', 'Oct'), t('พ.ย.', 'Nov'), t('ธ.ค.', 'Dec')
             ];
         }
-        if (gran === 'month') return Array.from({ length: 30 }, (_, i) => String(i + 1));
-        if (gran === 'week') {
-            return [
-                t('จ.', 'Mon'), t('อ.', 'Tue'), t('พ.', 'Wed'), t('พฤ.', 'Thu'),
-                t('ศ.', 'Fri'), t('ส.', 'Sat'), t('อา.', 'Sun')
-            ];
-        }
-        return Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-    }, [gran, t]);
+        // weekly — จันทร์ ถึง อาทิตย์
+        return [
+            t('จ.', 'Mon'), t('อ.', 'Tue'), t('พ.', 'Wed'), t('พฤ.', 'Thu'),
+            t('ศ.', 'Fri'), t('ส.', 'Sat'), t('อา.', 'Sun')
+        ];
+    }, [gran, t, yearBuckets]);
 
     const data = useMemo(() => buckets.map((lb, bi) => {
         const row: Record<string, any> = { label: lb };
         const entityType = dim === 'building' || dim === 'mdb' ? 'building' : 'site';
         entities.forEach((e) => {
             const entityId = Number(e.id.replace(/^\D+/, ''));
+            // Map gran to backend gran name
+            const backendGran = gran === 'year' ? 'yearly' : gran === 'month' ? 'year' : 'week';
             const v = comparison
-                .filter((item) => item.gran === gran && item.entityType === entityType && item.entityId === entityId)
+                .filter((item) => item.gran === backendGran && item.entityType === entityType && item.entityId === entityId)
                 .filter((item) => {
                     const dt = new Date(item.bucket);
-                    if (gran === 'year') return dt.getMonth() === bi;
-                    if (gran === 'month') return dt.getDate() === bi + 1;
+                    if (gran === 'year') return dt.getFullYear() === yearBuckets[bi];
+                    if (gran === 'month') return dt.getMonth() === bi;
                     if (gran === 'week') return ((dt.getDay() + 6) % 7) === bi;
-                    return dt.getHours() === bi;
+                    return false;
                 })
                 .reduce((sum, item) => sum + item.kwh, 0);
             row[e.name] = +v.toFixed(1);
         });
         return row;
-    }), [buckets, comparison, dim, entities, gran]);
+    }), [buckets, comparison, dim, entities, gran, yearBuckets]);
 
     const totals = entities.map((e) => ({ name: e.name, value: +data.reduce((s, r) => s + (r[e.name] || 0), 0).toFixed(1) })).sort((a, b) => b.value - a.value);
     const grand = totals.reduce((s, t) => s + t.value, 0) || 1;
     const colorOf: Record<string, string> = {}; entities.forEach((e, i) => (colorOf[e.name] = C.palette[i % C.palette.length]));
 
-    const yr = 2569;
     const windowText = gran === 'year'
-        ? t(`รอบปี ${yr - 1} · 00:00 น. 1 ม.ค. ${yr} − 00:00 น. 1 ม.ค. ${yr - 1}`, `Year ${yr - 1} · 00:00 AM 1 Jan ${yr} − 00:00 AM 1 Jan ${yr - 1}`)
+        ? t(`เปรียบเทียบรายปี · ${yearBuckets[0] || ''} − ${yearBuckets[yearBuckets.length - 1] || ''}`, `Yearly Comparison · ${yearBuckets[0] || ''} − ${yearBuckets[yearBuckets.length - 1] || ''}`)
         : gran === 'month'
-            ? (billing ? t(`รอบบิล (ตัดวันที่ 20) · 00:00 น. 20 ธ.ค. ${yr - 1} − 00:00 น. 20 ม.ค. ${yr}`, `Billing Cycle (Cut 20th) · 00:00 AM 20 Dec ${yr - 1} − 00:00 AM 20 Jan ${yr}`) : t(`รอบปฏิทิน · 1 ม.ค. − 31 ม.ค. ${yr}`, `Calendar Period · 1 Jan − 31 Jan ${yr}`))
-            : gran === 'week' ? t('สัปดาห์ล่าสุด · จันทร์ − อาทิตย์', 'Last Week · Mon − Sun') : t('วันล่าสุด · 00:00 − 24:00 น. (รายชั่วโมง)', 'Last Day · 00:00 − 24:00 (Hourly)');
+            ? t(`ข้อมูลรายเดือน ปี ${thisYear} · ม.ค. − ธ.ค. (เดือนที่ยังไม่มีข้อมูล = 0)`, `Monthly Data ${curYear} · Jan − Dec (months with no data = 0)`)
+            : t('สัปดาห์ล่าสุด · จันทร์ − อาทิตย์', 'Last Week · Mon − Sun');
 
-    const DIMS = [['overview', t('ภาพรวม', 'Overview')], ['branch', t('ตามสาขา', 'By Branch')], ['building', t('ตามตึก', 'By Building')], ['mdb', t('ตาม MDB', 'By MDB')]];
-    const GRANS = [['year', t('รายปี', 'Yearly')], ['month', t('รายเดือน', 'Monthly')], ['week', t('รายสัปดาห์', 'Weekly')], ['day', t('รายวัน', 'Daily')]];
+    const DIMS = [['overview', t('ภาพรวม', 'Overview')], ['branch', t('ตามสาขา', 'By Branch')], ['building', t('ตามตึก', 'By Building')]];
+    const GRANS = [['year', t('รายปี', 'Yearly')], ['month', t('รายเดือน', 'Monthly')], ['week', t('รายสัปดาห์', 'Weekly')]];
     const chip = (a: boolean): React.CSSProperties => ({
         fontFamily: MONO, fontSize: 11.5, letterSpacing: 0.3, padding: '6px 12px', border: `1px solid ${a ? C.accent : C.line}`,
         cursor: 'pointer', background: a ? C.accent : C.panel, color: a ? '#fff' : C.sub, marginRight: 6, marginBottom: 6,
@@ -747,9 +767,9 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
         ? t('สาขา', 'Branch') 
         : dimLabel.replace(t('ตาม', 'By '), '');
     const granLabel = gran === 'year' 
-        ? t('รายเดือน', 'Monthly') 
-        : gran === 'day' 
-            ? t('รายชั่วโมง', 'Hourly') 
+        ? t('รายปี', 'Yearly') 
+        : gran === 'month'
+            ? t('รายเดือน', 'Monthly')
             : t('รายวัน', 'Daily');
     const thText = `(kWh) ${granLabel} · ${dimLabelClean}`;
 
@@ -764,12 +784,8 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                     <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, marginBottom: 6, textTransform: 'uppercase' }}>{t('ช่วงเวลา', 'Period')}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap' }}>{GRANS.map(([k, lb]) => <button key={k} onClick={() => setGran(k)} style={chip(gran === k)}>{lb}</button>)}</div>
                 </div>
-                {gran === 'month' && (
-                    <div>
-                        <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, marginBottom: 6, textTransform: 'uppercase' }}>{t('การตัดรอบ', 'Billing Cutoff')}</div>
-                        <button onClick={() => setBilling((v) => !v)} style={chip(billing)}>{billing ? t('รอบบิล 20→20', 'Bill Cycle 20→20') : t('รอบปฏิทิน', 'Calendar Cycle')}</button>
-                    </div>
-                )}
+
+
             </div>
 
             <div style={{
@@ -786,7 +802,7 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 2 }}>
                                 <CartesianGrid strokeDasharray="2 3" stroke={C.line} vertical={false} />
-                                <XAxis dataKey="label" tick={axisTick} interval={gran === 'month' ? 2 : 0} tickLine={{ stroke: C.line }} axisLine={{ stroke: C.line }} />
+                                <XAxis dataKey="label" tick={axisTick} interval={0} tickLine={{ stroke: C.line }} axisLine={{ stroke: C.line }} />
                                 <YAxis tick={axisTick} width={46} tickLine={{ stroke: C.line }} axisLine={{ stroke: C.line }} />
                                 <Tooltip contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }} formatter={(v) => [`${fmt(Number(v))} kWh`, '']} />
                                 <Legend wrapperStyle={{ fontSize: 11, fontFamily: MONO, color: C.sub }} />
@@ -854,7 +870,8 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     const crumb = (active: boolean): React.CSSProperties => ({
         display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', border: 'none', cursor: 'pointer',
         fontFamily: MONO, fontSize: 12, fontWeight: active ? 700 : 400,
-        background: active ? C.accent : 'transparent', color: active ? '#fff' : C.sub,
+        background: active ? C.accent : 'transparent', color: active ? '#fff' : C.accent,
+        textDecoration: active ? 'none' : 'underline', textUnderlineOffset: 3,
     });
 
     const histRef = useRef<TrendPoint[]>([]); // บัฟเฟอร์กราฟ Realtime history
@@ -874,6 +891,23 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
         return parts.length >= 3 ? parts[1] : undefined;
     })() : undefined;
 
+    // Load comparison data once (no site/building filter — always shows all sites)
+    useEffect(() => {
+        let mounted = true;
+        const loadComparison = async () => {
+            try {
+                const params: any = { mdb: variant === 'mdb' ? 'only' : 'exclude' };
+                const res = await dashboardApi.getZoneDashboard(params);
+                if (!mounted) return;
+                const next = res.data.data as ZoneDashboardPayload;
+                setDashboardData((prev) => ({ ...prev, comparison: next.comparison || [] }));
+            } catch (_) { /* comparison failure is non-critical */ }
+        };
+        loadComparison();
+        return () => { mounted = false; };
+    }, [variant]);
+
+    // Load realtime/trend data filtered by current path (polls every 10s)
     useEffect(() => {
         let mounted = true;
         const load = async () => {
@@ -886,12 +920,12 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 const res = await dashboardApi.getZoneDashboard(params);
                 if (!mounted) return;
                 const next = res.data.data as ZoneDashboardPayload;
-                setDashboardData({
+                setDashboardData((prev) => ({
                     tree: next.tree || [],
                     meters: next.meters || [],
                     trend: next.trend || [],
-                    comparison: next.comparison || [],
-                });
+                    comparison: prev.comparison, // keep comparison from separate load
+                }));
                 histRef.current = (next.trend || []).slice(-120);
                 setLoadError(null);
                 setTick((t) => t + 1);
@@ -1075,7 +1109,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                         background: C.panel, borderBottom: `1px solid ${C.line}`, fontFamily: MONO, fontSize: 12,
                         margin: '0 16px 12px'
                     }}>
-                        <button onClick={() => jump(0)} style={crumb(path.length === 0)}><Home size={12} /> ROOT</button>
+                        <button onClick={() => jump(0)} style={crumb(path.length === 0)}><Home size={12} /> {t('ทุกสาขา', 'All Sites')}</button>
                         {path.map((id, i) => {
                             let n = tree; let node: TreeNode | undefined;
                             for (let k = 0; k <= i; k++) { node = n.find((x) => x.id === path[k]); n = node?.children || []; }

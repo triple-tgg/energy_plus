@@ -227,24 +227,9 @@ export class DashboardService {
         const compZoneFilter = zoneId ? `AND m.zone_id = $${compParams.indexOf(zoneId) + 1}` : '';
 
         const comparisonResult = await query(
-            `WITH realtime_meter_ids AS (
-                SELECT DISTINCT COALESCE(rmm.meter_id, mapped_meter.meter_id) AS meter_id
-                FROM meter_data_realtime r
-                LEFT JOIN realtime_meter_map rmm
-                  ON rmm.realtime_site_id = r.site_id
-                 AND rmm.realtime_address_id = r.address_id
-                 AND rmm.is_active = true
-                 AND (rmm.channel IS NULL OR rmm.channel = r.channel)
-                LEFT JOIN meter mapped_meter
-                  ON mapped_meter.site_el = r.site_id
-                 AND mapped_meter.address::text = r.address_id::text
-                 AND rmm.id IS NULL
-                WHERE COALESCE(rmm.meter_id, mapped_meter.meter_id) IS NOT NULL
-            ),
-            meter_scope AS (
+            `WITH meter_scope AS (
                 SELECT m.meter_id, m.site_id, m.building_id, s.site_name, b.building_name
                 FROM meter m
-                JOIN realtime_meter_ids rmi ON rmi.meter_id = m.meter_id
                 LEFT JOIN sites s ON m.site_id = s.site_id
                 LEFT JOIN buildings b ON m.building_id = b.building_id
                 WHERE m.is_active IS DISTINCT FROM false
@@ -320,7 +305,7 @@ export class DashboardService {
                     LAG(dm.total_kwh) OVER (PARTITION BY dm.meter_id ORDER BY dm.year_month) AS prev_total_kwh
                 FROM actual_meter_data_monthly dm
                 JOIN meter_scope ms ON ms.meter_id = dm.meter_id
-                WHERE dm.year_month >= to_char(CURRENT_DATE - INTERVAL '12 months', 'YYYY-MM')
+                WHERE dm.year_month >= to_char(CURRENT_DATE - INTERVAL '36 months', 'YYYY-MM')
             ),
             monthly AS (
                 SELECT
@@ -332,12 +317,23 @@ export class DashboardService {
                 JOIN meter_scope ms ON ms.meter_id = msr.meter_id
                 GROUP BY msr.month_start, ms.site_id, ms.site_name, ms.building_id, ms.building_name
             ),
+            yearly AS (
+                SELECT
+                    'yearly' AS gran,
+                    date_trunc('year', bucket)::timestamp AS bucket,
+                    site_id, site_name, building_id, building_name,
+                    SUM(kwh) AS kwh
+                FROM monthly
+                GROUP BY date_trunc('year', bucket), site_id, site_name, building_id, building_name
+            ),
             unioned AS (
                 SELECT * FROM hourly
                 UNION ALL
                 SELECT * FROM daily
                 UNION ALL
                 SELECT * FROM monthly
+                UNION ALL
+                SELECT * FROM yearly
             )
             SELECT gran, bucket, 'site' AS entity_type, site_id AS entity_id, site_name AS entity_name, SUM(kwh) AS kwh
             FROM unioned
