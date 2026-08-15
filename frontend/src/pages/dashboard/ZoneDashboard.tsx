@@ -767,7 +767,28 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
         return row;
     }), [buckets, comparison, dim, entities, gran, yearBuckets]);
 
+    const [hiddenEntities, setHiddenEntities] = useState<Set<string>>(new Set());
+
+    const toggleEntity = (name: string) => {
+        setHiddenEntities((prev) => {
+            const next = new Set(prev);
+            if (next.has(name)) {
+                next.delete(name);
+            } else {
+                next.add(name);
+            }
+            return next;
+        });
+    };
+
+    const handleSetDim = (k: string) => {
+        setDim(k);
+        setHiddenEntities(new Set());
+    };
+
     const totals = entities.map((e) => ({ name: e.name, value: +data.reduce((s, r) => s + (r[e.name] || 0), 0).toFixed(1) })).sort((a, b) => b.value - a.value);
+    const visibleTotals = totals.filter((t) => !hiddenEntities.has(t.name));
+    const visibleGrand = visibleTotals.reduce((s, t) => s + t.value, 0) || 1;
     const grand = totals.reduce((s, t) => s + t.value, 0) || 1;
     const colorOf: Record<string, string> = {}; entities.forEach((e, i) => (colorOf[e.name] = C.palette[i % C.palette.length]));
 
@@ -802,14 +823,12 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
             <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 12 }}>
                 <div>
                     <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, marginBottom: 6, textTransform: 'uppercase' }}>{t('เปรียบเทียบตาม', 'Compare By')}</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap' }}>{DIMS.map(([k, lb]) => <button key={k} onClick={() => setDim(k)} style={chip(dim === k)}>{lb}</button>)}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap' }}>{DIMS.map(([k, lb]) => <button key={k} onClick={() => handleSetDim(k)} style={chip(dim === k)}>{lb}</button>)}</div>
                 </div>
                 <div>
                     <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, marginBottom: 6, textTransform: 'uppercase' }}>{t('ช่วงเวลา', 'Period')}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap' }}>{GRANS.map(([k, lb]) => <button key={k} onClick={() => setGran(k)} style={chip(gran === k)}>{lb}</button>)}</div>
                 </div>
-
-
             </div>
 
             <div style={{
@@ -817,6 +836,17 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                 borderLeft: `3px solid ${C.accent}`, padding: '8px 13px', fontFamily: MONO, fontSize: 11.5, color: C.ink, marginBottom: 14, letterSpacing: 0.2
             }}>
                 <Gauge size={14} color={C.accent} /> WINDOW · {windowText}
+                {hiddenEntities.size > 0 && (
+                    <button
+                        onClick={() => setHiddenEntities(new Set())}
+                        style={{
+                            marginLeft: 'auto', background: 'transparent', border: `1px solid ${C.line}`,
+                            color: C.accent, fontFamily: MONO, fontSize: 10.5, padding: '2px 8px', cursor: 'pointer',
+                        }}
+                    >
+                        {t('แสดงทั้งหมด', 'Show All')} ({hiddenEntities.size} {t('ซ่อนอยู่', 'hidden')})
+                    </button>
+                )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 14 }}>
@@ -829,8 +859,41 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                                 <XAxis dataKey="label" tick={axisTick} interval={0} tickLine={{ stroke: C.line }} axisLine={{ stroke: C.line }} />
                                 <YAxis tick={axisTick} width={46} tickLine={{ stroke: C.line }} axisLine={{ stroke: C.line }} />
                                 <Tooltip contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }} formatter={(v) => [`${fmt(Number(v))} kWh`, '']} />
-                                <Legend wrapperStyle={{ fontSize: 11, fontFamily: MONO, color: C.sub }} />
-                                {entities.map((e, i) => <Bar key={e.id} dataKey={e.name} stackId="a" fill={C.palette[i % C.palette.length]} />)}
+                                <Legend
+                                    wrapperStyle={{ fontSize: 11, fontFamily: MONO, color: C.sub, cursor: 'pointer', paddingTop: 6 }}
+                                    onClick={(e) => {
+                                        if (e && e.dataKey) {
+                                            toggleEntity(String(e.dataKey));
+                                        }
+                                    }}
+                                    formatter={(value) => {
+                                        const isHidden = hiddenEntities.has(value);
+                                        return (
+                                            <span
+                                                style={{
+                                                    color: isHidden ? C.sub : C.ink,
+                                                    opacity: isHidden ? 0.35 : 1,
+                                                    textDecoration: isHidden ? 'line-through' : 'none',
+                                                    cursor: 'pointer',
+                                                    userSelect: 'none',
+                                                    padding: '0 4px',
+                                                }}
+                                                title={isHidden ? t('คลิกเพื่อเปิดแสดง', 'Click to show') : t('คลิกเพื่อปิดซ่อน', 'Click to hide')}
+                                            >
+                                                {value}
+                                            </span>
+                                        );
+                                    }}
+                                />
+                                {entities.map((e, i) => (
+                                    <Bar
+                                        key={e.id}
+                                        dataKey={e.name}
+                                        stackId="a"
+                                        fill={colorOf[e.name]}
+                                        hide={hiddenEntities.has(e.name)}
+                                    />
+                                ))}
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -841,22 +904,41 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                     <div style={{ height: 175 }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie data={totals} dataKey="value" nameKey="name" innerRadius={40} outerRadius={68} paddingAngle={1} stroke={C.panel}>
-                                    {totals.map((t) => <Cell key={t.name} fill={colorOf[t.name]} />)}
+                                <Pie data={visibleTotals} dataKey="value" nameKey="name" innerRadius={40} outerRadius={68} paddingAngle={1} stroke={C.panel}>
+                                    {visibleTotals.map((t) => <Cell key={t.name} fill={colorOf[t.name]} />)}
                                 </Pie>
                                 <Tooltip formatter={(v) => `${fmt(Number(v))} kWh`} contentStyle={{ fontSize: 12, fontFamily: MONO, borderRadius: 0, border: `1px solid ${C.line}`, background: C.panel, color: C.ink }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {totals.map((t) => (
-                            <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                                <span style={{ width: 10, height: 10, background: colorOf[t.name] }} />
-                                <span style={{ flex: 1 }}>{t.name}</span>
-                                <span style={{ fontFamily: MONO, color: C.sub, fontSize: 11 }}>{fmt(t.value)}</span>
-                                <b style={{ fontFamily: MONO, minWidth: 44, textAlign: 'right' }}>{((t.value / grand) * 100).toFixed(1)}%</b>
-                            </div>
-                        ))}
+                        {totals.map((item) => {
+                            const isHidden = hiddenEntities.has(item.name);
+                            const pct = isHidden ? 0 : ((item.value / visibleGrand) * 100);
+                            return (
+                                <div
+                                    key={item.name}
+                                    onClick={() => toggleEntity(item.name)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
+                                        cursor: 'pointer', userSelect: 'none',
+                                        opacity: isHidden ? 0.35 : 1,
+                                        textDecoration: isHidden ? 'line-through' : 'none',
+                                        transition: 'all 0.15s ease',
+                                        padding: '2px 4px',
+                                        borderRadius: 4,
+                                    }}
+                                    title={isHidden ? t('คลิกเพื่อเปิดแสดง', 'Click to show') : t('คลิกเพื่อปิดซ่อน', 'Click to hide')}
+                                >
+                                    <span style={{ width: 10, height: 10, background: isHidden ? C.sub : colorOf[item.name], borderRadius: 2, flexShrink: 0 }} />
+                                    <span style={{ flex: 1, color: isHidden ? C.sub : C.ink }}>{item.name}</span>
+                                    <span style={{ fontFamily: MONO, color: C.sub, fontSize: 11 }}>{fmt(item.value)}</span>
+                                    <b style={{ fontFamily: MONO, minWidth: 44, textAlign: 'right', color: isHidden ? C.sub : C.ink }}>
+                                        {isHidden ? 'OFF' : `${pct.toFixed(1)}%`}
+                                    </b>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
