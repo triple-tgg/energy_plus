@@ -39,6 +39,8 @@ export const authApi = {
     login: (data: { username: string; password: string }) => api.post('/auth/login', data),
     me: () => api.get('/auth/me'),
     refresh: (refreshToken: string) => api.post('/auth/refresh', { refreshToken }),
+    changePassword: (data: { currentPassword: string; newPassword: string }) => api.post('/auth/change-password', data),
+    updateProfile: (data: { displayName?: string; email?: string }) => api.put('/auth/profile', data),
 };
 
 // Users

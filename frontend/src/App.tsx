@@ -47,6 +47,10 @@ import HistoryReportPage from './pages/reports/HistoryReportPage';
 import ComparisonReportPage from './pages/reports/ComparisonReportPage';
 import AlarmReportPage from './pages/reports/AlarmReportPage';
 
+// Account
+import ProfilePage from './pages/account/ProfilePage';
+import ChangePasswordPage from './pages/account/ChangePasswordPage';
+
 // Placeholder (for pages not yet implemented)
 import PlaceholderPage from './pages/PlaceholderPage';
 
@@ -99,6 +103,10 @@ const App: React.FC = () => {
                                 <Route path="/dashboard/mdb" element={<ProtectedRoute permissionKey="dashboard"><MdbDashboard /></ProtectedRoute>} />
                                 <Route path="/dashboard/demand" element={<ProtectedRoute permissionKey="dashboard"><DemandDashboard /></ProtectedRoute>} />
                                 <Route path="/dashboard/consumption" element={<ProtectedRoute permissionKey="dashboard"><ConsumptionTable /></ProtectedRoute>} />
+
+                                {/* Account */}
+                                <Route path="/account/profile" element={<ProfilePage />} />
+                                <Route path="/account/change-password" element={<ChangePasswordPage />} />
 
                                 {/* Default */}
                                 <Route path="/" element={<Navigate to="/dashboard/zone" replace />} />

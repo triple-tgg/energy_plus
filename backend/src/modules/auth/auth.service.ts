@@ -196,4 +196,61 @@ export class AuthService {
             throw new AppError(401, 'UNAUTHORIZED', 'Invalid refresh token');
         }
     }
+    async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+        // Get current password hash
+        const userResult = await query(
+            `SELECT password_hash FROM app_user WHERE user_id = $1`,
+            [userId]
+        );
+        if (userResult.rows.length === 0) {
+            throw new AppError(404, 'NOT_FOUND', 'User not found');
+        }
+
+        const user = userResult.rows[0];
+
+        // Verify current password
+        const isValid = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!isValid) {
+            throw new AppError(400, 'INVALID_PASSWORD', 'Current password is incorrect');
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        const newHash = await bcrypt.hash(newPassword, salt);
+
+        // Update password
+        await query(
+            `UPDATE app_user SET password_hash = $1, updated_at = NOW() WHERE user_id = $2`,
+            [newHash, userId]
+        );
+    }
+
+    async updateProfile(userId: number, data: { displayName?: string; email?: string }): Promise<UserProfile> {
+        const setClauses: string[] = [];
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        if (data.displayName !== undefined) {
+            setClauses.push(`display_name = $${paramIndex++}`);
+            values.push(data.displayName);
+        }
+        if (data.email !== undefined) {
+            setClauses.push(`email = $${paramIndex++}`);
+            values.push(data.email);
+        }
+
+        if (setClauses.length === 0) {
+            return this.getProfile(userId);
+        }
+
+        setClauses.push(`updated_at = NOW()`);
+        values.push(userId);
+
+        await query(
+            `UPDATE app_user SET ${setClauses.join(', ')} WHERE user_id = $${paramIndex}`,
+            values
+        );
+
+        return this.getProfile(userId);
+    }
 }

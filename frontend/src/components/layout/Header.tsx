@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -18,6 +19,7 @@ const Header: React.FC = () => {
     const { user, logout, selectedSiteId, setSelectedSiteId } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const { language, toggleLanguage, t } = useLanguage();
+    const navigate = useNavigate();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [sitesList, setSitesList] = useState<{ siteId: number; siteName: string }[]>([]);
@@ -394,14 +396,14 @@ const Header: React.FC = () => {
 
                     {dropdownOpen && (
                         <div className="topbar__dropdown">
-                            <button className="topbar__dropdown-item" onClick={() => setDropdownOpen(false)}>
+                            <button className="topbar__dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/account/profile'); }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                                     <circle cx="12" cy="7" r="4" />
                                 </svg>
                                 {t('ตั้งค่าโปรไฟล์', 'Profile Settings')}
                             </button>
-                            <button className="topbar__dropdown-item" onClick={() => setDropdownOpen(false)}>
+                            <button className="topbar__dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/account/change-password'); }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
