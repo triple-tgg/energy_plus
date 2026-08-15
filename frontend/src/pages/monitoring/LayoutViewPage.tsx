@@ -866,91 +866,93 @@ const LayoutViewPage: React.FC = () => {
                     <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center', flexShrink: 0 }}>
                         {/* Legend: Status (Colored) & Device Types (Neutral) */}
                         <div style={{
-                            flex: 1, display: 'flex', gap: 8, padding: '6px 14px',
-                            background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, alignItems: 'center',
-                            flexWrap: 'wrap', minWidth: 0,
+                            flex: 1, display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 14px',
+                            background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6,
+                            minWidth: 0,
                         }}>
-                            {/* Status Section (Green / Red / Grey) */}
-                            <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('สถานะ:', 'Status:')}</span>
-                            {Object.entries(STATUS_TYPES).map(([key, info]) => {
-                                const isActive = activeStatusFilter === key;
-                                const count = statusCounts[key as keyof typeof statusCounts] || 0;
-                                return (
-                                    <div key={key}
-                                        onClick={() => setActiveStatusFilter(activeStatusFilter === key ? null : key)}
+                            {/* Row 1: Status */}
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap' }}>
+                                <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>{t('สถานะ:', 'Status:')}</span>
+                                {Object.entries(STATUS_TYPES).map(([key, info]) => {
+                                    const isActive = activeStatusFilter === key;
+                                    const count = statusCounts[key as keyof typeof statusCounts] || 0;
+                                    return (
+                                        <div key={key}
+                                            onClick={() => setActiveStatusFilter(activeStatusFilter === key ? null : key)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                padding: '3px 9px', borderRadius: 6, cursor: 'pointer',
+                                                background: isActive ? info.bg : 'transparent',
+                                                border: `1.5px solid ${isActive ? info.border : C.line}`,
+                                                boxShadow: isActive ? `0 2px 8px ${info.color}35` : 'none',
+                                                transition: 'all 0.15s ease',
+                                                userSelect: 'none'
+                                            }}
+                                            title={isActive ? t('แสดงทั้งหมด', 'Show All') : `${t('กรองแสดงเฉพาะ', 'Filter')} ${t(info.labelTh, info.labelEn)}`}
+                                        >
+                                            <span style={{ fontSize: 11 }}>{info.icon}</span>
+                                            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: info.color }}>
+                                                {t(info.labelTh, info.labelEn)}
+                                            </span>
+                                            <span style={{
+                                                fontFamily: MONO, fontSize: 10, fontWeight: 800,
+                                                padding: '1px 6px', borderRadius: 10,
+                                                background: info.bg, color: info.color,
+                                                border: `1px solid ${info.border}40`,
+                                            }}>{count}</span>
+                                        </div>
+                                    );
+                                })}
+
+                                {(activeLegendFilter || activeStatusFilter) && (
+                                    <button onClick={() => { setActiveLegendFilter(null); setActiveStatusFilter(null); }}
                                         style={{
-                                            display: 'flex', alignItems: 'center', gap: 6,
-                                            padding: '3px 9px', borderRadius: 6, cursor: 'pointer',
-                                            background: isActive ? info.bg : 'transparent',
-                                            border: `1.5px solid ${isActive ? info.border : C.line}`,
-                                            boxShadow: isActive ? `0 2px 8px ${info.color}35` : 'none',
-                                            transition: 'all 0.15s ease',
-                                            userSelect: 'none'
-                                        }}
-                                        title={isActive ? t('แสดงทั้งหมด', 'Show All') : `${t('กรองแสดงเฉพาะ', 'Filter')} ${t(info.labelTh, info.labelEn)}`}
-                                    >
-                                        <span style={{ fontSize: 11 }}>{info.icon}</span>
-                                        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: info.color }}>
-                                            {t(info.labelTh, info.labelEn)}
-                                        </span>
-                                        <span style={{
-                                            fontFamily: MONO, fontSize: 10, fontWeight: 800,
-                                            padding: '1px 6px', borderRadius: 10,
-                                            background: info.bg, color: info.color,
-                                            border: `1px solid ${info.border}40`,
-                                        }}>{count}</span>
-                                    </div>
-                                );
-                            })}
+                                            fontFamily: MONO, fontSize: 10, color: C.accent, background: 'transparent',
+                                            border: `1px dashed ${C.accent}`, borderRadius: 4, padding: '3px 8px', cursor: 'pointer',
+                                            marginLeft: 'auto',
+                                        }}>
+                                        ✕ {t('ล้างตัวกรอง', 'Clear Filter')}
+                                    </button>
+                                )}
 
-                            <div style={{ width: 1, height: 18, background: C.line, margin: '0 4px' }} />
+                                <div style={{ flex: 1 }} />
+                                <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, whiteSpace: 'nowrap' }}>{t('จุดทั้งหมด', 'Total')} {points.length} {t('จุด', 'points')}</span>
+                            </div>
 
-                            {/* Meter Type Section (Neutral monochrome, no colors) */}
-                            <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('ประเภท:', 'Types:')}</span>
-                            {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb', 'temp', 'humidity'].includes(k)).map(([key, info]) => {
-                                const isActive = activeLegendFilter === key;
-                                const count = typeCounts[key] || 0;
-                                return (
-                                    <div key={key}
-                                        onClick={() => setActiveLegendFilter(activeLegendFilter === key ? null : key)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 5,
-                                            padding: '3px 8px', borderRadius: 6, cursor: 'pointer',
-                                            background: isActive ? C.panel2 : 'transparent',
-                                            border: `1.5px solid ${isActive ? C.ink : C.line}`,
-                                            color: C.ink,
-                                            transition: 'all 0.15s ease',
-                                            userSelect: 'none'
-                                        }}
-                                        title={isActive ? t('แสดงทั้งหมด', 'Show All') : `${t('แสดงเฉพาะ', 'Show Only')} ${t(info.labelTh, info.labelEn)}`}
-                                    >
-                                        <span style={{ fontSize: 11 }}><i className={info.faIcon} /></span>
-                                        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.ink }}>
-                                            {t(info.labelTh, info.labelEn)}
-                                        </span>
-                                        <span style={{
-                                            fontFamily: MONO, fontSize: 10, fontWeight: 700,
-                                            padding: '1px 5px', borderRadius: 8,
-                                            background: C.panel2, color: C.sub,
-                                            border: `1px solid ${C.line}`,
-                                        }}>{count}</span>
-                                    </div>
-                                );
-                            })}
-
-                            {(activeLegendFilter || activeStatusFilter) && (
-                                <button onClick={() => { setActiveLegendFilter(null); setActiveStatusFilter(null); }}
-                                    style={{
-                                        fontFamily: MONO, fontSize: 10, color: C.accent, background: 'transparent',
-                                        border: `1px dashed ${C.accent}`, borderRadius: 4, padding: '3px 8px', cursor: 'pointer',
-                                        marginLeft: 4,
-                                    }}>
-                                    ✕ {t('ล้างตัวกรอง', 'Clear Filter')}
-                                </button>
-                            )}
-
-                            <div style={{ flex: 1 }} />
-                            <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, whiteSpace: 'nowrap' }}>{t('จุดทั้งหมด', 'Total')} {points.length} {t('จุด', 'points')}</span>
+                            {/* Row 2: Types */}
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap' }}>
+                                <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>{t('ประเภท:', 'Types:')}</span>
+                                {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb', 'temp', 'humidity'].includes(k)).map(([key, info]) => {
+                                    const isActive = activeLegendFilter === key;
+                                    const count = typeCounts[key] || 0;
+                                    return (
+                                        <div key={key}
+                                            onClick={() => setActiveLegendFilter(activeLegendFilter === key ? null : key)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 5,
+                                                padding: '3px 8px', borderRadius: 6, cursor: 'pointer',
+                                                background: isActive ? C.panel2 : 'transparent',
+                                                border: `1.5px solid ${isActive ? C.ink : C.line}`,
+                                                color: C.ink,
+                                                transition: 'all 0.15s ease',
+                                                userSelect: 'none'
+                                            }}
+                                            title={isActive ? t('แสดงทั้งหมด', 'Show All') : `${t('แสดงเฉพาะ', 'Show Only')} ${t(info.labelTh, info.labelEn)}`}
+                                        >
+                                            <span style={{ fontSize: 11 }}><i className={info.faIcon} /></span>
+                                            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.ink }}>
+                                                {t(info.labelTh, info.labelEn)}
+                                            </span>
+                                            <span style={{
+                                                fontFamily: MONO, fontSize: 10, fontWeight: 700,
+                                                padding: '1px 5px', borderRadius: 8,
+                                                background: C.panel2, color: C.sub,
+                                                border: `1px solid ${C.line}`,
+                                            }}>{count}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         {/* Zoom Controls */}
