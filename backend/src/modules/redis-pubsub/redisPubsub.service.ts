@@ -298,7 +298,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
         LEFT JOIN sites s ON m.site_id = s.site_id
         LEFT JOIN buildings b ON m.building_id = b.building_id
         LEFT JOIN zones z ON m.zone_id = z.zone_id
-        WHERE m.is_active IS DISTINCT FROM false
+        WHERE 1=1
             ${whereClause}
         ORDER BY s.site_name, b.building_name, COALESCE(m.floor, 0), m.meter_code`,
         params

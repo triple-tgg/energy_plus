@@ -343,9 +343,11 @@ const RealtimePage: React.FC = () => {
     }, [fetchLatestData, fetchChartHistory, fetchAlerts]);
 
     // Summary calculations
+    const activeMeters = meters.filter(m => m.is_active !== false);
+    const inactiveMeters = meters.filter(m => m.is_active === false);
     const totalMeters = meters.length;
-    const onlineMeters = meters.filter(m => !isMeterOffline(m));
-    const offlineMeters = meters.filter(m => isMeterOffline(m));
+    const onlineMeters = activeMeters.filter(m => !isMeterOffline(m));
+    const offlineMeters = activeMeters.filter(m => isMeterOffline(m));
     const totalPower = onlineMeters.reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
     const avgVoltage = onlineMeters.length > 0
         ? onlineMeters.reduce((sum, m) => sum + ((m.vl1 + m.vl2 + m.vl3) / 3 || 0), 0) / onlineMeters.length
@@ -462,6 +464,12 @@ const RealtimePage: React.FC = () => {
                             <span style={{ color: C.red, display: 'flex', alignItems: 'center', gap: 3 }}>
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, display: 'inline-block' }} />
                                 {t('ออฟไลน์', 'OFFLINE')} {offlineMeters.length}
+                            </span>
+                        )}
+                        {inactiveMeters.length > 0 && (
+                            <span style={{ color: '#6B7280', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6B7280', display: 'inline-block' }} />
+                                {t('ไม่ใช้งาน', 'INACTIVE')} {inactiveMeters.length}
                             </span>
                         )}
                     </div>
