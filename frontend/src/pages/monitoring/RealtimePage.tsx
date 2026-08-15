@@ -416,24 +416,6 @@ const RealtimePage: React.FC = () => {
                         ))}
                     </select>
                 </div>
-
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: C.barSub }}>{t('ซิงค์ล่าสุด:', 'LAST SYNC:')}</span>
-                        <span style={{ color: '#fff', fontWeight: 700 }}>{lastFetchTime || '-'}</span>
-                    </div>
-
-                    <button
-                        onClick={() => { fetchLatestData(false); fetchChartHistory(); }}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 11, color: '#fff',
-                            background: 'transparent', border: '1px solid #ffffff33', padding: '5px 9px', cursor: 'pointer'
-                        }}
-                        title={t('ซิงค์ข้อมูลทันที', 'Force Sync Data')}
-                    >
-                        <RefreshCw size={11} className={dbSyncStatus === 'syncing' ? 'spin' : ''} /> {t('ซิงค์', 'SYNC')}
-                    </button>
-                </div>
             </div>
 
             {/* Metrics cards grid */}
