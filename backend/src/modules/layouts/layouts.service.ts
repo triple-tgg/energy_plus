@@ -5,10 +5,26 @@ import { AppError } from '../../middleware/errorHandler';
 export class LayoutsService {
     async getLayouts(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const countResult = await query(`SELECT COUNT(*) FROM layouts`);
+        const params: any[] = [];
+        const filters: string[] = [];
+        if (queryParams.siteId || queryParams.site_id) {
+            params.push(parseInt(queryParams.siteId || queryParams.site_id, 10));
+            filters.push(`l.site_id = $${params.length}`);
+        }
+        if (queryParams.buildingId || queryParams.building_id) {
+            params.push(parseInt(queryParams.buildingId || queryParams.building_id, 10));
+            filters.push(`l.building_id = $${params.length}`);
+        }
+        const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+
+        const countResult = await query(`SELECT COUNT(*) FROM layouts l ${whereClause}`, params);
         const total = parseInt(countResult.rows[0].count, 10);
+
+        params.push(limit, offset);
         const result = await query(
             `SELECT l.*,
+                    s.site_name, s.site_name_th, s.site_name_en,
+                    b.building_name, b.building_name_th, b.building_name_en,
                     COALESCE(
                         (SELECT json_agg(json_build_object(
                             'point_type', summary.point_type,
@@ -20,9 +36,11 @@ export class LayoutsService {
                                       WHEN lp.point_type IN ('sensor', 'water') THEN 'water'
                                       WHEN lp.point_type IN ('gen', 'gas') THEN 'gas'
                                       WHEN lp.point_type IN ('ups', 'mdb') THEN 'mdb'
+                                      WHEN lp.point_type IN ('temp', 'temperature') THEN 'temp'
+                                      WHEN lp.point_type IN ('humidity', 'hum') THEN 'humidity'
                                       ELSE lp.point_type
                                     END AS point_type,
-                                    COUNT(*)::int AS meter_count
+                                     COUNT(*)::int AS meter_count
                              FROM layout_points lp
                              WHERE lp.layout_id = l.id
                                AND lp.meter_id IS NOT NULL
@@ -31,30 +49,42 @@ export class LayoutsService {
                         ), '[]'::json
                     ) AS point_summary
              FROM layouts l
-             ORDER BY l.id DESC LIMIT $1 OFFSET $2`,
-            [limit, offset]
+             LEFT JOIN sites s ON l.site_id = s.site_id
+             LEFT JOIN buildings b ON l.building_id = b.building_id
+             ${whereClause}
+             ORDER BY l.id DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
         );
         return { data: result.rows, total, page, limit };
     }
 
     async getLayoutById(id: number) {
-        const result = await query(`SELECT * FROM layouts WHERE id = $1`, [id]);
+        const result = await query(
+            `SELECT l.*,
+                    s.site_name, s.site_name_th, s.site_name_en,
+                    b.building_name, b.building_name_th, b.building_name_en
+             FROM layouts l
+             LEFT JOIN sites s ON l.site_id = s.site_id
+             LEFT JOIN buildings b ON l.building_id = b.building_id
+             WHERE l.id = $1`,
+            [id]
+        );
         if (result.rows.length === 0) {
             throw new AppError(404, 'NOT_FOUND', 'Layout not found');
         }
         return result.rows[0];
     }
 
-    async createLayout(data: { name: string; position?: string; image_name?: string; image_url?: string }) {
+    async createLayout(data: { name: string; position?: string; image_name?: string; image_url?: string; site_id?: number | null; building_id?: number | null }) {
         const result = await query(
-            `INSERT INTO layouts (name, position, image_name, image_url, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING *`,
-            [data.name, data.position || null, data.image_name || null, data.image_url || null]
+            `INSERT INTO layouts (name, position, image_name, image_url, site_id, building_id, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) RETURNING *`,
+            [data.name, data.position || null, data.image_name || null, data.image_url || null, data.site_id || null, data.building_id || null]
         );
         return result.rows[0];
     }
 
-    async updateLayout(id: number, data: { name: string; position?: string; image_name?: string; image_url?: string }) {
+    async updateLayout(id: number, data: { name: string; position?: string; image_name?: string; image_url?: string; site_id?: number | null; building_id?: number | null }) {
         const existing = await this.getLayoutById(id);
 
         const result = await query(
@@ -63,13 +93,17 @@ export class LayoutsService {
                  position = $2, 
                  image_name = COALESCE($3, image_name), 
                  image_url = COALESCE($4, image_url), 
+                 site_id = $5,
+                 building_id = $6,
                  updated_at = NOW() 
-             WHERE id = $5 RETURNING *`,
+             WHERE id = $7 RETURNING *`,
             [
                 data.name,
                 data.position || null,
                 data.image_name || null,
                 data.image_url || null,
+                data.site_id !== undefined ? data.site_id : existing.site_id,
+                data.building_id !== undefined ? data.building_id : existing.building_id,
                 id
             ]
         );

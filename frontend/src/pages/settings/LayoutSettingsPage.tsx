@@ -13,6 +13,8 @@ interface LayoutForm {
     name: string;
     imageName: string;
     position: string;
+    siteId: string;
+    buildingId: string;
     imageFile: File | null;
 }
 
@@ -29,7 +31,7 @@ interface LayoutPoint {
     config?: any;
 }
 
-const emptyForm: LayoutForm = { name: '', imageName: '', position: '', imageFile: null };
+const emptyForm: LayoutForm = { name: '', imageName: '', position: '', siteId: '', buildingId: '', imageFile: null };
 
 const POINT_TYPES = [
     { key: 'power', labelTh: 'ไฟฟ้า (Power)', labelEn: 'Power', icon: 'fa fa-bolt', color: '#F59E0B', emoji: '⚡' },
@@ -113,7 +115,7 @@ const getIconColor = (iconName: string | null | undefined, fallbackColor: string
    ═══════════════════════════════════════════════════════════════ */
 const LayoutSettingsPage: React.FC = () => {
     const { theme } = useTheme();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const C = THEMES[theme];
 
     // --- Layout CRUD state ---
@@ -134,6 +136,31 @@ const LayoutSettingsPage: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+    // --- Sites & Buildings state ---
+    const [sites, setSites] = useState<any[]>([]);
+    const [allBuildings, setAllBuildings] = useState<any[]>([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const { sitesApi } = await import('../../api/client');
+                const [sitesRes, buildingsRes] = await Promise.all([
+                    sitesApi.getAll({ limit: 100, activeOnly: true }),
+                    sitesApi.getAllBuildings({ limit: 200 }),
+                ]);
+                setSites(sitesRes.data?.data || []);
+                setAllBuildings(buildingsRes.data?.data || []);
+            } catch (e) {
+                console.error('Failed to load sites/buildings:', e);
+            }
+        })();
+    }, []);
+
+    const formBuildings = useMemo(() => {
+        if (!form.siteId) return allBuildings;
+        return allBuildings.filter((b: any) => String(b.site_id) === String(form.siteId));
+    }, [allBuildings, form.siteId]);
 
     // --- Point Editor state ---
     const [editorOpen, setEditorOpen] = useState(false);
@@ -169,7 +196,14 @@ const LayoutSettingsPage: React.FC = () => {
 
     const handleEdit = (row: any) => {
         setEditId(row.id);
-        setForm({ name: row.name || '', imageName: row.image_name || '', position: row.position || '', imageFile: null });
+        setForm({
+            name: row.name || '',
+            imageName: row.image_name || '',
+            position: row.position || '',
+            siteId: row.site_id ? String(row.site_id) : '',
+            buildingId: row.building_id ? String(row.building_id) : '',
+            imageFile: null
+        });
         setFormError('');
         setShowModal(true);
     };
@@ -181,6 +215,8 @@ const LayoutSettingsPage: React.FC = () => {
             const formData = new FormData();
             formData.append('name', form.name);
             formData.append('position', form.position);
+            if (form.siteId) formData.append('site_id', form.siteId);
+            if (form.buildingId) formData.append('building_id', form.buildingId);
             if (form.imageFile) formData.append('image', form.imageFile);
             if (editId) {
                 await layoutsApi.update(editId, formData);
@@ -303,6 +339,16 @@ const LayoutSettingsPage: React.FC = () => {
        ─────────────────────────────────────── */
     const columns = useMemo(() => [
         { key: 'name', title: t('ชื่อแผนผัง', 'Name') },
+        {
+            key: 'site_name',
+            title: t('ไซต์', 'Site'),
+            render: (_: any, row: any) => (language === 'en' ? (row.site_name_en || row.site_name) : (row.site_name_th || row.site_name)) || '—',
+        },
+        {
+            key: 'building_name',
+            title: t('อาคาร', 'Building'),
+            render: (_: any, row: any) => (language === 'en' ? (row.building_name_en || row.building_name) : (row.building_name_th || row.building_name)) || '—',
+        },
         { key: 'image_name', title: t('ชื่อไฟล์รูปภาพ', 'Image Name') },
         {
             key: 'image_url', title: t('รูปภาพ', 'Image'),
@@ -326,6 +372,7 @@ const LayoutSettingsPage: React.FC = () => {
                                     padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: MONO, fontWeight: 600,
                                     background: color + '20', color: color,
                                     border: `1px solid ${color}40`,
+                                    transition: 'all 0.15s ease',
                                 }}>
                                     {renderPointIcon(typeInfo.icon, typeInfo.emoji, 10)}
                                     {t(typeInfo.labelTh, typeInfo.labelEn)}
@@ -347,7 +394,7 @@ const LayoutSettingsPage: React.FC = () => {
                 </div>
             ),
         },
-    ], [t]); // eslint-disable-line react-hooks/exhaustive-deps
+    ], [t, language]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ═══════════════════════════════════════════════════════
        Render
@@ -365,6 +412,36 @@ const LayoutSettingsPage: React.FC = () => {
                 <div className="form-group">
                     <label className="form-label">{t('ชื่อแผนผัง', 'Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
                     <input type="text" className="form-control" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('เช่น 111PMT_อาคาร_A', 'e.g. 111PMT_Building_A')} />
+                </div>
+                <div className="form-group">
+                    <label className="form-label">{t('ไซต์', 'Site')}</label>
+                    <select
+                        className="form-control"
+                        value={form.siteId}
+                        onChange={e => setForm({ ...form, siteId: e.target.value, buildingId: '' })}
+                    >
+                        <option value="">— {t('เลือกไซต์', 'Select Site')} —</option>
+                        {sites.map((s: any) => (
+                            <option key={s.site_id} value={s.site_id}>
+                                {language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div className="form-group">
+                    <label className="form-label">{t('อาคาร', 'Building')}</label>
+                    <select
+                        className="form-control"
+                        value={form.buildingId}
+                        onChange={e => setForm({ ...form, buildingId: e.target.value })}
+                    >
+                        <option value="">— {t('เลือกอาคาร', 'Select Building')} —</option>
+                        {formBuildings.map((b: any) => (
+                            <option key={b.building_id} value={b.building_id}>
+                                {language === 'en' ? (b.building_name_en || b.building_name) : (b.building_name_th || b.building_name)}
+                            </option>
+                        ))}
+                    </select>
                 </div>
                 <div className="form-group">
                     <label className="form-label">{t('คำอธิบาย', 'Description')}</label>

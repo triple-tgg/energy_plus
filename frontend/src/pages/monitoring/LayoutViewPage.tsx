@@ -398,8 +398,13 @@ const LayoutViewPage: React.FC = () => {
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px' }}>
                     <label style={{ fontFamily: MONO, fontSize: 11, color: C.barSub }}>{t('เลือกแผนผัง:', 'Select Layout:')}</label>
                     <select value={selectedId || ''} onChange={e => setSelectedId(parseInt(e.target.value, 10))}
-                        style={{ padding: '5px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none', minWidth: 200 }}>
-                        {layouts.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
+                        style={{ padding: '5px 10px', fontFamily: MONO, fontSize: 12, background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 4, outline: 'none', minWidth: 220 }}>
+                        {layouts.map((l: any) => {
+                            const bName = language === 'en' ? (l.building_name_en || l.building_name) : (l.building_name_th || l.building_name);
+                            const sName = language === 'en' ? (l.site_name_en || l.site_name) : (l.site_name_th || l.site_name);
+                            const locTag = bName || sName ? ` [${[sName, bName].filter(Boolean).join(' · ')}]` : '';
+                            return (<option key={l.id} value={l.id}>{l.name}{locTag}</option>);
+                        })}
                     </select>
                 </div>
             </div>

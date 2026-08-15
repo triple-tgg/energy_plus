@@ -26,6 +26,8 @@ export class LayoutsController {
     async createLayout(req: Request, res: Response, next: NextFunction) {
         try {
             const { name, position } = req.body;
+            const site_id = req.body.site_id ? parseInt(req.body.site_id, 10) : (req.body.siteId ? parseInt(req.body.siteId, 10) : null);
+            const building_id = req.body.building_id ? parseInt(req.body.building_id, 10) : (req.body.buildingId ? parseInt(req.body.buildingId, 10) : null);
             let image_name = undefined;
             let image_url = undefined;
 
@@ -38,6 +40,8 @@ export class LayoutsController {
             const newLayout = await svc.createLayout({
                 name,
                 position,
+                site_id,
+                building_id,
                 image_name,
                 image_url
             });
@@ -52,6 +56,8 @@ export class LayoutsController {
         try {
             const id = parseInt(req.params.id, 10);
             const { name, position } = req.body;
+            const site_id = req.body.site_id !== undefined ? (req.body.site_id ? parseInt(req.body.site_id, 10) : null) : (req.body.siteId !== undefined ? (req.body.siteId ? parseInt(req.body.siteId, 10) : null) : undefined);
+            const building_id = req.body.building_id !== undefined ? (req.body.building_id ? parseInt(req.body.building_id, 10) : null) : (req.body.buildingId !== undefined ? (req.body.buildingId ? parseInt(req.body.buildingId, 10) : null) : undefined);
             let image_name = undefined;
             let image_url = undefined;
 
@@ -64,6 +70,8 @@ export class LayoutsController {
             const updatedLayout = await svc.updateLayout(id, {
                 name,
                 position,
+                site_id,
+                building_id,
                 image_name,
                 image_url
             });
