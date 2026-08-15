@@ -277,54 +277,47 @@ export class DashboardService {
                     LAG(dd.total_kwh) OVER (PARTITION BY dd.meter_id ORDER BY dd.date_keep) AS prev_total_kwh
                 FROM actual_meter_data_daily dd
                 JOIN meter_scope ms ON ms.meter_id = dd.meter_id
-                WHERE dd.date_keep >= CURRENT_DATE - INTERVAL '35 days'
+                WHERE dd.date_keep >= CURRENT_DATE - INTERVAL '36 months'
             ),
-            daily_consumption AS (
+            daily_diff AS (
                 SELECT
-                    ds.date_keep::timestamp AS bucket,
-                    ms.site_id, ms.site_name, ms.building_id, ms.building_name,
-                    GREATEST(SUM(ds.total_kwh - COALESCE(ds.prev_total_kwh, 0)), 0) AS kwh
-                FROM daily_source ds
-                JOIN meter_scope ms ON ms.meter_id = ds.meter_id
-                GROUP BY ds.date_keep, ms.site_id, ms.site_name, ms.building_id, ms.building_name
+                    meter_id, date_keep,
+                    CASE
+                        WHEN prev_total_kwh IS NULL THEN 0
+                        WHEN total_kwh >= prev_total_kwh THEN total_kwh - prev_total_kwh
+                        ELSE total_kwh
+                    END AS kwh
+                FROM daily_source
             ),
             daily AS (
                 SELECT
-                    'month' AS gran, bucket, site_id, site_name, building_id, building_name, kwh
-                FROM daily_consumption
-                WHERE bucket >= CURRENT_DATE - INTERVAL '30 days'
-                UNION ALL
-                SELECT
-                    'week' AS gran, bucket, site_id, site_name, building_id, building_name, kwh
-                FROM daily_consumption
-                WHERE bucket >= CURRENT_DATE - INTERVAL '7 days'
-            ),
-            monthly_source AS (
-                SELECT
-                    dm.meter_id, to_date(dm.year_month || '-01', 'YYYY-MM-DD') AS month_start, dm.total_kwh,
-                    LAG(dm.total_kwh) OVER (PARTITION BY dm.meter_id ORDER BY dm.year_month) AS prev_total_kwh
-                FROM actual_meter_data_monthly dm
-                JOIN meter_scope ms ON ms.meter_id = dm.meter_id
-                WHERE dm.year_month >= to_char(CURRENT_DATE - INTERVAL '36 months', 'YYYY-MM')
+                    'week' AS gran,
+                    to_char(d.date_keep, 'YYYY-MM-DD') AS bucket,
+                    ms.site_id, ms.site_name, ms.building_id, ms.building_name,
+                    SUM(d.kwh) AS kwh
+                FROM daily_diff d
+                JOIN meter_scope ms ON ms.meter_id = d.meter_id
+                WHERE d.date_keep >= CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY d.date_keep, ms.site_id, ms.site_name, ms.building_id, ms.building_name
             ),
             monthly AS (
                 SELECT
                     'year' AS gran,
-                    msr.month_start::timestamp AS bucket,
+                    to_char(date_trunc('month', d.date_keep), 'YYYY-MM-01') AS bucket,
                     ms.site_id, ms.site_name, ms.building_id, ms.building_name,
-                    GREATEST(SUM(msr.total_kwh - COALESCE(msr.prev_total_kwh, 0)), 0) AS kwh
-                FROM monthly_source msr
-                JOIN meter_scope ms ON ms.meter_id = msr.meter_id
-                GROUP BY msr.month_start, ms.site_id, ms.site_name, ms.building_id, ms.building_name
+                    SUM(d.kwh) AS kwh
+                FROM daily_diff d
+                JOIN meter_scope ms ON ms.meter_id = d.meter_id
+                GROUP BY date_trunc('month', d.date_keep), ms.site_id, ms.site_name, ms.building_id, ms.building_name
             ),
             yearly AS (
                 SELECT
                     'yearly' AS gran,
-                    date_trunc('year', bucket)::timestamp AS bucket,
+                    to_char(date_trunc('year', date_trunc('month', d.date_keep)), 'YYYY-01-01') AS bucket,
                     site_id, site_name, building_id, building_name,
                     SUM(kwh) AS kwh
                 FROM monthly
-                GROUP BY date_trunc('year', bucket), site_id, site_name, building_id, building_name
+                GROUP BY date_trunc('year', date_trunc('month', d.date_keep)), site_id, site_name, building_id, building_name
             ),
             unioned AS (
                 SELECT * FROM hourly
@@ -340,10 +333,11 @@ export class DashboardService {
             WHERE site_id IS NOT NULL
             GROUP BY gran, bucket, site_id, site_name
             UNION ALL
-            SELECT gran, bucket, 'building' AS entity_type, building_id AS entity_id, building_name AS entity_name, SUM(kwh) AS kwh
+            SELECT gran, bucket, 'building' AS entity_type, building_id AS entity_id,
+                   COALESCE(site_name, '') || '·' || building_name AS entity_name, SUM(kwh) AS kwh
             FROM unioned
             WHERE building_id IS NOT NULL
-            GROUP BY gran, bucket, building_id, building_name
+            GROUP BY gran, bucket, building_id, site_name, building_name
             ORDER BY gran, bucket, entity_type, entity_name`,
             compParams
         );

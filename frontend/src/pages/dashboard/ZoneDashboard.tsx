@@ -669,20 +669,38 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
     const [billing, setBilling] = useState(false);
 
     const entities = useMemo(() => {
-        if (dim === 'building' || dim === 'mdb') {
-            const list: { id: string; name: string; weight: number }[] = [];
-            tree.forEach((b) => b.children?.forEach((bd) => {
-                const w = meters.filter((m) => m.pathIds[1] === bd.id).reduce((s, m) => s + period(m), 0);
-                const short = b.name.replace('สาขา', '');
-                list.push({ id: bd.id, name: `${dim === 'mdb' ? 'MDB ' : ''}${formatShortBranchName(short, t)}·${formatNodeName(bd.name, t)}`, weight: w });
+        const entityType = dim === 'building' ? 'building' : 'site';
+        // Build entities from comparison data to show ALL sites/buildings regardless of realtime filter
+        const map = new Map<number, string>();
+        comparison.forEach((c) => {
+            if (c.entityType === entityType && !map.has(c.entityId)) {
+                map.set(c.entityId, c.entityName);
+            }
+        });
+        // Fallback to tree if no comparison data yet
+        if (map.size === 0) {
+            if (dim === 'building') {
+                const list: { id: string; name: string; weight: number }[] = [];
+                tree.forEach((b) => b.children?.forEach((bd) => {
+                    const w = meters.filter((m) => m.pathIds[1] === bd.id).reduce((s, m) => s + period(m), 0);
+                    const short = b.name.replace('สาขา', '');
+                    list.push({ id: bd.id, name: `${formatShortBranchName(short, t)}·${formatNodeName(bd.name, t)}`, weight: w });
+                }));
+                return list;
+            }
+            return tree.map((b) => ({
+                id: b.id, name: formatShortBranchName(b.name.replace('สาขา', ''), t),
+                weight: meters.filter((m) => m.pathIds[0] === b.id).reduce((s, m) => s + period(m), 0),
             }));
-            return list;
         }
-        return tree.map((b) => ({
-            id: b.id, name: formatShortBranchName(b.name.replace('สาขา', ''), t),
-            weight: meters.filter((m) => m.pathIds[0] === b.id).reduce((s, m) => s + period(m), 0),
+        return Array.from(map.entries()).map(([id, name]) => ({
+            id: `${entityType}-${id}`,
+            name: entityType === 'site'
+                ? formatShortBranchName(name.replace('สาขา', ''), t)
+                : name, // building names already have "site·building" format
+            weight: 0,
         }));
-    }, [dim, tree, meters, t]);
+    }, [dim, tree, meters, comparison, t]);
 
     const now2 = new Date();
     const curYear = now2.getFullYear();
@@ -731,10 +749,16 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
             const v = comparison
                 .filter((item) => item.gran === backendGran && item.entityType === entityType && item.entityId === entityId)
                 .filter((item) => {
-                    const dt = new Date(item.bucket);
-                    if (gran === 'year') return dt.getFullYear() === yearBuckets[bi];
-                    if (gran === 'month') return dt.getMonth() === bi;
-                    if (gran === 'week') return ((dt.getDay() + 6) % 7) === bi;
+                    const str = String(item.bucket);
+                    const parts = str.split(/[-T :]/);
+                    const y = Number(parts[0]);
+                    const m = Number(parts[1]) - 1;
+                    if (gran === 'year') return y === yearBuckets[bi];
+                    if (gran === 'month') return m === bi;
+                    if (gran === 'week') {
+                        const dt = new Date(str);
+                        return ((dt.getDay() + 6) % 7) === bi;
+                    }
                     return false;
                 })
                 .reduce((sum, item) => sum + item.kwh, 0);
