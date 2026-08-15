@@ -16,8 +16,8 @@ const THEMES = {
         successBg: '#16a34a', infoBg: '#2B4C7E', darkBg: '#23261E', warnBg: '#92400e',
     },
     dark: {
-        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
-        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
+        bg: '#F0F2F5', panel: '#FFFFFF', panel2: '#F5F6F8', ink: '#1A1D23', sub: '#5F6B7A',
+        line: '#D8DCE3', bar: '#E8EBF0', barSub: '#8892A0', accent: '#2B6CB0',
         successBg: '#34d399', infoBg: '#36C2CE', darkBg: '#1C232E', warnBg: '#fbbf24',
     },
 };

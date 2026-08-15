@@ -56,7 +56,7 @@ const THEMES = {
         line: '#D4D1C0', bar: '#23261E', accent: '#2B4C7E',
     },
     dark: {
-        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
+        bg: '#F0F2F5', panel: '#FFFFFF', panel2: '#F5F6F8', ink: '#1A1D23', sub: '#5F6B7A',
         line: '#2A313C', bar: '#080A0E', accent: '#36C2CE',
     },
 };

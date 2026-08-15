@@ -44,11 +44,11 @@ const THEMES: Record<'light' | 'dark', Theme> = {
         green: '#2E7D46', yellow: '#C08A1E', red: '#B4452E', grey: '#9AA08C',
         palette: ['#2B4C7E', '#B45309', '#2E7D46', '#8C2F39', '#5B6B2E', '#6B4E86', '#9A6B2F', '#356E73'],
     },
-    dark: { // Control Room
-        bg: '#0E1116', panel: '#161B22', panel2: '#1C232E', ink: '#E6EDF3', sub: '#8B98A6',
-        line: '#2A313C', bar: '#080A0E', barSub: '#8B98A6', accent: '#36C2CE',
-        green: '#3FB950', yellow: '#D29922', red: '#F85149', grey: '#6E7681',
-        palette: ['#58A6FF', '#36C2CE', '#3FB950', '#F85149', '#BC8CFF', '#D29922', '#39C5CF', '#FF7B72'],
+    dark: { // Soft Light
+        bg: '#F0F2F5', panel: '#FFFFFF', panel2: '#F5F6F8', ink: '#1A1D23', sub: '#5F6B7A',
+        line: '#D8DCE3', bar: '#E8EBF0', barSub: '#8892A0', accent: '#2B6CB0',
+        green: '#2E7D46', yellow: '#C08A1E', red: '#C53030', grey: '#A0AEC0',
+        palette: ['#2B6CB0', '#C05621', '#2E7D46', '#9B2C2C', '#5B6B2E', '#6B4E86', '#9A6B2F', '#356E73'],
     },
 };
 
