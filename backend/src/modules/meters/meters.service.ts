@@ -42,8 +42,8 @@ export class MetersService {
 
         params.push(limit, offset);
         const result = await query(
-            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name,
-              b.building_name, z.zone_name
+            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name, s.site_name_th, s.site_name_en,
+              b.building_name, b.building_name_th, b.building_name_en, z.zone_name
        FROM meter m
        LEFT JOIN meter_brand mb ON m.meter_brand_id = mb.meter_brand_id
        LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
@@ -60,7 +60,8 @@ export class MetersService {
 
     async getMeterById(meterId: number) {
         const result = await query(
-            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name, b.building_name, z.zone_name
+            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name, s.site_name_th, s.site_name_en,
+              b.building_name, b.building_name_th, b.building_name_en, z.zone_name
        FROM meter m
        LEFT JOIN meter_brand mb ON m.meter_brand_id = mb.meter_brand_id
        LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id

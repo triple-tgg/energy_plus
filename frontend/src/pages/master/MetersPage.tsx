@@ -606,8 +606,16 @@ const MetersPage: React.FC = () => {
         { key: 'meter_code', title: t('รหัส', 'Code') },
         { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
         { key: 'address', title: t('Address', 'Address') },
-        { key: 'site_name', title: t('ไซต์', 'Site') },
-        { key: 'building_name', title: t('อาคาร', 'Building') },
+        {
+            key: 'site_name',
+            title: t('ไซต์', 'Site'),
+            render: (_: any, row: any) => (language === 'en' ? (row.site_name_en || row.site_name) : (row.site_name_th || row.site_name)) || '—',
+        },
+        {
+            key: 'building_name',
+            title: t('อาคาร', 'Building'),
+            render: (_: any, row: any) => (language === 'en' ? (row.building_name_en || row.building_name) : (row.building_name_th || row.building_name)) || '—',
+        },
         { key: 'zone_name', title: t('โซน', 'Zone') },
         { key: 'meter_type_name', title: t('ประเภท', 'Type') },
         {
@@ -1116,7 +1124,7 @@ const MetersPage: React.FC = () => {
                 <div style={{ overflowX: 'auto', maxHeight: 300, borderRadius: 0, border: `1px solid ${C.line}` }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, minWidth: 800 }}>
                         <thead>
-                            <tr style={{ background: C.bar, position: 'sticky', top: 0, color: '#fff' }}>
+                            <tr style={{ background: C.bar, position: 'sticky', top: 0, color: C.ink }}>
                                 {previewColumns.map((col, idx) => (
                                     <th key={idx} style={{
                                         padding: '7px 10px', fontFamily: MONO, fontWeight: 700, fontSize: '10px',
@@ -1311,7 +1319,19 @@ const MetersPage: React.FC = () => {
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label" style={{ fontWeight: 600 }}>{t('อาคาร', 'Building')}</label>
-                        <input type="text" className="form-control" value={selectedMeterForManual?.building_name || ''} disabled style={{ backgroundColor: C.panel2, opacity: 0.8 }} />
+                        <input
+                            type="text"
+                            className="form-control"
+                            value={
+                                selectedMeterForManual
+                                    ? (language === 'en'
+                                        ? (selectedMeterForManual.building_name_en || selectedMeterForManual.building_name || '')
+                                        : (selectedMeterForManual.building_name_th || selectedMeterForManual.building_name || ''))
+                                    : ''
+                            }
+                            disabled
+                            style={{ backgroundColor: C.panel2, opacity: 0.8 }}
+                        />
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ fontWeight: 600 }}>{t('โซน', 'Zone')}</label>
@@ -1404,7 +1424,7 @@ const MetersPage: React.FC = () => {
                             {selectedMeterForQr.meter_name}
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            {selectedMeterForQr.building_name ? `🏢 ${selectedMeterForQr.building_name}` : ''} 
+                            {(language === 'en' ? (selectedMeterForQr.building_name_en || selectedMeterForQr.building_name) : (selectedMeterForQr.building_name_th || selectedMeterForQr.building_name)) ? `🏢 ${language === 'en' ? (selectedMeterForQr.building_name_en || selectedMeterForQr.building_name) : (selectedMeterForQr.building_name_th || selectedMeterForQr.building_name)}` : ''} 
                             {selectedMeterForQr.zone_name ? ` 📍 ${selectedMeterForQr.zone_name}` : ''}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, wordBreak: 'break-all', fontFamily: 'monospace', maxWidth: '100%', opacity: 0.7 }}>

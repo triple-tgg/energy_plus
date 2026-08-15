@@ -143,7 +143,7 @@ const DataTable: React.FC<DataTableProps> = ({
                 <div style={{ overflowX: 'auto', width: '100%' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                         <thead>
-                            <tr style={{ background: C.bar, color: '#fff', fontFamily: MONO, textAlign: 'left' }}>
+                            <tr style={{ background: C.bar, color: C.ink, fontFamily: MONO, textAlign: 'left', borderBottom: `2px solid ${C.line}` }}>
                                 <th style={{ padding: '8px 11px', fontWeight: 700, fontSize: '10.5px', letterSpacing: '1px', width: '50px' }}>#</th>
                                 {columns.map(col => (
                                     <th key={col.key} style={{ padding: '8px 11px', fontWeight: 700, fontSize: '10.5px', letterSpacing: '1px' }}>{col.title.toUpperCase()}</th>

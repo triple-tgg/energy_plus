@@ -244,7 +244,7 @@ function Cap({ idx, en, th, right, C }: CapProps) {
     const { language } = useLanguage();
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
-            {idx && <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: '#fff', background: C.bar, padding: '2px 6px' }}>{idx}</span>}
+            {idx && <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.ink, background: C.bar, padding: '2px 6px', border: `1px solid ${C.line}` }}>{idx}</span>}
             <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: 1.5, color: C.accent, fontWeight: 700 }}>{en}</span>
             {th && language === 'th' && <span style={{ fontSize: 12.5, color: C.sub }}>{th}</span>}
             <span style={{ flex: 1, height: 1, background: C.line }} />
@@ -364,7 +364,7 @@ function LoopGrid({ groups, onPick, C }: LoopGridProps) {
             {groups.map((g) => (
                 <div key={g.loop} style={{ border: `1px solid ${C.line}`, background: C.panel, padding: 11 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 11.5, letterSpacing: 1, background: C.bar, color: '#fff', padding: '3px 9px' }}>LOOP {g.loop}</span>
+                        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 11.5, letterSpacing: 1, background: C.bar, color: C.ink, padding: '3px 9px', border: `1px solid ${C.line}` }}>LOOP {g.loop}</span>
                         <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub }}>{g.items.length} / 32 METER</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(76px,1fr))', gap: 7 }}>
@@ -401,14 +401,14 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
     const thx = (): React.CSSProperties => ({ padding: '8px 6px', fontWeight: 700, fontSize: 9.5, letterSpacing: 0.5, textAlign: 'right', fontFamily: MONO, whiteSpace: 'nowrap' });
     const tdx = (): React.CSSProperties => ({ padding: '6px 6px', textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 11, whiteSpace: 'nowrap' });
     const TOTAL_COLS = 30;
-    const sep = (extra?: React.CSSProperties): React.CSSProperties => ({ ...thx(), borderLeft: `2px solid rgba(255,255,255,0.15)`, ...extra });
+    const sep = (extra?: React.CSSProperties): React.CSSProperties => ({ ...thx(), borderLeft: `1px solid ${C.line}`, ...extra });
 
     return (
         <div style={{ background: C.panel, border: `1px solid ${C.line}`, overflow: 'hidden', width: '100%', maxWidth: '100%' }}>
             <div style={{ maxHeight: 600, overflowX: 'auto', overflowY: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: 1800 }}>
                     <thead>
-                        <tr style={{ position: 'sticky', top: 0, background: C.bar, color: '#fff', fontFamily: MONO, zIndex: 1 }}>
+                        <tr style={{ position: 'sticky', top: 0, background: C.bar, color: C.ink, fontFamily: MONO, zIndex: 1, borderBottom: `2px solid ${C.line}` }}>
                             <th style={{ ...thx(), textAlign: 'left', position: 'sticky', left: 0, background: C.bar, zIndex: 2 }}>#</th>
                             <th style={{ ...thx(), textAlign: 'left', position: 'sticky', left: 30, background: C.bar, zIndex: 2, minWidth: 140 }}>METER</th>
                             <th style={{ ...thx(), textAlign: 'center' }}>STS</th>
