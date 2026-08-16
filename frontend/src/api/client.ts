@@ -155,6 +155,7 @@ export const dashboardApi = {
     getZoneConsumption: (params?: any) => api.get('/dashboard/zone-consumption', { params }),
     getMdbConsumption: (params?: any) => api.get('/dashboard/mdb-consumption', { params }),
     getDemand: (params?: any) => api.get('/dashboard/demand', { params }),
+    getDemandMonthly: (params?: any) => api.get('/dashboard/demand-monthly', { params }),
     getConsumptionTable: (params?: any) => api.get('/dashboard/consumption-table', { params }),
     getConsumptionMeters: (params?: any) => api.get('/dashboard/consumption-meters', { params }),
 };

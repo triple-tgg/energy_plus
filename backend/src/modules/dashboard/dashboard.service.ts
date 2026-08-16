@@ -610,6 +610,73 @@ export class DashboardService {
         };
     }
 
+    async getDemandMonthly(queryParams: any) {
+        const { siteId, buildingId, floor, year, month } = queryParams;
+        const y = parseInt(year) || new Date().getFullYear();
+        const m = parseInt(month) || (new Date().getMonth() + 1);
+        const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+        // end of month: first day of next month
+        const nextM = m === 12 ? 1 : m + 1;
+        const nextY = m === 12 ? y + 1 : y;
+        const endDate = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+
+        const params: any[] = [startDate, endDate];
+        const filters: string[] = [
+            `d.date_keep >= ($1::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
+            `d.date_keep < ($2::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
+            `mt.meter_type_name ILIKE '%MDB%'`,
+            `m.is_active = true`,
+        ];
+        if (siteId) {
+            params.push(parseInt(siteId));
+            filters.push(`m.site_id = $${params.length}`);
+        }
+        if (buildingId) {
+            params.push(parseInt(buildingId));
+            filters.push(`m.building_id = $${params.length}`);
+        }
+        if (floor !== undefined && floor !== null && floor !== '') {
+            params.push(parseInt(floor));
+            filters.push(`m.floor = $${params.length}`);
+        }
+
+        // อ่านจาก actual_meter_data ที่เก็บข้อมูลสรุปราย 15 นาทีอยู่แล้ว
+        const result = await query(
+            `SELECT
+                d.date_keep AS time,
+                SUM(COALESCE(d.energy_kw, 0)) AS kw
+            FROM actual_meter_data d
+            JOIN meter m ON m.meter_id = d.meter_id
+            JOIN meter_type mt ON mt.meter_type_id = m.meter_type_id
+            WHERE ${filters.join(' AND ')}
+            GROUP BY d.date_keep
+            ORDER BY d.date_keep`,
+            params
+        );
+
+        // Also get peak/avg/current summary
+        const peakKw = result.rows.reduce((max: number, r: any) => Math.max(max, toNumber(r.kw)), 0);
+        const avgKw = result.rows.length > 0
+            ? result.rows.reduce((sum: number, r: any) => sum + toNumber(r.kw), 0) / result.rows.length
+            : 0;
+        const lastRow = result.rows.length > 0 ? result.rows[result.rows.length - 1] : null;
+
+        return {
+            year: y,
+            month: m,
+            startDate,
+            endDate,
+            peakKw,
+            avgKw,
+            currentKw: lastRow ? toNumber(lastRow.kw) : 0,
+            dataPoints: result.rows.length,
+            timeseries: result.rows.map((r: any) => ({
+                time: r.time,
+                kw: toNumber(r.kw),
+            })),
+        };
+    }
+
     async getConsumptionTable(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
         const { siteId, buildingId, zoneId, meterTypeId, meterId, startDate, endDate, searchMeter } = queryParams;

@@ -9,6 +9,7 @@ export interface FilterValues {
     meterTypeId?: string;
     siteId?: string;
     buildingId?: string;
+    floor?: string;
     zoneId?: string;
     searchMeter?: string;
     search?: string;
@@ -24,6 +25,7 @@ interface FilterBarProps {
     showMeterType?: boolean;
     showSite?: boolean;
     showBuilding?: boolean;
+    showFloor?: boolean;
     showZone?: boolean;
     showSearchMeter?: boolean;
     loading?: boolean;
@@ -42,6 +44,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     showMeterType = true,
     showSite = true,
     showBuilding = true,
+    showFloor = false,
     showZone = true,
     showSearchMeter = false,
     loading = false,
@@ -56,6 +59,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         meterTypeId: '',
         siteId: selectedSiteId ? String(selectedSiteId) : '',
         buildingId: '',
+        floor: '',
         zoneId: '',
         searchMeter: '',
         meterId: '',
@@ -67,6 +71,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     const [sites, setSites] = useState<any[]>([]);
     const [buildings, setBuildings] = useState<any[]>([]);
     const [zones, setZones] = useState<any[]>([]);
+    const [floors, setFloors] = useState<number[]>([]);
 
     useEffect(() => {
         const loadMaster = async () => {
@@ -86,7 +91,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     }, [user?.siteAccessMode, user?.sites]);
 
     useEffect(() => {
-        if (!filters.siteId) { setBuildings([]); setZones([]); return; }
+        if (!filters.siteId) { setBuildings([]); setZones([]); setFloors([]); return; }
         const loadBuildings = async () => {
             try {
                 const res = await sitesApi.getAllBuildings({
@@ -99,6 +104,24 @@ const FilterBar: React.FC<FilterBarProps> = ({
         };
         loadBuildings();
     }, [filters.siteId]);
+
+    useEffect(() => {
+        if (!filters.buildingId) { setFloors([]); return; }
+        const loadFloors = async () => {
+            try {
+                const res = await metersApi.getAll({
+                    buildingId: filters.buildingId,
+                    limit: 500,
+                    activeOnly: true,
+                });
+                const meters = res.data.data || [];
+                const uniqueFloors = [...new Set(meters.map((m: any) => m.floor).filter((f: any) => f !== null && f !== undefined))] as number[];
+                uniqueFloors.sort((a, b) => a - b);
+                setFloors(uniqueFloors);
+            } catch (e) { console.error(e); }
+        };
+        loadFloors();
+    }, [filters.buildingId]);
 
     useEffect(() => {
         if (!filters.buildingId) { setZones([]); return; }
@@ -198,12 +221,23 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
                 {showBuilding && (
                     <div className="filter-bar__item">
-                        <select className="form-control form-control-sm" value={filters.buildingId} onChange={e => { update('buildingId', e.target.value); update('zoneId', ''); update('meterId', ''); }}>
+                        <select className="form-control form-control-sm" value={filters.buildingId} onChange={e => { update('buildingId', e.target.value); update('floor', ''); update('zoneId', ''); update('meterId', ''); }}>
                             <option value="">{t('อาคารทั้งหมด', 'All Buildings')}</option>
                             {buildings.map((b: any) => (
                                 <option key={b.building_id} value={b.building_id}>
                                     {language === 'en' ? (b.building_name_en || b.building_name) : (b.building_name_th || b.building_name)}
                                 </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {showFloor && (
+                    <div className="filter-bar__item">
+                        <select className="form-control form-control-sm" value={filters.floor} onChange={e => { update('floor', e.target.value); update('meterId', ''); }}>
+                            <option value="">{t('ชั้นทั้งหมด', 'All Floors')}</option>
+                            {floors.map((f: number) => (
+                                <option key={f} value={f}>{t(`ชั้น ${f}`, `Floor ${f}`)}</option>
                             ))}
                         </select>
                     </div>

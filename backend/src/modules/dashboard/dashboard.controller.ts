@@ -17,6 +17,9 @@ export class DashboardController {
     async getDemandData(req: Request, res: Response, next: NextFunction) {
         try { res.json(successResponse(await svc.getDemandData(req.query))); } catch (e) { next(e); }
     }
+    async getDemandMonthly(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await svc.getDemandMonthly(req.query))); } catch (e) { next(e); }
+    }
     async getConsumptionTable(req: Request, res: Response, next: NextFunction) {
         try {
             const result = await svc.getConsumptionTable(req.query);
