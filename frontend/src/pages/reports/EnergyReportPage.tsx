@@ -42,7 +42,7 @@ const EnergyReportPage: React.FC = () => {
         setLoading(true);
         try {
             const res = await reportsApi.getEnergyConsumption({
-                ...currentFilters, page, limit,
+                ...currentFilters, mdb: 'exclude', page, limit,
             });
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
@@ -53,7 +53,7 @@ const EnergyReportPage: React.FC = () => {
     useEffect(() => { fetchData(); }, [fetchData]);
 
     useEffect(() => {
-        dashboardApi.getConsumptionMeters(currentFilters)
+        dashboardApi.getConsumptionMeters({ ...currentFilters, mdb: 'exclude' })
             .then(res => setMeterOptions(res.data.data || []))
             .catch(console.error);
     }, [currentFilters.siteId, currentFilters.buildingId, currentFilters.zoneId,
@@ -68,7 +68,7 @@ const EnergyReportPage: React.FC = () => {
         setExporting(true);
         try {
             const rows = await fetchAllReportRows((exportPage, exportLimit) =>
-                reportsApi.getEnergyConsumption({ ...currentFilters, page: exportPage, limit: exportLimit })
+                reportsApi.getEnergyConsumption({ ...currentFilters, mdb: 'exclude', page: exportPage, limit: exportLimit })
             );
             const exportRows = rows.map((r: any) => ({
                 [t('รหัสมิเตอร์', 'Meter Code')]: r.meter_code,
@@ -121,7 +121,7 @@ const EnergyReportPage: React.FC = () => {
         },
         {
             key: 'unit_price', title: t('ราคาต่อหน่วย', 'Unit Price'),
-            render: (v: number) => v != null ? `฿${Number(v).toFixed(4)}` : '—',
+            render: (v: number) => v != null ? `฿${Number(v).toFixed(2)}` : '—',
         },
         {
             key: 'total_amount', title: t('จำนวนเงิน', 'Amount'),

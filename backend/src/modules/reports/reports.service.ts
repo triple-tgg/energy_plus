@@ -194,9 +194,17 @@ export class ReportsService {
 
     async getEnergyConsumption(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const { siteId, buildingId, zoneId, meterTypeId, meterId, startDate, endDate, search } = queryParams;
+        const { siteId, buildingId, zoneId, meterTypeId, meterId, startDate, endDate, search, mdb } = queryParams;
         const params: any[] = [];
         const meterFilters: string[] = ['m.is_active IS DISTINCT FROM false'];
+
+        const mdbScope = String(mdb || '').toLowerCase();
+        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        if (mdbScope === 'only') {
+            meterFilters.push(MDB_MATCH);
+        } else if (mdbScope === 'exclude') {
+            meterFilters.push(`NOT ${MDB_MATCH}`);
+        }
 
         if (siteId) { params.push(parseInt(siteId)); meterFilters.push(`m.site_id = $${params.length}`); }
         if (buildingId) { params.push(parseInt(buildingId)); meterFilters.push(`m.building_id = $${params.length}`); }

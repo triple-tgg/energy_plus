@@ -127,7 +127,6 @@ body {
   transition: margin-left var(--transition);
   overflow-x: hidden;
   position: relative;
-  z-index: 1;
 }
 
 .app__content {

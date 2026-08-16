@@ -769,9 +769,17 @@ export class DashboardService {
     }
 
     async getConsumptionMeters(queryParams: any) {
-        const { siteId, buildingId, zoneId, meterTypeId, startDate, endDate } = queryParams;
+        const { siteId, buildingId, zoneId, meterTypeId, startDate, endDate, mdb } = queryParams;
         const params: any[] = [];
         const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
+
+        const mdbScope = String(mdb || '').toLowerCase();
+        const MDB_MATCH = `(mt.meter_type_name ILIKE '%MDB%' OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        if (mdbScope === 'only') {
+            filters.push(MDB_MATCH);
+        } else if (mdbScope === 'exclude') {
+            filters.push(`NOT ${MDB_MATCH}`);
+        }
 
         if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
