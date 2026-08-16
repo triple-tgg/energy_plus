@@ -8,6 +8,7 @@ const controller = new ReportsController();
 
 router.use(authenticate, enforceSiteAccess);
 router.get('/energy-consumption', controller.getEnergyConsumption);
+router.get('/tou', controller.getTouReport);
 router.get('/history', controller.getHistory);
 router.get('/comparison', controller.getComparison);
 router.get('/alarms', controller.getAlarms);

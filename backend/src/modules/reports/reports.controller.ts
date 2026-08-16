@@ -40,4 +40,11 @@ export class ReportsController {
             res.json(successResponse(result.data, undefined, paginationHelper(result.page, result.limit, result.total)));
         } catch (e) { next(e); }
     }
+
+    async getTouReport(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await svc.getTouReport(req.query);
+            res.json(successResponse(result.data, undefined, paginationHelper(result.page, result.limit, result.total)));
+        } catch (e) { next(e); }
+    }
 }

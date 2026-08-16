@@ -147,6 +147,11 @@ export const billingApi = {
     createDemandConfig: (data: any) => api.post('/billing/demand', data),
     updateDemandConfig: (id: number, data: any) => api.put(`/billing/demand/${id}`, data),
     deleteDemandConfig: (id: number) => api.delete(`/billing/demand/${id}`),
+    getTouConfigs: (params?: any) => api.get('/billing/tou-configs', { params }),
+    getCurrentTouConfig: (params?: any) => api.get('/billing/tou-configs/current', { params }),
+    createTouConfig: (data: any) => api.post('/billing/tou-configs', data),
+    updateTouConfig: (id: number, data: any) => api.put(`/billing/tou-configs/${id}`, data),
+    deleteTouConfig: (id: number) => api.delete(`/billing/tou-configs/${id}`),
 };
 
 // Dashboard
@@ -163,6 +168,7 @@ export const dashboardApi = {
 // Reports
 export const reportsApi = {
     getEnergyConsumption: (params?: any) => api.get('/reports/energy-consumption', { params }),
+    getTouReport: (params?: any) => api.get('/reports/tou', { params }),
     getHistory: (params?: any) => api.get('/reports/history', { params }),
     getComparison: (params?: any) => api.get('/reports/comparison', { params }),
     getAlarms: (params?: any) => api.get('/reports/alarms', { params }),

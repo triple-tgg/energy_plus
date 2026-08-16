@@ -16,4 +16,10 @@ router.post('/demand', authenticate, requireRole('admin'), c.createDemandConfig)
 router.put('/demand/:id', authenticate, requireRole('admin'), c.updateDemandConfig);
 router.delete('/demand/:id', authenticate, requireRole('admin'), c.deleteDemandConfig);
 
+router.get('/tou-configs', authenticate, c.getTouConfigs);
+router.get('/tou-configs/current', authenticate, c.getCurrentTouConfig);
+router.post('/tou-configs', authenticate, requireRole('admin'), c.createTouConfig);
+router.put('/tou-configs/:id', authenticate, requireRole('admin'), c.updateTouConfig);
+router.delete('/tou-configs/:id', authenticate, requireRole('admin'), c.deleteTouConfig);
+
 export default router;

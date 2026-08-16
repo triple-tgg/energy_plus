@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { BillingService, DemandService } from './billing.service';
+import { BillingService, DemandService, TouBillingService } from './billing.service';
 import { AuthRequest } from '../../types';
 import { successResponse, paginationHelper } from '../../utils/response';
 
 const billingSvc = new BillingService();
 const demandSvc = new DemandService();
+const touSvc = new TouBillingService();
 
 export class BillingController {
     async getBillingConfigs(req: Request, res: Response, next: NextFunction) {
@@ -31,5 +32,21 @@ export class BillingController {
     }
     async deleteDemandConfig(req: Request, res: Response, next: NextFunction) {
         try { await demandSvc.deleteDemandConfig(parseInt(req.params.id)); res.json(successResponse(null, 'Deleted')); } catch (e) { next(e); }
+    }
+
+    async getTouConfigs(req: Request, res: Response, next: NextFunction) {
+        try { const r = await touSvc.getTouConfigs(req.query); res.json(successResponse(r.data, undefined, paginationHelper(r.page, r.limit, r.total))); } catch (e) { next(e); }
+    }
+    async getCurrentTouConfig(req: Request, res: Response, next: NextFunction) {
+        try { const r = await touSvc.getCurrentTouConfig(req.query.date as string); res.json(successResponse(r)); } catch (e) { next(e); }
+    }
+    async createTouConfig(req: AuthRequest, res: Response, next: NextFunction) {
+        try { res.status(201).json(successResponse(await touSvc.createTouConfig({ ...req.body, createdBy: req.user?.userName }), 'Created')); } catch (e) { next(e); }
+    }
+    async updateTouConfig(req: AuthRequest, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await touSvc.updateTouConfig(parseInt(req.params.id), { ...req.body, modifiedBy: req.user?.userName }), 'Updated')); } catch (e) { next(e); }
+    }
+    async deleteTouConfig(req: Request, res: Response, next: NextFunction) {
+        try { await touSvc.deleteTouConfig(parseInt(req.params.id)); res.json(successResponse(null, 'Deleted')); } catch (e) { next(e); }
     }
 }
