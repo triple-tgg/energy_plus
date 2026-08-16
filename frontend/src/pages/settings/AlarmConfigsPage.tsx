@@ -159,25 +159,151 @@ const AlarmConfigsPage: React.FC = () => {
     };
 
     const downloadTemplate = () => {
-        const headers = [
-            'meterCode', 'alarmType', 'energyValue', 'alarmGroup', 'lowerValue', 'higherValue',
-            'message', 'offlineTimeoutSec', 'cooldownMinutes', 'activeDays',
-            'activeTimeStart', 'activeTimeEnd', 'isActive',
+        const sampleMeter1 = meters[0]?.meter_code || 'PMT-MDB-01';
+        const sampleMeter2 = meters[1]?.meter_code || 'CDC-MDB-01';
+        const sampleMeter3 = meters[2]?.meter_code || meters[0]?.meter_code || '111-MDB-01';
+        const sampleGroup = groups[0]?.group_name || 'Default Group';
+
+        // Sheet 1: Alarm Configs with sample rows
+        const sheetData = [
+            [
+                'meterCode', 'alarmType', 'energyValue', 'alarmGroup', 'lowerValue', 'higherValue',
+                'message', 'offlineTimeoutSec', 'cooldownMinutes', 'activeDays',
+                'activeTimeStart', 'activeTimeEnd', 'isActive',
+            ],
+            // Example 1: Threshold High Limit (kW)
+            [
+                sampleMeter1, 'threshold', 'kw_3ph', sampleGroup, '', 500,
+                'กำลังไฟฟ้ารวมเกิน 500 kW เกินพิกัดความปลอดภัย', 60, 15, '1,2,3,4,5',
+                '08:00', '18:00', 'true',
+            ],
+            // Example 2: Threshold Voltage Range (VL1)
+            [
+                sampleMeter2, 'threshold', 'vl1', sampleGroup, 200, 240,
+                'แรงดันไฟฟ้าเฟส A ผิดปกติ (ต่ำกว่า 200V หรือสูงกว่า 240V)', 60, 5, '0,1,2,3,4,5,6',
+                '', '', 'true',
+            ],
+            // Example 3: Disconnect Alarm (Offline detection)
+            [
+                sampleMeter3, 'disconnect', '', sampleGroup, '', '',
+                'มิเตอร์ขาดการติดต่อเกิน 60 วินาที กรุณาตรวจสอบอุปกรณ์เครือข่าย', 60, 30, '0,1,2,3,4,5,6',
+                '', '', 'true',
+            ],
         ];
+
+        // Sheet 2: Step-by-Step Instructions & Field Guide
+        const guideData = [
+            ['📋 คู่มือขั้นตอนการกรอกข้อมูล Template สำหรับนำเข้า Alarm Settings (Alarm Import Guide)'],
+            [''],
+            ['🔹 ขั้นตอนที่ 1: ตรวจสอบรหัสมิเตอร์ (Meter Code)'],
+            ['   - ดูรหัสมิเตอร์ที่มีอยู่ในระบบจาก Sheet "Meters" แล้วนำมาใส่ในคอลัมน์ meterCode'],
+            [''],
+            ['🔹 ขั้นตอนที่ 2: เลือกประเภทการแจ้งเตือน (alarmType)'],
+            ['   - ใส่ "threshold" สำหรับการแจ้งเตือนเมื่อค่าไฟฟ้าเกินเกณฑ์ (เช่น kW สูงเกินไป, แรงดันตก/เกิน)'],
+            ['   - ใส่ "disconnect" สำหรับการแจ้งเตือนเมื่อมิเตอร์ออฟไลน์ / ขาดการติดต่อจากระบบ'],
+            [''],
+            ['🔹 ขั้นตอนที่ 3: กำหนดพารามิเตอร์พลังงานและขีดจำกัด (สำหรับ threshold)'],
+            ['   - energyValue: เลือกชื่อพารามิเตอร์จาก Sheet "Energy Values" เช่น kw_3ph, vl1, vl2, vl3, hz, import_kwhr'],
+            ['   - lowerValue: ค่าขั้นต่ำที่ยอมรับได้ (หากต่ำกว่านี้จะแจ้งเตือน ปล่อยว่างได้หากตรวจจับเฉพาะขั้นสูง)'],
+            ['   - higherValue: ค่าขั้นสูงที่ยอมรับได้ (หากสูงกว่านี้จะแจ้งเตือน ปล่อยว่างได้หากตรวจจับเฉพาะขั้นต่ำ)'],
+            [''],
+            ['🔹 ขั้นตอนที่ 4: กำหนดระยะเวลาการตรวจจับและ Cooldown'],
+            ['   - offlineTimeoutSec: ระยะเวลากี่วินาทีที่ไม่มีข้อมูลเข้ามา แล้วถือว่าขาดการติดต่อ (ค่าเริ่มต้น: 60 วินาที)'],
+            ['   - cooldownMinutes: ระยะเวลากี่นาทีก่อนส่งการแจ้งเตือนซ้ำ เพื่อไม่ให้สแปมข้อความ (ค่าเริ่มต้น: 5 หรือ 15 นาที)'],
+            [''],
+            ['🔹 ขั้นตอนที่ 5: กำหนดวันและเวลาทำงาน (Schedule)'],
+            ['   - activeDays: ระบุตัวเลขวันคั่นด้วยเครื่องหมายจุลภาค (,) โดย 0=อาทิตย์, 1=จันทร์, 2=อังคาร, 3=พุธ, 4=พฤหัส, 5=ศุกร์, 6=เสาร์'],
+            ['     * ตัวอย่าง: "1,2,3,4,5" = ทำงานเฉพาะจันทร์–ศุกร์'],
+            ['     * ตัวอย่าง: "0,1,2,3,4,5,6" = ทำงานทุกวัน 24/7'],
+            ['   - activeTimeStart / activeTimeEnd: ระบุเวลาในรูปแบบ HH:mm เช่น "08:00" และ "18:00" (หากปล่อยว่างไว้ทั้ง 2 ช่อง = ทำงานตลอด 24 ชม.)'],
+            [''],
+            ['🔹 ขั้นตอนที่ 6: นำเข้าไฟล์เข้าระบบ'],
+            ['   - บันทึกไฟล์ Excel นี้ แล้วไปที่เมนู Settings >> Alarm Settings บนหน้าเว็บ'],
+            ['   - กดปุ่ม "📥 Import Template" เพื่อเลือกไฟล์และยืนยันการนำเข้า'],
+            [''],
+            ['========================================================================================================='],
+            ['📌 ตารางอธิบายความหมายของแต่ละคอลัมน์ (Field Descriptions)'],
+            ['คอลัมน์ (Column)', 'จำเป็น? (Required)', 'ประเภทข้อมูล', 'คำอธิบาย (Description)', 'ตัวอย่าง (Example)'],
+            ['meterCode', 'ใช่ (Yes)', 'ข้อความ', 'รหัสมิเตอร์ที่ตรงกับใน Sheet Meters', sampleMeter1],
+            ['alarmType', 'ใช่ (Yes)', 'threshold / disconnect', 'ประเภท: threshold (เกินเกณฑ์) หรือ disconnect (ขาดการติดต่อ)', 'threshold'],
+            ['energyValue', 'สำหรับ threshold', 'ข้อความ', 'พารามิเตอร์พลังงานที่ต้องการวัด (ดูใน Sheet Energy Values)', 'kw_3ph'],
+            ['alarmGroup', 'ไม่บังคับ', 'ข้อความ', 'ชื่อกลุ่มแจ้งเตือน (ดูใน Sheet Alarm Groups)', sampleGroup],
+            ['lowerValue', 'ไม่บังคับ', 'ตัวเลข', 'ขีดจำกัดขั้นต่ำ (เตือนเมื่อค่าน้อยกว่านี้)', '200'],
+            ['higherValue', 'ไม่บังคับ', 'ตัวเลข', 'ขีดจำกัดขั้นสูง (เตือนเมื่อค่ามากกว่านี้)', '500'],
+            ['message', 'ไม่บังคับ', 'ข้อความ', 'ข้อความโน้ตแจ้งเตือนเพิ่มเติมที่จะแนบไปกับไลน์/Telegram/Email', 'กำลังไฟฟ้ารวมเกินกำหนด'],
+            ['offlineTimeoutSec', 'สำหรับ disconnect', 'ตัวเลข (วินาที)', 'จำนวนวินาทีที่ไม่มีข้อมูล แล้วจะส่งเตือน disconnect', '60'],
+            ['cooldownMinutes', 'ใช่ (Yes)', 'ตัวเลข (นาที)', 'ระยะเวลาหน่วงก่อนเตือนซ้ำเพื่อป้องกันส่งข้อความรัว', '15'],
+            ['activeDays', 'ใช่ (Yes)', 'ตัวเลข 0-6 คั่นด้วย ,', 'วันทำงาน: 0=อา., 1=จ., 2=อ., 3=พ., 4=พฤ., 5=ศ., 6=ส.', '1,2,3,4,5'],
+            ['activeTimeStart', 'ไม่บังคับ', 'HH:mm', 'เวลาเริ่มต้นทำงาน (เช่น 08:00 ปล่อยว่าง=24ชม.)', '08:00'],
+            ['activeTimeEnd', 'ไม่บังคับ', 'HH:mm', 'เวลาสิ้นสุดทำงาน (เช่น 18:00 ปล่อยว่าง=24ชม.)', '18:00'],
+            ['isActive', 'ใช่ (Yes)', 'true / false', 'สถานะเปิดใช้งานแจ้งเตือนทันทีหรือไม่', 'true'],
+        ];
+
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headers]), 'Alarm Configs');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(meters.map(m => ({ meterCode: m.meter_code, meterName: m.meter_name }))), 'Meters');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(energyValues.map(v => ({ energyValue: v.energy_value_name, id: v.energy_value_id }))), 'Energy Values');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(groups.map(g => ({ alarmGroup: g.group_name, id: g.alarm_group_id }))), 'Alarm Groups');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
-            ['Field', 'Description'],
-            ['alarmType', 'threshold or disconnect'],
-            ['activeDays', '0=Sun, 1=Mon, ... 6=Sat; separate with commas'],
-            ['activeTimeStart / activeTimeEnd', 'HH:mm; leave blank for 24 hours'],
-            ['isActive', 'true or false'],
-            ['threshold', 'Requires energyValue and at least lowerValue or higherValue'],
-            ['disconnect', 'Uses offlineTimeoutSec; energyValue can be blank'],
-        ]), 'Instructions');
+
+        // 1. Sheet "Alarm Configs"
+        const wsConfig = XLSX.utils.aoa_to_sheet(sheetData);
+        wsConfig['!cols'] = [
+            { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 18 },
+            { wch: 14 }, { wch: 14 }, { wch: 45 }, { wch: 18 },
+            { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 10 },
+        ];
+        XLSX.utils.book_append_sheet(workbook, wsConfig, 'Alarm Configs');
+
+        // 2. Sheet "ขั้นตอนการกรอกข้อมูล (Guide)"
+        const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
+        wsGuide['!cols'] = [
+            { wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 60 }, { wch: 30 },
+        ];
+        XLSX.utils.book_append_sheet(workbook, wsGuide, 'ขั้นตอนการกรอกข้อมูล');
+
+        // 3. Sheet "Meters"
+        const metersData = meters.length > 0 ? meters.map(m => ({
+            meterCode: m.meter_code,
+            meterName: m.meter_name || '',
+            building: m.building_name || '',
+            floor: m.floor || '',
+        })) : [
+            { meterCode: 'PMT-MDB-01', meterName: 'Main MDB 111 PMT', building: 'Building A', floor: '1' },
+            { meterCode: 'CDC-MDB-01', meterName: 'Main MDB CDC', building: 'Building CDC', floor: '1' },
+        ];
+        const wsMeters = XLSX.utils.json_to_sheet(metersData);
+        wsMeters['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 20 }, { wch: 10 }];
+        XLSX.utils.book_append_sheet(workbook, wsMeters, 'Meters');
+
+        // 4. Sheet "Energy Values"
+        const energyValuesData = energyValues.length > 0 ? energyValues.map(v => ({
+            energyValue: v.energy_value_name,
+            description: v.description || v.energy_value_name,
+            unit: v.unit || '',
+        })) : [
+            { energyValue: 'kw_3ph', description: 'Active Power Total (3-Phase)', unit: 'kW' },
+            { energyValue: 'kva_3ph', description: 'Apparent Power Total (3-Phase)', unit: 'kVA' },
+            { energyValue: 'kvar_3ph', description: 'Reactive Power Total (3-Phase)', unit: 'kVAR' },
+            { energyValue: 'vl1', description: 'Voltage Line 1 (Phase A)', unit: 'V' },
+            { energyValue: 'vl2', description: 'Voltage Line 2 (Phase B)', unit: 'V' },
+            { energyValue: 'vl3', description: 'Voltage Line 3 (Phase C)', unit: 'V' },
+            { energyValue: 'il1', description: 'Current Line 1 (Phase A)', unit: 'A' },
+            { energyValue: 'il2', description: 'Current Line 2 (Phase B)', unit: 'A' },
+            { energyValue: 'il3', description: 'Current Line 3 (Phase C)', unit: 'A' },
+            { energyValue: 'hz', description: 'Frequency', unit: 'Hz' },
+            { energyValue: 'import_kwhr', description: 'Cumulative Import Energy', unit: 'kWh' },
+        ];
+        const wsEV = XLSX.utils.json_to_sheet(energyValuesData);
+        wsEV['!cols'] = [{ wch: 18 }, { wch: 35 }, { wch: 10 }];
+        XLSX.utils.book_append_sheet(workbook, wsEV, 'Energy Values');
+
+        // 5. Sheet "Alarm Groups"
+        const groupsData = groups.length > 0 ? groups.map(g => ({
+            alarmGroup: g.group_name,
+            description: g.description || '',
+        })) : [
+            { alarmGroup: 'Default Group', description: 'Default alert group for all operators' },
+        ];
+        const wsGroups = XLSX.utils.json_to_sheet(groupsData);
+        wsGroups['!cols'] = [{ wch: 22 }, { wch: 40 }];
+        XLSX.utils.book_append_sheet(workbook, wsGroups, 'Alarm Groups');
+
         XLSX.writeFile(workbook, 'alarm_settings_import_template.xlsx');
     };
 
