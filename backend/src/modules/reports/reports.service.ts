@@ -58,10 +58,36 @@ export class ReportsService {
              WHERE id = $2
                AND ($3::int IS NULL OR meter_id IN (SELECT meter_id FROM meter WHERE site_id=$3))
              RETURNING *`,
-            [acknowledgedBy || null, id, siteId || null]
+            [acknowledgedBy || 'system', id, siteId || null]
         );
-        if (!result.rows[0]) throw new Error('Alarm log not found');
+        if (result.rows.length === 0) throw new Error('Alarm not found or not in your site');
         return result.rows[0];
+    }
+
+    async clearAlarms(queryParams: any) {
+        await this.ensureAlarmLogTable();
+        const { startDate, endDate, search, siteId, ids } = queryParams;
+        if (Array.isArray(ids) && ids.length > 0) {
+            const result = await query(
+                `DELETE FROM alarm_log WHERE id = ANY($1::int[]) RETURNING id`,
+                [ids]
+            );
+            return { deletedCount: result.rowCount || 0 };
+        }
+        const params: any[] = [];
+        const filters: string[] = ['true'];
+        if (siteId) { params.push(parseInt(siteId)); filters.push(`meter_id IN (SELECT meter_id FROM meter WHERE site_id = $${params.length})`); }
+        if (startDate) { params.push(startDate); filters.push(`occurred_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
+        if (endDate) { params.push(endDate); filters.push(`occurred_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
+        if (search) {
+            params.push(`%${String(search).trim()}%`);
+            filters.push(`(message ILIKE $${params.length} OR meter_id IN (SELECT meter_id FROM meter WHERE meter_code ILIKE $${params.length} OR meter_name ILIKE $${params.length}))`);
+        }
+        const result = await query(
+            `DELETE FROM alarm_log WHERE ${filters.join(' AND ')} RETURNING id`,
+            params
+        );
+        return { deletedCount: result.rowCount || 0 };
     }
 
     async getComparison(queryParams: any) {

@@ -173,6 +173,7 @@ export const reportsApi = {
     getComparison: (params?: any) => api.get('/reports/comparison', { params }),
     getAlarms: (params?: any) => api.get('/reports/alarms', { params }),
     acknowledgeAlarm: (id: number) => api.put(`/reports/alarms/${id}/acknowledge`),
+    clearAlarms: (params?: any) => api.post('/reports/alarms/clear', {}, { params }),
     exportExcel: (reportType: string, params?: any) => api.get(`/reports/${reportType}/export/excel`, { params, responseType: 'blob' }),
     exportText: (reportType: string, params?: any) => api.get(`/reports/${reportType}/export/text`, { params, responseType: 'blob' }),
 };

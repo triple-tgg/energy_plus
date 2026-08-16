@@ -12,6 +12,8 @@ router.get('/tou', controller.getTouReport);
 router.get('/history', controller.getHistory);
 router.get('/comparison', controller.getComparison);
 router.get('/alarms', controller.getAlarms);
+router.post('/alarms/clear', requireRole('operator', 'admin'), controller.clearAlarms);
+router.delete('/alarms/clear', requireRole('operator', 'admin'), controller.clearAlarms);
 router.put('/alarms/:id/acknowledge', requireRole('operator', 'admin'), controller.acknowledgeAlarm);
 
 export default router;

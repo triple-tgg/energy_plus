@@ -20,6 +20,13 @@ export class ReportsController {
         } catch (e) { next(e); }
     }
 
+    async clearAlarms(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const result = await svc.clearAlarms({ ...req.query, ...req.body });
+            res.json(successResponse(result, `Cleared ${result.deletedCount} alarm records`));
+        } catch (e) { next(e); }
+    }
+
     async getComparison(req: Request, res: Response, next: NextFunction) {
         try {
             const result = await svc.getComparison(req.query);
