@@ -1,0 +1,43 @@
+X-Report Export เป้น excel , csv 
+X-Admin ตั้ง Config ลบข้อมูล Realtime ปัจจุบัน ลบที่เลย 1 วัน ออก 
+Alert มีแจ้งเตือนไปที่ อุปกรณ์ 
+X-Alert ส่่งเพิ่มให้ทาง email 
+----- ยังไม่มี config smtp 
+X-Alert สามารภใส่ไฟล์เสียงแบบ custum
+
+X-ข้อมูลย้อนหลัง รายวัน รายสัปดา รายเดือน
+50 meter ใน layout 
+X-yearly monthly weekly
+X-Alarm Settings >> Import Template 
+X-REPORTS // ALARMS >> Export แล้ว Clear Data
+X-REPORTS // ALARMS >> Auto Refresh Data
+
+
+Login User Location Base จะเห้นข้อมูล Site เดียว แต่ส่วนกลางจะเห้นได้หลายสาขา 
+สิทธิ Viewer / Export ได้ ป้อนข้อมูล Manual ได้ / Admin ทำได้ทั้งหมด 
+
+X-ย้อนกลับไป Root และ แก้ไข Root ให้แบบรวมของ Site 
+
+X-Daily ให้เป็นข้อมุล 30 วันของเดือนปัจจุบัน เช่น 1-15 วัน 
+เปรียบเทียบ Zone ที่เป็นอันเล็กสุด 
+
+http://localhost:5175/reports/energy. 
+เพิ่มให้แสดงค่า FT ทุกๆ  3 เดือน ในการคิดค่าไฟ 
+X-UNIT PRICE >> ทดนิยม 2 ตำแหน่ง
+X-ค่าไฟ TOU จะคูณตามช่วงเวลา เช่น 9.00-17.00 / 17.00-22.00 / 22.00-9.00 
+X-Energy Report แยกมาเป็น TOU Report
+
+http://localhost:5175/monitoring/realtime
+X-ตารางแต่ละ meter จะมีกราฟ ให้กดดูแยกแต่ละอัน โชว์กราฟทุกๅ 15 นาที แสดงทุกค่าเป็นกราฟ กดเลือกในการ filter 
+
+http://localhost:5175/monitoring/layout
+X-ให้เลือก Site, Building ในการดู Layout และ Set Meter 
+
+http://localhost:5175/monitoring/layout ปรับให้กด เต้ม  screen. ได้ 
+X-ลูกค้าจะดู Layout แล้ววนโชว์ ไปทุกๆ อัน 
+
+http://localhost:5175/monitoring/layout 
+X-กรณีข้อมูลมีปัญหาให้แสดงมาที่หน้า Layout 
+X-ใช้สี เขียว แดง เทา ทุกๆ Meter Type 
+
+กำหนด ค่า Max ของ Meter สำหรับลูกค้าที่ใช้มานาน ตัวเลขวนจาก 99999 > 0 
