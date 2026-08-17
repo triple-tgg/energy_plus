@@ -68,8 +68,29 @@ const HistoryReportPage: React.FC = () => {
             const rows = await fetchAllReportRows((exportPage, exportLimit) =>
                 reportsApi.getHistory({ ...currentFilters, page: exportPage, limit: exportLimit })
             );
-            const exportRows = rows.map(({ meter_id, ...row }: any) => row);
-            exportReport(exportRows, `history_${today}`, 'History', format);
+            const exportRows = rows.map((r: any) => ({
+                [t('วันเวลา', 'Date/Time')]: r.timestamp,
+                [t('รหัสมิเตอร์', 'Meter Code')]: r.meter_code,
+                [t('ชื่อมิเตอร์', 'Meter Name')]: r.meter_name,
+                [t('พลังงานไฟฟ้าสะสม (kWh)', 'Energy (kWh)')]: Number(r.kwh || 0),
+                [t('กำลังไฟฟ้า (kW)', 'Active Power (kW)')]: Number(r.kw || 0),
+                [t('กำลังไฟฟ้าปรากฏ (kVA)', 'Apparent Power (kVA)')]: Number(r.kva || 0),
+                [t('กำลังไฟฟ้ารีแอคทีฟ (kVAR)', 'Reactive Power (kVAR)')]: Number(r.kvar || 0),
+                [t('ความถี่ (Hz)', 'Frequency (Hz)')]: Number(r.frequency || 0),
+                'PF 1': Number(r.pwl1 || 0),
+                'PF 2': Number(r.pwl2 || 0),
+                'PF 3': Number(r.pwl3 || 0),
+                'Volt P1 (V)': Number(r.volt_p1 || 0),
+                'Volt P2 (V)': Number(r.volt_p2 || 0),
+                'Volt P3 (V)': Number(r.volt_p3 || 0),
+                'Volt L1 (V)': Number(r.volt_l1 || 0),
+                'Volt L2 (V)': Number(r.volt_l2 || 0),
+                'Volt L3 (V)': Number(r.volt_l3 || 0),
+                'Amp 1 (A)': Number(r.amp1 || 0),
+                'Amp 2 (A)': Number(r.amp2 || 0),
+                'Amp 3 (A)': Number(r.amp3 || 0),
+            }));
+            exportReport(exportRows, `history_15min_${today}`, '15-Min History', format);
         } catch (err) {
             alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
         } finally { setExporting(false); }
@@ -85,28 +106,22 @@ const HistoryReportPage: React.FC = () => {
             key: 'timestamp', title: t('วันเวลา', 'Date/Time'),
             render: (v: string) => v ? new Date(v).toLocaleString(t('th-TH', 'en-US')) : '—',
         },
-        numCol('kwh', 'KWh'),
-        numCol('kva', 'Kva'),
-        numCol('kw', 'Kw'),
-        numCol('kvar', 'Kvar'),
-        numCol('frequency', 'Frequency'),
-        numCol('pwl1', 'PWL1'),
-        numCol('pwl2', 'PWL2'),
-        numCol('pwl3', 'PWL3'),
-        numCol('kw1', 'KW1'),
-        numCol('kw2', 'KW2'),
-        numCol('kw3', 'KW3'),
-        numCol('kvah', 'KVAh'),
-        numCol('kvarh', 'KVARh'),
-        numCol('volt_p1', 'VoltP1'),
-        numCol('volt_p2', 'VoltP2'),
-        numCol('volt_p3', 'VoltP3'),
-        numCol('volt_l1', 'VoltL1'),
-        numCol('volt_l2', 'VoltL2'),
-        numCol('volt_l3', 'VoltL3'),
-        numCol('amp1', 'Amp1'),
-        numCol('amp2', 'Amp2'),
-        numCol('amp3', 'Amp3'),
+        { key: 'meter_code', title: t('รหัสมิเตอร์', 'Meter Code') },
+        { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
+        numCol('kwh', 'kWh'),
+        numCol('kw', 'kW'),
+        numCol('kva', 'kVA'),
+        numCol('kvar', 'kVAR'),
+        numCol('frequency', 'Hz'),
+        numCol('pwl1', 'PF1', 4),
+        numCol('pwl2', 'PF2', 4),
+        numCol('pwl3', 'PF3', 4),
+        numCol('volt_p1', 'Volt P1'),
+        numCol('volt_p2', 'Volt P2'),
+        numCol('volt_p3', 'Volt P3'),
+        numCol('amp1', 'Amp 1'),
+        numCol('amp2', 'Amp 2'),
+        numCol('amp3', 'Amp 3'),
     ];
 
     return (

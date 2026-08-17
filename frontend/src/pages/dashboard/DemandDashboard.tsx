@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { dashboardApi } from '../../api/client';
 import { Line } from 'react-chartjs-2';
-import { LayoutGrid, Zap, TrendingUp, Activity, BarChart3 } from 'lucide-react';
+import { LayoutGrid, Zap, TrendingUp, Activity, BarChart3, Inbox } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
@@ -34,27 +34,6 @@ const THEMES = {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
-/** Generate sample demo data for a given month (when API returns no data) */
-function generateSampleData(year: number, month: number) {
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const data: { time: string; kw: number }[] = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-        for (let h = 0; h < 24; h++) {
-            for (let m = 0; m < 60; m += 15) {
-                const date = new Date(year, month - 1, d, h, m);
-                // Simulate realistic demand: base load + time-of-day pattern + noise
-                const hourFactor = h >= 8 && h <= 18
-                    ? 0.6 + 0.4 * Math.sin(((h - 8) / 10) * Math.PI)
-                    : 0.15 + 0.1 * Math.random();
-                const base = 120 + Math.random() * 30;
-                const kw = base * hourFactor + (Math.random() - 0.5) * 15;
-                data.push({ time: date.toISOString(), kw: Math.max(kw, 5) });
-            }
-        }
-    }
-    return data;
-}
-
 const DemandDashboard: React.FC = () => {
     const { theme } = useTheme();
     const { t } = useLanguage();
@@ -67,7 +46,6 @@ const DemandDashboard: React.FC = () => {
     });
     const [loading, setLoading] = useState(false);
     const [rawData, setRawData] = useState<{ time: string; kw: number }[]>([]);
-    const [isDemo, setIsDemo] = useState(false);
 
     const year = parseInt(filters.year || String(now.getFullYear()));
     const month = parseInt(filters.month || String(now.getMonth() + 1));
@@ -88,16 +66,13 @@ const DemandDashboard: React.FC = () => {
                 floor: filters.floor || undefined,
             });
             const d = res.data.data || res.data;
-            if (d.timeseries && d.timeseries.length > 0) {
+            if (d.timeseries && Array.isArray(d.timeseries) && d.timeseries.length > 0) {
                 setRawData(d.timeseries);
-                setIsDemo(false);
             } else {
-                setRawData(generateSampleData(year, month));
-                setIsDemo(true);
+                setRawData([]);
             }
         } catch {
-            setRawData(generateSampleData(year, month));
-            setIsDemo(true);
+            setRawData([]);
         }
         setLoading(false);
     }, [year, month, filters.siteId, filters.buildingId, filters.floor]);
@@ -126,6 +101,8 @@ const DemandDashboard: React.FC = () => {
 
     // Build chart data: every 15-minute data point
     const chartConfig = useMemo(() => {
+        if (rawData.length === 0) return { labels: [], dataPoints: [], sorted: [] };
+
         // Sort by time and build labels + data
         const sorted = [...rawData].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
         const labels: string[] = [];
@@ -135,8 +112,6 @@ const DemandDashboard: React.FC = () => {
         sorted.forEach(p => {
             const d = new Date(p.time);
             const day = d.getDate();
-            const hour = d.getHours();
-            const min = d.getMinutes();
             // Show day label only at 00:00 of each day (or first point of the day)
             if (day !== lastDay) {
                 labels.push(String(day));
@@ -153,12 +128,13 @@ const DemandDashboard: React.FC = () => {
 
     // Find peak day
     const peakDay = useMemo(() => {
-        let maxDay = 1, maxKw = 0;
+        if (rawData.length === 0) return { day: null, kw: 0 };
+        let maxDay: number | null = null, maxKw = 0;
         dailyPeaks.forEach((kw, day) => {
             if (kw > maxKw) { maxKw = kw; maxDay = day; }
         });
         return { day: maxDay, kw: maxKw };
-    }, [dailyPeaks]);
+    }, [dailyPeaks, rawData.length]);
 
     const handleFilterSubmit = (newFilters: FilterValues) => {
         setFilters(newFilters);
@@ -200,52 +176,47 @@ const DemandDashboard: React.FC = () => {
                 showSearchMeter={false}
             />
 
-            {/* Demo banner */}
-            {isDemo && !loading && (
-                <div style={{
-                    background: theme === 'light' ? '#FEF3C7' : '#78350F',
-                    border: `1px solid ${C.yellow}`,
-                    padding: '8px 16px', marginBottom: 16,
-                    fontFamily: MONO, fontSize: 11, color: theme === 'light' ? '#92400E' : '#FDE68A',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                    <Activity size={14} />
-                    {t('⚠ แสดงข้อมูลตัวอย่าง (Demo) — ไม่พบข้อมูลจริงจาก API', '⚠ Showing demo/sample data — No real data available from API')}
-                </div>
-            )}
-
             {/* Summary Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14, marginBottom: 20 }}>
                 {/* Peak Demand */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: 12, right: 14, opacity: 0.12 }}><TrendingUp size={48} color={C.red} /></div>
+                    <div style={{ position: 'absolute', top: 12, right: 14, opacity: 0.12 }}><Zap size={48} color={C.red} /></div>
                     <div style={{ fontSize: 10, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
-                        {t('ดีมานด์สูงสุด', 'PEAK DEMAND')}
+                        {t('พีคดีมานด์สูงสุด', 'PEAK DEMAND')}
                     </div>
-                    <div style={{ fontSize: 30, fontWeight: 700, fontFamily: MONO, color: C.red }}>{summary.peak.toFixed(1)}</div>
+                    <div style={{ fontSize: 30, fontWeight: 700, fontFamily: MONO, color: summary.peak > 0 ? C.red : C.sub }}>
+                        {summary.peak > 0 ? summary.peak.toFixed(2) : '0.00'} <span style={{ fontSize: 14, fontWeight: 400, color: C.sub }}>kW</span>
+                    </div>
                     <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub }}>
-                        kW · {t(`วันที่ ${peakDay.day}`, `Day ${peakDay.day}`)}
+                        {peakDay.day ? t(`วันที่ ${peakDay.day} ${monthName}`, `Day ${peakDay.day}, ${monthNameEn}`) : '—'}
                     </div>
                 </div>
+
                 {/* Average Demand */}
+                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: 12, right: 14, opacity: 0.12 }}><TrendingUp size={48} color={C.green} /></div>
+                    <div style={{ fontSize: 10, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
+                        {t('ดีมานด์เฉลี่ย', 'AVERAGE DEMAND')}
+                    </div>
+                    <div style={{ fontSize: 30, fontWeight: 700, fontFamily: MONO, color: summary.avg > 0 ? C.green : C.sub }}>
+                        {summary.avg > 0 ? summary.avg.toFixed(2) : '0.00'} <span style={{ fontSize: 14, fontWeight: 400, color: C.sub }}>kW</span>
+                    </div>
+                    <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub }}>{t('ตลอดทั้งเดือน', 'Full month average')}</div>
+                </div>
+
+                {/* Current / Latest Demand */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', top: 12, right: 14, opacity: 0.12 }}><BarChart3 size={48} color={C.accent} /></div>
                     <div style={{ fontSize: 10, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
-                        {t('ดีมานด์เฉลี่ย', 'AVG DEMAND')}
+                        {t('ดีมานด์ล่าสุด', 'LATEST DEMAND')}
                     </div>
-                    <div style={{ fontSize: 30, fontWeight: 700, fontFamily: MONO, color: C.accent }}>{summary.avg.toFixed(1)}</div>
-                    <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub }}>kW</div>
-                </div>
-                {/* Current / Latest */}
-                <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: 12, right: 14, opacity: 0.12 }}><Zap size={48} color={C.green} /></div>
-                    <div style={{ fontSize: 10, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
-                        {t('ค่าล่าสุด', 'LATEST')}
+                    <div style={{ fontSize: 30, fontWeight: 700, fontFamily: MONO, color: summary.current > 0 ? C.accent : C.sub }}>
+                        {summary.current > 0 ? summary.current.toFixed(2) : '0.00'} <span style={{ fontSize: 14, fontWeight: 400, color: C.sub }}>kW</span>
                     </div>
-                    <div style={{ fontSize: 30, fontWeight: 700, fontFamily: MONO, color: C.green }}>{summary.current.toFixed(1)}</div>
-                    <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub }}>kW</div>
+                    <div style={{ fontSize: 11, fontFamily: MONO, color: C.sub }}>{t('จุดข้อมูลล่าสุด', 'Most recent data point')}</div>
                 </div>
-                {/* Data points */}
+
+                {/* Data Points Count */}
                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', top: 12, right: 14, opacity: 0.12 }}><Activity size={48} color={C.yellow} /></div>
                     <div style={{ fontSize: 10, fontFamily: MONO, color: C.sub, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
@@ -271,150 +242,173 @@ const DemandDashboard: React.FC = () => {
                         {t(`${summary.points.toLocaleString()} จุด`, `${summary.points.toLocaleString()} points`)}
                     </div>
                 </div>
-                <div style={{ height: 450 }}>
-                    <Line
-                        data={{
-                            labels: chartConfig.labels,
-                            datasets: [
-                                {
-                                    label: t('ดีมานด์ (kW)', 'Demand (kW)'),
-                                    data: chartConfig.dataPoints,
-                                    borderColor: C.accent,
-                                    backgroundColor: (ctx: any) => {
-                                        const chart = ctx.chart;
-                                        const { ctx: canvasCtx, chartArea } = chart;
-                                        if (!chartArea) return C.gradStart;
-                                        const gradient = canvasCtx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                                        gradient.addColorStop(0, C.gradStart);
-                                        gradient.addColorStop(1, C.gradEnd);
-                                        return gradient;
-                                    },
-                                    fill: true,
-                                    tension: 0.2,
-                                    pointRadius: 0,
-                                    pointHoverRadius: 4,
-                                    pointBackgroundColor: C.accent,
-                                    pointBorderColor: C.panel,
-                                    pointBorderWidth: 1,
-                                    borderWidth: 1.5,
-                                },
-                                {
-                                    label: t('ค่าพีคสูงสุด', 'Peak Max'),
-                                    data: chartConfig.dataPoints.map(() => summary.peak),
-                                    borderColor: C.peakLine,
-                                    borderDash: [8, 4],
-                                    pointRadius: 0,
-                                    pointHoverRadius: 0,
-                                    borderWidth: 1.5,
-                                },
-                                {
-                                    label: t('ค่าเฉลี่ย', 'Average'),
-                                    data: chartConfig.dataPoints.map(() => summary.avg),
-                                    borderColor: C.avgLine,
-                                    borderDash: [4, 4],
-                                    pointRadius: 0,
-                                    pointHoverRadius: 0,
-                                    borderWidth: 1.5,
-                                },
-                            ],
-                        }}
-                        options={{
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: { mode: 'index', intersect: false },
-                            plugins: {
-                                legend: {
-                                    position: 'top',
-                                    labels: {
-                                        color: C.ink,
-                                        font: { family: MONO, size: 11 },
-                                        usePointStyle: true,
-                                        pointStyle: 'rectRounded',
-                                    },
-                                },
-                                tooltip: {
-                                    backgroundColor: theme === 'dark' ? '#1C232E' : '#FBFAF4',
-                                    titleColor: C.ink,
-                                    bodyColor: C.ink,
-                                    borderColor: C.line,
-                                    borderWidth: 1,
-                                    titleFont: { family: MONO, size: 12, weight: 'bold' as const },
-                                    bodyFont: { family: MONO, size: 11 },
-                                    padding: 12,
-                                    callbacks: {
-                                        title: (ctx: any) => {
-                                            const idx = ctx[0].dataIndex;
-                                            const point = chartConfig.sorted[idx];
-                                            if (!point) return '';
-                                            const { day, timeStr } = formatTime(point.time);
-                                            return t(`วันที่ ${day} เวลา ${timeStr}`, `Day ${day}, ${timeStr}`);
+
+                {rawData.length === 0 && !loading ? (
+                    <div style={{
+                        height: 380,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 12,
+                        color: C.sub,
+                        fontFamily: MONO,
+                        background: C.panel2,
+                        border: `1px dashed ${C.line}`,
+                        borderRadius: 6,
+                    }}>
+                        <Inbox size={44} style={{ opacity: 0.4 }} />
+                        <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>
+                            {t('ไม่พบข้อมูลดีมานด์ MDB ในช่วงเวลาที่เลือก', 'No MDB demand data found for the selected month/filters')}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.sub }}>
+                            {t('ไม่มีข้อมูลในตาราง actual_meter_data สำหรับมิเตอร์ MDB', 'No records found in actual_meter_data for MDB meters')}
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ height: 450 }}>
+                        <Line
+                            data={{
+                                labels: chartConfig.labels,
+                                datasets: [
+                                    {
+                                        label: t('ดีมานด์ (kW)', 'Demand (kW)'),
+                                        data: chartConfig.dataPoints,
+                                        borderColor: C.accent,
+                                        backgroundColor: (ctx: any) => {
+                                            const chart = ctx.chart;
+                                            const { ctx: canvasCtx, chartArea } = chart;
+                                            if (!chartArea) return C.gradStart;
+                                            const gradient = canvasCtx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                                            gradient.addColorStop(0, C.gradStart);
+                                            gradient.addColorStop(1, C.gradEnd);
+                                            return gradient;
                                         },
-                                        label: (ctx: any) => ` ${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(2)} kW`,
+                                        fill: true,
+                                        tension: 0.2,
+                                        pointRadius: 0,
+                                        pointHoverRadius: 4,
+                                        pointBackgroundColor: C.accent,
+                                        pointBorderColor: C.panel,
+                                        pointBorderWidth: 1,
+                                        borderWidth: 1.5,
                                     },
-                                },
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    grid: { color: C.line },
-                                    ticks: {
-                                        color: C.sub,
-                                        font: { family: MONO, size: 10 },
-                                        callback: (value: any) => `${value} kW`,
-                                    },
-                                    title: {
-                                        display: true,
-                                        text: 'kW',
-                                        color: C.sub,
-                                        font: { family: MONO, size: 11, weight: 'bold' as const },
-                                    },
-                                },
-                                x: {
-                                    grid: {
-                                        display: true,
-                                        color: (ctx: any) => {
-                                            // Show grid line only at day boundaries (non-empty labels)
-                                            const label = chartConfig.labels[ctx.tick?.value];
-                                            return label ? C.line : 'transparent';
+                                    ...(summary.peak > 0 ? [
+                                        {
+                                            label: t('ค่าพีคสูงสุด', 'Peak Max'),
+                                            data: chartConfig.dataPoints.map(() => summary.peak),
+                                            borderColor: C.peakLine,
+                                            borderDash: [8, 4],
+                                            pointRadius: 0,
+                                            pointHoverRadius: 0,
+                                            borderWidth: 1.5,
+                                        },
+                                        {
+                                            label: t('ค่าเฉลี่ย', 'Average'),
+                                            data: chartConfig.dataPoints.map(() => summary.avg),
+                                            borderColor: C.avgLine,
+                                            borderDash: [4, 4],
+                                            pointRadius: 0,
+                                            pointHoverRadius: 0,
+                                            borderWidth: 1.5,
+                                        },
+                                    ] : []),
+                                ],
+                            }}
+                            options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: { mode: 'index', intersect: false },
+                                plugins: {
+                                    legend: {
+                                        position: 'top',
+                                        labels: {
+                                            color: C.ink,
+                                            font: { family: MONO, size: 11 },
+                                            usePointStyle: true,
+                                            pointStyle: 'rectRounded',
                                         },
                                     },
-                                    ticks: {
-                                        color: C.sub,
-                                        font: { family: MONO, size: 10 },
-                                        maxRotation: 0,
-                                        autoSkip: false,
-                                        callback: function(_value: any, index: number) {
-                                            // Only show label for day boundary ticks
-                                            return chartConfig.labels[index] || null;
+                                    tooltip: {
+                                        backgroundColor: theme === 'dark' ? '#1C232E' : '#FBFAF4',
+                                        titleColor: C.ink,
+                                        bodyColor: C.ink,
+                                        borderColor: C.line,
+                                        borderWidth: 1,
+                                        titleFont: { family: MONO, size: 12, weight: 'bold' as const },
+                                        bodyFont: { family: MONO, size: 11 },
+                                        padding: 12,
+                                        callbacks: {
+                                            title: (ctx: any) => {
+                                                const idx = ctx[0].dataIndex;
+                                                const point = chartConfig.sorted[idx];
+                                                if (!point) return '';
+                                                const { day, timeStr } = formatTime(point.time);
+                                                return t(`วันที่ ${day} เวลา ${timeStr}`, `Day ${day}, ${timeStr}`);
+                                            },
+                                            label: (ctx: any) => ` ${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(2)} kW`,
                                         },
                                     },
-                                    title: {
-                                        display: true,
-                                        text: t('วันที่ในเดือน', 'Day of Month'),
-                                        color: C.sub,
-                                        font: { family: MONO, size: 11, weight: 'bold' as const },
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        grid: { color: C.line },
+                                        ticks: {
+                                            color: C.sub,
+                                            font: { family: MONO, size: 10 },
+                                            callback: (value: any) => `${value} kW`,
+                                        },
+                                        title: {
+                                            display: true,
+                                            text: 'kW',
+                                            color: C.sub,
+                                            font: { family: MONO, size: 11, weight: 'bold' as const },
+                                        },
+                                    },
+                                    x: {
+                                        grid: {
+                                            display: true,
+                                            color: (ctx: any) => {
+                                                const label = chartConfig.labels[ctx.tick?.value];
+                                                return label ? C.line : 'transparent';
+                                            },
+                                        },
+                                        ticks: {
+                                            color: C.sub,
+                                            font: { family: MONO, size: 10 },
+                                            autoSkip: false,
+                                            maxRotation: 0,
+                                        },
                                     },
                                 },
-                            },
-                        }}
-                    />
-                </div>
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
-            {/* Daily breakdown table */}
+            {/* Daily Peak Table */}
             <div style={{
                 background: C.panel,
                 border: `1px solid ${C.line}`,
                 padding: '20px 24px',
+                marginBottom: 20,
             }}>
-                <h3 style={{ margin: '0 0 16px 0', fontWeight: 700, fontFamily: MONO, fontSize: 13, color: C.ink, letterSpacing: 0.5 }}>
-                    {t('สรุปดีมานด์รายวัน', 'DAILY DEMAND SUMMARY')}
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <h3 style={{ margin: 0, fontWeight: 700, fontFamily: MONO, fontSize: 13, color: C.ink, letterSpacing: 0.5 }}>
+                        {t('ตารางพีคดีมานด์รายวัน (Daily Peak Demand)', 'DAILY PEAK DEMAND')}
+                    </h3>
+                    <div style={{ fontSize: 10, fontFamily: MONO, color: C.sub }}>
+                        {t('ค่า kW สูงสุดของแต่ละวัน', 'Max kW per day')}
+                    </div>
+                </div>
+
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: MONO, fontSize: 12 }}>
                         <thead>
-                            <tr style={{ borderBottom: `2px solid ${C.accent}` }}>
-                                <th style={{ padding: '8px 12px', textAlign: 'left', color: C.sub, fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+                            <tr style={{ borderBottom: `2px solid ${C.accent}`, background: C.panel2 }}>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', color: C.sub, fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, width: '25%' }}>
                                     {t('วันที่', 'DATE')}
                                 </th>
                                 <th style={{ padding: '8px 12px', textAlign: 'right', color: C.sub, fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -429,7 +423,7 @@ const DemandDashboard: React.FC = () => {
                             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                                 const kw = dailyPeaks.get(day) || 0;
                                 const pct = summary.peak > 0 ? (kw / summary.peak) * 100 : 0;
-                                const isPeakDay = day === peakDay.day;
+                                const isPeakDay = peakDay.day !== null && day === peakDay.day && summary.peak > 0;
                                 return (
                                     <tr key={day} style={{
                                         borderBottom: `1px solid ${C.line}`,

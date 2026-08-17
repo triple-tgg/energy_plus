@@ -176,46 +176,44 @@ export class ReportsService {
         params.push(endDate || startDate || new Date().toISOString().slice(0, 10));
         const endParam = params.length;
 
+        filters.push(`d.date_keep >= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`);
+        filters.push(`d.date_keep < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`);
+
         const dataParams = [...params, limit, offset];
         const result = await query(
-            `WITH mapped AS (
-                SELECT r.*, COALESCE(rmm.meter_id, fallback_meter.meter_id) AS mapped_meter_id
-                FROM meter_data_realtime r
-                LEFT JOIN realtime_meter_map rmm
-                  ON rmm.realtime_site_id = r.site_id
-                 AND rmm.realtime_address_id = r.address_id
-                 AND rmm.is_active = true
-                 AND (rmm.channel IS NULL OR rmm.channel = r.channel)
-                LEFT JOIN meter fallback_meter
-                  ON fallback_meter.site_el = r.site_id
-                 AND fallback_meter.address::text = r.address_id::text
-                 AND rmm.id IS NULL
-                WHERE r.received_at >= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
-                  AND r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
-            ), rows AS (
-                SELECT
-                    r.received_at AS timestamp,
-                    m.meter_id, m.meter_code, m.meter_name,
-                    r.import_kwhr AS kwh, r.kva_3ph AS kva, r.kw_3ph AS kw, r.kvar_3ph AS kvar,
-                    r.hz AS frequency, r.pf1 AS pwl1, r.pf2 AS pwl2, r.pf3 AS pwl3,
-                    r.kw1, r.kw2, r.kw3,
-                    NULL::numeric AS kvah, NULL::numeric AS kvarh,
-                    r.vl1 AS volt_p1, r.vl2 AS volt_p2, r.vl3 AS volt_p3,
-                    r.vl12 AS volt_l1, r.vl23 AS volt_l2, r.vl31 AS volt_l3,
-                    r.il1 AS amp1, r.il2 AS amp2, r.il3 AS amp3,
-                    r.received_at, r.id
-                FROM mapped r
-                JOIN meter m ON m.meter_id = r.mapped_meter_id
-                WHERE ${filters.join(' AND ')}
-            )
-            SELECT rows.*, COUNT(*) OVER()::int AS full_count
-            FROM rows
-            ORDER BY received_at DESC, id DESC
+            `SELECT
+                d.date_keep AS timestamp,
+                m.meter_id, m.meter_code, m.meter_name,
+                COALESCE(d.energy_kwh, 0) AS kwh,
+                COALESCE(d.energy_kva, 0) AS kva,
+                COALESCE(d.energy_kw, 0) AS kw,
+                COALESCE(d.energy_kvar, 0) AS kvar,
+                COALESCE(d.energy_frequency, 0) AS frequency,
+                COALESCE(d.energy_pf1, 0) AS pwl1,
+                COALESCE(d.energy_pf2, 0) AS pwl2,
+                COALESCE(d.energy_pf3, 0) AS pwl3,
+                NULL::numeric AS kw1, NULL::numeric AS kw2, NULL::numeric AS kw3,
+                NULL::numeric AS kvah, NULL::numeric AS kvarh,
+                COALESCE(d.energy_volt_p1, 0) AS volt_p1,
+                COALESCE(d.energy_volt_p2, 0) AS volt_p2,
+                COALESCE(d.energy_volt_p3, 0) AS volt_p3,
+                COALESCE(d.energy_volt_l1, 0) AS volt_l1,
+                COALESCE(d.energy_volt_l2, 0) AS volt_l2,
+                COALESCE(d.energy_volt_l3, 0) AS volt_l3,
+                COALESCE(d.energy_amp1, 0) AS amp1,
+                COALESCE(d.energy_amp2, 0) AS amp2,
+                COALESCE(d.energy_amp3, 0) AS amp3,
+                d.water_value, d.gas_value, d.status,
+                COUNT(*) OVER()::int AS full_count
+            FROM actual_meter_data d
+            JOIN meter m ON m.meter_id = d.meter_id
+            WHERE ${filters.join(' AND ')}
+            ORDER BY d.date_keep DESC, d.id DESC
             LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
             dataParams
         );
         const total = Number(result.rows[0]?.full_count || 0);
-        return { data: result.rows.map(({ full_count, id, received_at, ...row }: any) => row), total, page, limit };
+        return { data: result.rows.map(({ full_count, ...row }: any) => row), total, page, limit };
     }
 
     async getEnergyConsumption(queryParams: any) {
