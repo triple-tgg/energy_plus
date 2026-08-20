@@ -222,3 +222,10 @@ export const dataCleanupApi = {
     getRealtimeStats: () => api.get('/data-cleanup/realtime-stats'),
     purgeRealtime: (retentionHours: number) => api.post('/data-cleanup/purge-realtime', { retentionHours }),
 };
+
+// License & Meter Quota
+export const licenseApi = {
+    getStatus: () => api.get('/license/status'),
+    verify: (licenseKey: string) => api.post('/license/verify', { licenseKey }),
+    activate: (licenseKey: string) => api.post('/license/activate', { licenseKey }),
+};

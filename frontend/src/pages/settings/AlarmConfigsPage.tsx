@@ -314,8 +314,8 @@ const AlarmConfigsPage: React.FC = () => {
         try {
             const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
             const sheet = workbook.Sheets['Alarm Configs'] || workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json<any>(sheet, { defval: '' })
-                .filter(row => String(row.meterCode || '').trim());
+            const rows = (XLSX.utils.sheet_to_json(sheet, { defval: '' }) as any[])
+                .filter((row: any) => String(row.meterCode || '').trim());
             if (!rows.length) {
                 alert(t('ไม่พบข้อมูลสำหรับนำเข้าใน Sheet "Alarm Configs"', 'No import rows found in the "Alarm Configs" sheet'));
                 return;

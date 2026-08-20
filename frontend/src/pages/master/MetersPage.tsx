@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
-import { metersApi, sitesApi } from '../../api/client';
+import { metersApi, sitesApi, licenseApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -76,6 +77,7 @@ interface ParsedMeter {
 
 const MetersPage: React.FC = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const { t, language } = useLanguage();
     const { theme } = useTheme();
     const C = THEMES[theme];
@@ -84,6 +86,7 @@ const MetersPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(true);
+    const [licenseStatus, setLicenseStatus] = useState<any>(null);
 
     // Lookup data
     const [sites, setSites] = useState<any[]>([]);
@@ -177,7 +180,18 @@ const MetersPage: React.FC = () => {
         } catch (err) { console.error(err); }
     }, []);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    const fetchLicenseStatus = useCallback(async () => {
+        try {
+            const res = await licenseApi.getStatus();
+            if (res.data?.success && res.data?.data) {
+                setLicenseStatus(res.data.data);
+            }
+        } catch (err) {
+            console.error('Failed to load license status:', err);
+        }
+    }, []);
+
+    useEffect(() => { fetchData(); fetchLicenseStatus(); }, [fetchData, fetchLicenseStatus]);
     useEffect(() => { fetchLookups(); }, [fetchLookups]);
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -219,7 +233,21 @@ const MetersPage: React.FC = () => {
         ? zones.filter(z => z.building_id?.toString() === tempBuildingId)
         : zones;
 
-    const handleCreate = () => { setEditId(null); setForm(emptyForm); setFormError(''); setShowModal(true); };
+    const isQuotaFull = licenseStatus && (licenseStatus.usedMeters >= licenseStatus.maxMeters || licenseStatus.isExpired);
+
+    const handleCreate = () => {
+        if (isQuotaFull) {
+            alert(t(
+                `⚠️ ไม่สามารถเพิ่มมิเตอร์ได้ เนื่องจากครบโควตา License แล้ว (${licenseStatus?.usedMeters}/${licenseStatus?.maxMeters} ตัว)\n\nกรุณาติดต่อผู้ดูแลระบบ หรือไปที่เมนู Settings > License เพื่ออัปเกรด License Key`,
+                `⚠️ Cannot add meter: License quota limit reached (${licenseStatus?.usedMeters}/${licenseStatus?.maxMeters} meters).\n\nPlease go to "Settings > License" to upgrade your License Key.`
+            ));
+            return;
+        }
+        setEditId(null);
+        setForm(emptyForm);
+        setFormError('');
+        setShowModal(true);
+    };
 
     const handleEdit = (row: any) => {
         setEditId(row.meter_id);
@@ -674,6 +702,79 @@ const MetersPage: React.FC = () => {
             />
 
             <h2 style={{ fontFamily: MONO, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', color: C.ink, margin: '10px 0 16px 0', textTransform: 'uppercase' }}>{t('มิเตอร์', 'Meters')}</h2>
+
+            {/* License Meter Quota Banner */}
+            {licenseStatus && (
+                <div style={{
+                    background: C.panel,
+                    border: `1px solid ${licenseStatus.usagePercentage >= 100 ? '#fca5a5' : licenseStatus.usagePercentage >= 80 ? '#fde68a' : C.line}`,
+                    padding: '10px 16px',
+                    marginBottom: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: MONO, fontSize: '11px', fontWeight: 700, color: C.ink, letterSpacing: '0.5px' }}>
+                            🛡️ {t('โควตามิเตอร์', 'METER QUOTA')}:
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{
+                                fontFamily: MONO,
+                                fontSize: '13px',
+                                fontWeight: 800,
+                                color: licenseStatus.usagePercentage >= 100 ? '#dc2626' : licenseStatus.usagePercentage >= 80 ? '#d97706' : '#059669'
+                            }}>
+                                {licenseStatus.usedMeters} / {licenseStatus.maxMeters} {t('ตัว', 'Meters')}
+                            </span>
+                            <span style={{ fontFamily: MONO, fontSize: '11px', color: C.sub }}>
+                                ({licenseStatus.usagePercentage}%)
+                            </span>
+                        </div>
+                        {/* Progress Bar */}
+                        <div style={{ width: 140, height: 8, background: C.bar, borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{
+                                width: `${licenseStatus.usagePercentage}%`,
+                                height: '100%',
+                                background: licenseStatus.usagePercentage >= 100 ? '#ef4444' : licenseStatus.usagePercentage >= 80 ? '#f59e0b' : '#10b981',
+                                transition: 'width 0.3s ease'
+                            }} />
+                        </div>
+                        <span style={{ fontFamily: MONO, fontSize: '10.5px', color: C.sub }}>
+                            {t('คงเหลือ', 'Remaining')}: <strong>{licenseStatus.remainingMeters}</strong> {t('ตัว', 'meters')}
+                        </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {licenseStatus.expiryDate && (
+                            <span style={{ fontFamily: MONO, fontSize: '10.5px', color: (licenseStatus.daysRemaining ?? 0) < 30 ? '#dc2626' : C.sub }}>
+                                ⏳ {licenseStatus.daysRemaining !== null ? `${licenseStatus.daysRemaining} ${t('วัน', 'days')}` : ''}
+                            </span>
+                        )}
+                        {user?.role === 'admin' && (
+                            <button
+                                onClick={() => navigate('/settings/license')}
+                                style={{
+                                    fontFamily: MONO,
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    padding: '4px 10px',
+                                    background: C.panel2,
+                                    color: C.accent,
+                                    border: `1px solid ${C.line}`,
+                                    cursor: 'pointer',
+                                    textTransform: 'uppercase',
+                                    borderRadius: 2
+                                }}
+                            >
+                                🔑 {t('จัดการ License', 'Manage License')}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Filter Bar Panel */}
             <div style={{

@@ -594,6 +594,24 @@ async function migrateAndSeed() {
     `);
         console.log('  ✅ layout_points');
 
+        // System License (Cryptographic Meter License)
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS system_license (
+        id SERIAL PRIMARY KEY,
+        license_key TEXT NOT NULL,
+        customer_name VARCHAR(200),
+        license_type VARCHAR(100) DEFAULT 'Enterprise',
+        max_meters INTEGER NOT NULL DEFAULT 50,
+        features JSONB DEFAULT '[]',
+        issued_date TIMESTAMPTZ,
+        expiry_date TIMESTAMPTZ,
+        is_valid BOOLEAN DEFAULT true,
+        last_verified_on TIMESTAMPTZ DEFAULT NOW(),
+        created_on TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+        console.log('  ✅ system_license');
+
         // ═══════════════════════════════════════════════════════
         // 2. SEED DATA
         // ═══════════════════════════════════════════════════════
@@ -1102,6 +1120,38 @@ async function migrateAndSeed() {
             );
         }
         console.log('  ✅ user_permission (admin, technician, view, tenant, user)');
+
+        // --- System License ---
+        const path = require('path');
+        const { generateLicense } = require(path.resolve(__dirname, '../../scripts/generate-license'));
+        const defaultLicense = generateLicense({
+            customerName: 'บริษัท กลุ่มเคอี จำกัด (KE Group)',
+            licenseType: 'Enterprise Standard',
+            maxMeters: 50,
+            daysValid: 365,
+            features: ['dashboard', 'monitoring', 'reports', 'meters', 'alarms', 'company', 'sites', 'billing', 'settings']
+        });
+        await client.query(
+            `INSERT INTO system_license (id, license_key, customer_name, license_type, max_meters, features, issued_date, expiry_date, is_valid, last_verified_on, created_on)
+             VALUES (1, $1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+             ON CONFLICT (id) DO UPDATE SET
+               customer_name = EXCLUDED.customer_name,
+               license_type = EXCLUDED.license_type,
+               max_meters = EXCLUDED.max_meters,
+               features = EXCLUDED.features,
+               is_valid = true`,
+            [
+                defaultLicense.licenseKey,
+                defaultLicense.payload.customerName,
+                defaultLicense.payload.licenseType,
+                defaultLicense.payload.maxMeters,
+                JSON.stringify(defaultLicense.payload.features),
+                defaultLicense.payload.issuedDate,
+                defaultLicense.payload.expiryDate
+            ]
+        );
+        await client.query(`SELECT setval('system_license_id_seq', (SELECT GREATEST(MAX(id), 1) FROM system_license))`);
+        console.log('  ✅ system_license (Default 50-meter Enterprise License)');
 
         await client.query('COMMIT');
 

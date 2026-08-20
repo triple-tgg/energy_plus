@@ -1,0 +1,41 @@
+export const LICENSE_CONFIG = {
+    // Embedded ECDSA P-256 Public Key used to verify license signatures
+    PUBLIC_KEY: `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaSdokfShglVaDYe8Q1eyZQfD83pe
+/QwG3Ko817fbJi8FGh/UtdXwPqRg21Cwr1po5t8OsSjKT75zqCKW86Vq0Q==
+-----END PUBLIC KEY-----`,
+
+    // Fallback meter quota if no license is found
+    DEFAULT_FALLBACK_METERS: 10,
+};
+
+export interface LicensePayload {
+    customerName: string;
+    licenseType?: string;
+    maxMeters: number;
+    issuedDate: string;
+    expiryDate: string | null;
+    features?: string[];
+    hardwareLock?: string | null;
+}
+
+export interface LicenseTokenStructure {
+    payload: LicensePayload;
+    signature: string;
+}
+
+export interface LicenseStatusResult {
+    isValid: boolean;
+    customerName: string;
+    licenseType: string;
+    maxMeters: number;
+    usedMeters: number;
+    remainingMeters: number;
+    usagePercentage: number;
+    issuedDate: string | null;
+    expiryDate: string | null;
+    daysRemaining: number | null;
+    isExpired: boolean;
+    features: string[];
+    licenseKeyMasked: string;
+}

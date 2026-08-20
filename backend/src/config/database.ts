@@ -1,6 +1,10 @@
 import { Pool, PoolConfig } from 'pg';
+import path from 'path';
 import dotenv from 'dotenv';
 
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
 const poolConfig: PoolConfig = {
@@ -10,14 +14,14 @@ const poolConfig: PoolConfig = {
     password: process.env.DB_PASSWORD || '',
     port: parseInt(process.env.DB_PORT || '25060', 10),
     max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
     ssl: {
         rejectUnauthorized: false,
     },
 };
 
 const pool = new Pool(poolConfig);
+
+console.log(`🔌 Database initialized -> Host: ${poolConfig.host}, Port: ${poolConfig.port}, DB: ${poolConfig.database}`);
 
 pool.on('connect', () => {
     console.log('✅ Connected to PostgreSQL database');

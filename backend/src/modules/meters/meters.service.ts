@@ -2,6 +2,7 @@ import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 import { syncMeterSubscriptions } from '../redis-pubsub/redisPubsub.service';
+import { licenseService } from '../license/license.service';
 
 const refreshMeterSubscriptions = async (): Promise<void> => {
     try {
@@ -75,6 +76,19 @@ export class MetersService {
     }
 
     async createMeter(data: any) {
+        // Enforce cryptographic license meter quota
+        const isMeterActive = data.isActive !== false;
+        if (isMeterActive) {
+            const quota = await licenseService.checkMeterQuota(1);
+            if (!quota.allowed) {
+                throw new AppError(
+                    403,
+                    'LICENSE_LIMIT_EXCEEDED',
+                    `ไม่สามารถเพิ่มมิเตอร์ได้ เนื่องจากครบโควตา License แล้ว (${quota.current}/${quota.max} ตัว) กรุณาอัปเกรด License Key เพื่อเพิ่มจำนวนมิเตอร์`
+                );
+            }
+        }
+
         const result = await query(
             `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
        site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
@@ -90,6 +104,21 @@ export class MetersService {
     }
 
     async updateMeter(meterId: number, data: any) {
+        // If changing status from inactive to active, check license quota
+        if (data.isActive === true) {
+            const currentMeterRes = await query(`SELECT is_active FROM meter WHERE meter_id = $1`, [meterId]);
+            if (currentMeterRes.rows.length > 0 && currentMeterRes.rows[0].is_active === false) {
+                const quota = await licenseService.checkMeterQuota(1);
+                if (!quota.allowed) {
+                    throw new AppError(
+                        403,
+                        'LICENSE_LIMIT_EXCEEDED',
+                        `ไม่สามารถเปิดใช้งานมิเตอร์นี้ได้ เนื่องจากครบโควตา License แล้ว (${quota.current}/${quota.max} ตัว) กรุณาอัปเกรด License Key`
+                    );
+                }
+            }
+        }
+
         const result = await query(
             `UPDATE meter SET meter_code=$1, meter_name=$2, address=$3, meter_brand_id=$4, meter_type_id=$5,
        loop_id=$6, site_id=$7, building_id=$8, zone_id=$9, is_active=$10, ip_address=$11,
