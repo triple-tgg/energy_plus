@@ -7,6 +7,15 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaSdokfShglVaDYe8Q1eyZQfD83pe
 
     // Fallback meter quota if no license is found
     DEFAULT_FALLBACK_METERS: 10,
+
+    // License seeded automatically on a fresh database
+    DEFAULT_LICENSE: {
+        customerName: 'บริษัท กลุ่มเคอี จำกัด (KE Group)',
+        licenseType: 'Enterprise Standard',
+        maxMeters: 50,
+        daysValid: 365,
+        features: ['dashboard', 'monitoring', 'reports', 'meters', 'alarms', 'company', 'sites', 'billing', 'settings']
+    },
 };
 
 export interface LicensePayload {

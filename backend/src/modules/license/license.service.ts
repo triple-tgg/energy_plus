@@ -244,28 +244,37 @@ export class LicenseService {
      * Seed initial valid license if database is fresh
      */
     private async seedDefaultLicense(): Promise<any> {
-        const path = require('path');
-        const { generateLicense } = require(path.resolve(__dirname, '../../../scripts/generate-license'));
-        const defaultLicense = generateLicense({
-            customerName: 'บริษัท กลุ่มเคอี จำกัด (KE Group)',
-            licenseType: 'Enterprise Standard',
-            maxMeters: 50,
-            daysValid: 365,
-            features: ['dashboard', 'monitoring', 'reports', 'meters', 'alarms', 'company', 'sites', 'billing', 'settings']
-        });
+        const issuedDate = new Date();
+        const expiryDate = new Date(issuedDate);
+        expiryDate.setDate(expiryDate.getDate() + LICENSE_CONFIG.DEFAULT_LICENSE.daysValid);
+
+        // Sign the default license when the offline generator is available (dev / full image).
+        // If it is not bundled, still seed an unsigned record so the API stays usable —
+        // quota is enforced from max_meters, and activating a real key always requires a valid signature.
+        let licenseKey = '';
+        try {
+            const path = require('path');
+            const { generateLicense } = require(path.resolve(__dirname, '../../../scripts/generate-license'));
+            licenseKey = generateLicense({
+                ...LICENSE_CONFIG.DEFAULT_LICENSE,
+                daysValid: LICENSE_CONFIG.DEFAULT_LICENSE.daysValid
+            }).licenseKey;
+        } catch (e) {
+            licenseKey = 'BUILTIN-DEFAULT';
+        }
 
         const insertRes = await query(
             `INSERT INTO system_license (
                 license_key, customer_name, license_type, max_meters, features, issued_date, expiry_date, is_valid, last_verified_on, created_on
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW()) RETURNING *`,
             [
-                defaultLicense.licenseKey,
-                defaultLicense.payload.customerName,
-                defaultLicense.payload.licenseType,
-                defaultLicense.payload.maxMeters,
-                JSON.stringify(defaultLicense.payload.features),
-                defaultLicense.payload.issuedDate,
-                defaultLicense.payload.expiryDate
+                licenseKey,
+                LICENSE_CONFIG.DEFAULT_LICENSE.customerName,
+                LICENSE_CONFIG.DEFAULT_LICENSE.licenseType,
+                LICENSE_CONFIG.DEFAULT_LICENSE.maxMeters,
+                JSON.stringify(LICENSE_CONFIG.DEFAULT_LICENSE.features),
+                issuedDate.toISOString(),
+                expiryDate.toISOString()
             ]
         );
 
