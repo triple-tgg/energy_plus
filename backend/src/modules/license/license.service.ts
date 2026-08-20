@@ -81,7 +81,16 @@ export class LicenseService {
     }
 
     /**
-     * Check if meter creation or activation is within quota
+     * Count meters consuming license quota.
+     * Every meter record counts, whether it is active or not.
+     */
+    private async countLicensedMeters(): Promise<number> {
+        const countRes = await query(`SELECT COUNT(*) FROM meter`);
+        return parseInt(countRes.rows[0].count, 10);
+    }
+
+    /**
+     * Check if meter creation is within quota
      */
     async checkMeterQuota(additionalMeters: number = 1): Promise<{
         allowed: boolean;
@@ -94,39 +103,16 @@ export class LicenseService {
         const licenseRecord = await this.getCurrentLicenseRecord();
         const maxMeters = licenseRecord.max_meters || LICENSE_CONFIG.DEFAULT_FALLBACK_METERS;
 
-        // Count only meters that are connected to real hardware (have active realtime_meter_map entry)
-        const countRes = await query(`
-            SELECT COUNT(DISTINCT m.meter_id) FROM meter m
-            INNER JOIN realtime_meter_map rmm ON rmm.meter_id = m.meter_id AND rmm.is_active = true
-            WHERE m.is_active = true
-        `);
-        const currentActiveMeters = parseInt(countRes.rows[0].count, 10);
+        const currentMeters = await this.countLicensedMeters();
 
-        const newTotal = currentActiveMeters + additionalMeters;
+        const newTotal = currentMeters + additionalMeters;
         const allowed = newTotal <= maxMeters;
-        const remaining = Math.max(0, maxMeters - currentActiveMeters);
-        const usagePercentage = Math.min(100, Math.round((currentActiveMeters / maxMeters) * 100));
-
-        // Also check if license is expired
-        if (licenseRecord.expiry_date && new Date() > new Date(licenseRecord.expiry_date)) {
-            return {
-                allowed: false,
-                current: currentActiveMeters,
-                max: maxMeters,
-                remaining: 0,
-                usagePercentage: 100,
-                license: {
-                    customerName: licenseRecord.customer_name,
-                    maxMeters,
-                    issuedDate: licenseRecord.issued_date,
-                    expiryDate: licenseRecord.expiry_date
-                }
-            };
-        }
+        const remaining = Math.max(0, maxMeters - currentMeters);
+        const usagePercentage = Math.min(100, Math.round((currentMeters / maxMeters) * 100));
 
         return {
             allowed,
-            current: currentActiveMeters,
+            current: currentMeters,
             max: maxMeters,
             remaining,
             usagePercentage,
@@ -173,12 +159,7 @@ export class LicenseService {
      */
     async getLicenseStatus(): Promise<LicenseStatusResult> {
         const license = await this.getCurrentLicenseRecord();
-        const countRes = await query(`
-            SELECT COUNT(DISTINCT m.meter_id) FROM meter m
-            INNER JOIN realtime_meter_map rmm ON rmm.meter_id = m.meter_id AND rmm.is_active = true
-            WHERE m.is_active = true
-        `);
-        const usedMeters = parseInt(countRes.rows[0].count, 10);
+        const usedMeters = await this.countLicensedMeters();
         const maxMeters = license.max_meters || LICENSE_CONFIG.DEFAULT_FALLBACK_METERS;
         const remainingMeters = Math.max(0, maxMeters - usedMeters);
         const usagePercentage = Math.min(100, Math.round((usedMeters / maxMeters) * 100));
@@ -244,9 +225,13 @@ export class LicenseService {
      * Seed initial valid license if database is fresh
      */
     private async seedDefaultLicense(): Promise<any> {
+        const { daysValid } = LICENSE_CONFIG.DEFAULT_LICENSE;
         const issuedDate = new Date();
-        const expiryDate = new Date(issuedDate);
-        expiryDate.setDate(expiryDate.getDate() + LICENSE_CONFIG.DEFAULT_LICENSE.daysValid);
+        let expiryDate: Date | null = null;
+        if (daysValid > 0) {
+            expiryDate = new Date(issuedDate);
+            expiryDate.setDate(expiryDate.getDate() + daysValid);
+        }
 
         // Sign the default license when the offline generator is available (dev / full image).
         // If it is not bundled, still seed an unsigned record so the API stays usable —
@@ -255,10 +240,7 @@ export class LicenseService {
         try {
             const path = require('path');
             const { generateLicense } = require(path.resolve(__dirname, '../../../scripts/generate-license'));
-            licenseKey = generateLicense({
-                ...LICENSE_CONFIG.DEFAULT_LICENSE,
-                daysValid: LICENSE_CONFIG.DEFAULT_LICENSE.daysValid
-            }).licenseKey;
+            licenseKey = generateLicense(LICENSE_CONFIG.DEFAULT_LICENSE).licenseKey;
         } catch (e) {
             licenseKey = 'BUILTIN-DEFAULT';
         }
@@ -274,7 +256,7 @@ export class LicenseService {
                 LICENSE_CONFIG.DEFAULT_LICENSE.maxMeters,
                 JSON.stringify(LICENSE_CONFIG.DEFAULT_LICENSE.features),
                 issuedDate.toISOString(),
-                expiryDate.toISOString()
+                expiryDate ? expiryDate.toISOString() : null
             ]
         );
 

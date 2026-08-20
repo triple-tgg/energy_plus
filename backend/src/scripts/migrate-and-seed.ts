@@ -1124,13 +1124,8 @@ async function migrateAndSeed() {
         // --- System License ---
         const path = require('path');
         const { generateLicense } = require(path.resolve(__dirname, '../../scripts/generate-license'));
-        const defaultLicense = generateLicense({
-            customerName: 'บริษัท กลุ่มเคอี จำกัด (KE Group)',
-            licenseType: 'Enterprise Standard',
-            maxMeters: 50,
-            daysValid: 365,
-            features: ['dashboard', 'monitoring', 'reports', 'meters', 'alarms', 'company', 'sites', 'billing', 'settings']
-        });
+        const { LICENSE_CONFIG } = require(path.resolve(__dirname, '../config/license.config'));
+        const defaultLicense = generateLicense(LICENSE_CONFIG.DEFAULT_LICENSE);
         await client.query(
             `INSERT INTO system_license (id, license_key, customer_name, license_type, max_meters, features, issued_date, expiry_date, is_valid, last_verified_on, created_on)
              VALUES (1, $1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())

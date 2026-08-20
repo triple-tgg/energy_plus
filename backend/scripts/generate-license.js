@@ -10,7 +10,7 @@ function generateLicense({
     customerName = 'KE Group',
     licenseType = 'Enterprise',
     maxMeters = 50,
-    daysValid = 365,
+    daysValid = 0, // 0 = never expires
     features = ['dashboard', 'monitoring', 'reports', 'meters', 'alarms', 'billing', 'demand_control']
 } = {}) {
     const issuedDate = new Date();
@@ -60,7 +60,7 @@ if (require.main === module) {
     const args = process.argv.slice(2);
     let customer = 'KE Group';
     let meters = 50;
-    let days = 365;
+    let days = 0; // 0 = never expires
 
     for (const arg of args) {
         if (arg.startsWith('--customer=')) customer = arg.split('=')[1];
