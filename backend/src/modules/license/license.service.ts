@@ -151,13 +151,14 @@ export class LicenseService {
             ]
         );
 
-        return await this.getLicenseStatus();
+        return await this.getLicenseStatus(true);
     }
 
     /**
-     * Get detailed license status for UI display
+     * Get detailed license status for UI display.
+     * The full key is only included for admins — everyone else gets the masked form.
      */
-    async getLicenseStatus(): Promise<LicenseStatusResult> {
+    async getLicenseStatus(includeFullKey: boolean = false): Promise<LicenseStatusResult> {
         const license = await this.getCurrentLicenseRecord();
         const usedMeters = await this.countLicensedMeters();
         const maxMeters = license.max_meters || LICENSE_CONFIG.DEFAULT_FALLBACK_METERS;
@@ -196,7 +197,8 @@ export class LicenseService {
             daysRemaining,
             isExpired,
             features: Array.isArray(license.features) ? license.features : [],
-            licenseKeyMasked
+            licenseKeyMasked,
+            ...(includeFullKey ? { licenseKey: rawKey } : {})
         };
     }
 

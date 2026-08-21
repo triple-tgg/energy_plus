@@ -48,4 +48,6 @@ export interface LicenseStatusResult {
     isExpired: boolean;
     features: string[];
     licenseKeyMasked: string;
+    /** Full key — only returned to admins, so they can copy or re-apply it */
+    licenseKey?: string;
 }

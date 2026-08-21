@@ -55,7 +55,10 @@ const THEMES: Record<'light' | 'dark', Theme> = {
 const getStatusInfo = (s: string, C: Theme) => {
     switch (s) {
         case 'offline':
-            return { color: '#EF4444', labelTh: 'ออฟไลน์', labelEn: 'Offline' };
+            return { color: '#EF4444', labelTh: 'ไม่มีสัญญาณ', labelEn: 'No Signal' };
+        case 'zero':
+            // Meter is reporting on schedule but every reading is 0 — a wiring/CT issue, not a comms one
+            return { color: '#F59E0B', labelTh: 'ค่าเป็นศูนย์', labelEn: 'Zero Reading' };
         case 'inactive':
             return { color: '#6B7280', labelTh: 'ไม่ใช้งาน', labelEn: 'Inactive' };
         case 'online':
@@ -127,6 +130,7 @@ interface ItemData {
     kwh: number;
     status: string;
     count: number;
+    counts: StatusCount;
     m?: MeterData;
 }
 
@@ -165,23 +169,32 @@ const isRealtime = (m: MeterData) => m.data_source === 'realtime' || m.data_sour
 function meterStatus(m: MeterData, now: number): string {
     if (m.disabled || m.is_active === false) return 'inactive';
     if (now - m.received_at > STALE_MS) return 'offline';
-    // Treat all-zero readings as offline (meter communicating but no real data)
+    // Reporting on time but every reading is 0 — the meter is reachable, the measurement is not
     if (m.vl1 === 0 && m.vl2 === 0 && m.vl3 === 0
         && m.il1 === 0 && m.il2 === 0 && m.il3 === 0
         && m.kw_3ph === 0 && m.kva_3ph === 0
-        && m.hz === 0 && m.import_kwhr === 0) return 'offline';
+        && m.hz === 0 && m.import_kwhr === 0) return 'zero';
     return 'online';
 }
-function aggStatus(list: MeterData[], now: number): string {
-    let hasOnline = false;
-    let hasOffline = false;
+export interface StatusCount { online: number; zero: number; offline: number; inactive: number }
+/** Order used everywhere a tally is rendered: healthy first, then by how urgent the fault is */
+const STATUS_ORDER: Array<keyof StatusCount> = ['online', 'zero', 'offline', 'inactive'];
+function statusCounts(list: MeterData[], now: number): StatusCount {
+    const c: StatusCount = { online: 0, zero: 0, offline: 0, inactive: 0 };
     for (const m of list) {
         const s = meterStatus(m, now);
-        if (s === 'offline') hasOffline = true;
-        if (s === 'online' || s === 'normal') hasOnline = true;
+        if (s === 'offline') c.offline++;
+        else if (s === 'zero') c.zero++;
+        else if (s === 'inactive') c.inactive++;
+        else c.online++;
     }
-    if (hasOffline) return 'offline';
-    if (hasOnline) return 'online';
+    return c;
+}
+function aggStatus(list: MeterData[], now: number): string {
+    const c = statusCounts(list, now);
+    if (c.offline > 0) return 'offline';
+    if (c.zero > 0) return 'zero';
+    if (c.online > 0) return 'online';
     return 'inactive';
 }
 function latestAge(list: MeterData[], now: number): number | null {
@@ -237,6 +250,33 @@ function StatusDot({ s, size = 9, pulse, C }: StatusDotProps) {
     );
 }
 
+/** Online / offline / inactive meter tally for a group — shown next to the group's status dot
+ *  so one dead meter in a large branch no longer reads as "the whole branch is down". */
+interface StatusTallyProps {
+    counts: StatusCount;
+    size?: number;
+    C: Theme;
+}
+function StatusTally({ counts, size = 10.5, C }: StatusTallyProps) {
+    const parts = STATUS_ORDER.map((s) => ({ key: s, s, n: counts[s] })).filter((p) => p.n > 0);
+    if (!parts.length) return null;
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontFamily: MONO, fontSize: size, fontVariantNumeric: 'tabular-nums',
+        }}>
+            {parts.map((p, i) => (
+                <React.Fragment key={p.key}>
+                    {i > 0 && <span style={{ color: C.sub, opacity: 0.6 }}>·</span>}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600, color: getStatusInfo(p.s, C).color }}>
+                        <StatusDot s={p.s} size={size * 0.62} C={C} />{p.n}
+                    </span>
+                </React.Fragment>
+            ))}
+        </span>
+    );
+}
+
 interface CapProps {
     idx?: string;
     en: string;
@@ -278,7 +318,7 @@ function Readout({ label, value, unit, accent, C }: ReadoutProps) {
 
 /* ──────────────────── Single Line Diagram ──────────────────── */
 interface SingleLineProps {
-    main: { name: string | undefined; kwh: number; status: string };
+    main: { name: string | undefined; kwh: number; status: string; counts: StatusCount };
     feeders: ItemData[];
     onPick: (id: string) => void;
     C: Theme;
@@ -295,6 +335,7 @@ function SingleLine({ main, feeders, onPick, C }: SingleLineProps) {
                         <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, color: C.ink }}>MAIN · {formatNodeName(main.name || '', t)}</span>
                     </div>
                     <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 19, fontWeight: 700, marginTop: 2, color: C.ink }}>{fmt(main.kwh)} <span style={{ fontSize: 11, color: C.sub }}>kWh</span></div>
+                    <div style={{ marginTop: 3 }}><StatusTally counts={main.counts} C={C} /></div>
                 </div>
                 <div style={{ width: 2, height: 20, background: C.ink }} />
                 <div style={{ height: 2, background: C.ink, width: `${Math.min(100, feeders.length * 22)}%`, maxWidth: '100%' }} />
@@ -312,6 +353,7 @@ function SingleLine({ main, feeders, onPick, C }: SingleLineProps) {
                                         <StatusDot s={f.status} size={8} C={C} /><span style={{ fontWeight: 600, fontSize: 12, color: C.ink }}>{formatNodeName(f.node.name, t)}</span>
                                     </div>
                                     <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 700, color: C.ink }}>{fmt(f.kwh)} <span style={{ fontSize: 10, color: C.sub }}>kWh</span></div>
+                                    <div style={{ marginTop: 2 }}><StatusTally counts={f.counts} size={9.5} C={C} /></div>
                                 </button>
                             </div>
                         );
@@ -347,7 +389,10 @@ function ZonePlan({ items, onPick, C }: ZonePlanProps) {
                                 <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 24, fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</span>
                                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
                             </div>
-                            <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub }}>{it.count} METERS</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub }}>{it.count} METERS</span>
+                                <StatusTally counts={it.counts} C={C} />
+                            </div>
                         </button>
                     );
                 })}
@@ -578,16 +623,22 @@ function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
                             [{m.code}] {m.device}
                         </div>
                     </div>
-                    <div style={{
-                        fontFamily: MONO, fontSize: 10, padding: '3px 10px',
-                        borderRadius: 12,
-                        background: s === 'offline' ? '#EF444420' : '#10B98120',
-                        color: s === 'offline' ? '#EF4444' : '#10B981',
-                        border: `1px solid ${s === 'offline' ? '#EF4444' : '#10B981'}40`,
-                        fontWeight: 600, textTransform: 'uppercase',
-                    }}>
-                        {s === 'offline' ? '🔴' : '🟢'} {s === 'offline' ? t('ออฟไลน์', 'offline') : t('ออนไลน์', 'online')}
-                    </div>
+                    {(() => {
+                        const si = getStatusInfo(s, C);
+                        const icon = s === 'offline' ? '🔴' : s === 'zero' ? '🟠' : s === 'inactive' ? '⚫' : '🟢';
+                        return (
+                            <div style={{
+                                fontFamily: MONO, fontSize: 10, padding: '3px 10px',
+                                borderRadius: 12,
+                                background: `${si.color}20`,
+                                color: si.color,
+                                border: `1px solid ${si.color}40`,
+                                fontWeight: 600, textTransform: 'uppercase',
+                            }}>
+                                {icon} {t(si.labelTh, si.labelEn)}
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Location info */}
@@ -1073,10 +1124,10 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     const items: ItemData[] = nodes.map((node) => {
         if (node.level === 'room') {
             const m = meters.find((x) => x.id === node.id)!;
-            return { node, kwh: period(m), status: meterStatus(m, now), count: 1, m };
+            return { node, kwh: period(m), status: meterStatus(m, now), count: 1, counts: statusCounts([m], now), m };
         }
         const sub = metersUnder([...path, node.id]);
-        return { node, kwh: sub.reduce((s, m) => s + period(m), 0), status: aggStatus(sub, now), count: sub.length };
+        return { node, kwh: sub.reduce((s, m) => s + period(m), 0), status: aggStatus(sub, now), count: sub.length, counts: statusCounts(sub, now) };
     });
     const sorted = [...items].sort((a, b) => (sortDesc ? b.kwh - a.kwh : a.kwh - b.kwh));
 
@@ -1110,20 +1161,18 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                     <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</span>
                     <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>kWh</span>
                 </div>
-                <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10.5, color: C.sub, display: 'flex', justifyContent: 'space-between', letterSpacing: 0.3 }}>
+                <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10.5, color: C.sub, display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: 0.3 }}>
                     <span>{it.node.level === 'room' ? `${it.m!.device} · L${it.m!.loop}` : `${it.count} MTR`}</span>
-                    <span style={{ color: st.color, fontWeight: 600 }}>{t(st.labelTh, st.labelEn)}</span>
+                    {it.node.level === 'room'
+                        ? <span style={{ color: st.color, fontWeight: 600 }}>{t(st.labelTh, st.labelEn)}</span>
+                        : <StatusTally counts={it.counts} C={C} />}
                 </div>
             </button>
         );
     };
 
     const scope = metersUnder(path);
-    const counts = scope.reduce((acc: Record<string, number>, m) => {
-        const s = meterStatus(m, now);
-        acc[s] = (acc[s] || 0) + 1;
-        return acc;
-    }, { online: 0, offline: 0, inactive: 0 });
+    const counts = statusCounts(scope, now);
     const totalKwh = scope.reduce((s, m) => s + period(m), 0);
 
     const go = (id: string) => { setPath([...path, id]); setSelected(null); };
@@ -1250,7 +1299,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
                             </div>
                         </div>
-                        {['online', 'offline', 'inactive'].map((s) => (
+                        {STATUS_ORDER.map((s) => (
                             <div key={s} style={{ padding: '11px 16px', borderRight: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 9, minWidth: 110 }}>
                                 <StatusDot s={s} size={11} C={C} />
                                 <div>
@@ -1285,21 +1334,31 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                     </div>
                                 )} />
 
-                            {counts.offline > 0 && (
+                            {(counts.offline > 0 || counts.zero > 0) && (
                                 <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 9, background: C.panel,
-                                    borderLeft: `3px solid #EF4444`, border: `1px solid ${C.line}`, padding: '9px 12px', marginBottom: 12
+                                    display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: C.panel,
+                                    borderLeft: `3px solid ${counts.offline > 0 ? '#EF4444' : '#F59E0B'}`, border: `1px solid ${C.line}`, padding: '9px 12px', marginBottom: 12
                                 }}>
-                                    <Bell size={14} color="#EF4444" />
-                                    <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.ink, letterSpacing: 0.3 }}>
-                                        {t('แจ้งเตือน', 'ALERT')} · <b style={{ color: '#EF4444' }}>{counts.offline}</b> {t('มิเตอร์ออฟไลน์ (ไม่มีสัญญาณ)', 'Offline Meters (No Signal)')}
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                                        <Bell size={14} color={counts.offline > 0 ? '#EF4444' : '#F59E0B'} />
+                                        <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.sub, letterSpacing: 0.3 }}>{t('แจ้งเตือน', 'ALERT')}</span>
                                     </span>
+                                    {counts.offline > 0 && (
+                                        <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.ink, letterSpacing: 0.3 }}>
+                                            <b style={{ color: '#EF4444' }}>{counts.offline}</b> {t('มิเตอร์ไม่มีสัญญาณ (ขาดการติดต่อ)', 'Meters With No Signal (Lost Contact)')}
+                                        </span>
+                                    )}
+                                    {counts.zero > 0 && (
+                                        <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.ink, letterSpacing: 0.3 }}>
+                                            <b style={{ color: '#F59E0B' }}>{counts.zero}</b> {t('มิเตอร์ส่งค่าเป็นศูนย์ (ติดต่อได้ แต่ไม่มีค่าวัด)', 'Meters Reading Zero (Reachable, No Measurement)')}
+                                        </span>
+                                    )}
                                 </div>
                             )}
 
                             {level === 2 ? (
                                 bldgView === 'sld' ? (
-                                    <SingleLine main={{ name: currentName, kwh: totalKwh, status: aggStatus(scope, now) }}
+                                    <SingleLine main={{ name: currentName, kwh: totalKwh, status: aggStatus(scope, now), counts: statusCounts(scope, now) }}
                                         feeders={[...items].sort((a, b) => fnum(a.node.name) - fnum(b.node.name))} onPick={go} C={C} />
                                 ) : (
                                     <div style={{
@@ -1349,10 +1408,10 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                                         </span>
                                                     </div>
 
-                                                    {/* Meter count pill */}
+                                                    {/* Meter count pill + online/offline tally */}
                                                     <div style={{
-                                                        minWidth: 64, fontFamily: MONO, fontSize: 11, color: C.sub,
-                                                        display: 'flex', alignItems: 'center', gap: 4,
+                                                        minWidth: 128, fontFamily: MONO, fontSize: 11, color: C.sub,
+                                                        display: 'flex', alignItems: 'center', gap: 6,
                                                     }}>
                                                         <span style={{
                                                             padding: '2px 6px', background: C.panel2, border: `1px solid ${C.line}80`,
@@ -1360,6 +1419,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                                         }}>
                                                             {it.count} {t('มิเตอร์', 'MTR')}
                                                         </span>
+                                                        <StatusTally counts={it.counts} C={C} />
                                                     </div>
 
                                                     {/* Energy Distribution Bar */}
@@ -1443,7 +1503,13 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                                             {it.node.level === 'room' && <span style={{ color: C.sub, fontFamily: MONO, fontSize: 10.5 }}> {it.m!.channel}</span>}
                                                         </td>
                                                         <td style={{ ...td(), textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</td>
-                                                        <td style={{ ...td(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
+                                                        <td style={{ ...td(), textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                            <span style={{ display: 'inline-flex' }}>
+                                                                {it.node.level === 'room'
+                                                                    ? <StatusDot s={it.status} C={C} />
+                                                                    : <StatusTally counts={it.counts} size={10} C={C} />}
+                                                            </span>
+                                                        </td>
                                                         <td style={{ ...td(), textAlign: 'right', color: C.sub, fontFamily: MONO, fontSize: 10.5 }}>{ago === null ? '—' : ago > 30 ? `${ago}s!` : `${ago}s`}</td>
                                                     </tr>
                                                 );

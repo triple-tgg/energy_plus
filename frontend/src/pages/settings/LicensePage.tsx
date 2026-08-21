@@ -33,6 +33,7 @@ interface LicenseStatus {
     isExpired: boolean;
     features: string[];
     licenseKeyMasked: string;
+    licenseKey?: string;
 }
 
 export const LicensePage: React.FC = () => {
@@ -51,6 +52,7 @@ export const LicensePage: React.FC = () => {
     const [verifying, setVerifying] = useState(false);
     const [activating, setActivating] = useState(false);
     const [verifiedPayload, setVerifiedPayload] = useState<any>(null);
+    const [copied, setCopied] = useState(false);
 
     const fetchStatus = async () => {
         setLoading(true);
@@ -121,6 +123,23 @@ export const LicensePage: React.FC = () => {
         if (pct >= 100) return '#ef4444'; // Red
         if (pct >= 80) return '#f59e0b';  // Amber
         return '#10b981';                // Green
+    };
+
+    const hasInput = licenseInput.trim().length > 0;
+    const verifyDisabled = verifying || activating || !hasInput;
+    const activateDisabled = activating || verifying || !hasInput;
+
+    const currentKey = status?.licenseKey || status?.licenseKeyMasked || '';
+
+    const handleCopyKey = async () => {
+        if (!currentKey) return;
+        try {
+            await navigator.clipboard.writeText(currentKey);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            setError(t('คัดลอกไม่สำเร็จ กรุณาเลือกข้อความแล้วกด Ctrl+C', 'Copy failed — select the text and press Ctrl+C'));
+        }
     };
 
     if (loading && !status) {
@@ -272,36 +291,6 @@ export const LicensePage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Features Entitlement Section */}
-            {status?.features && status.features.length > 0 && (
-                <div style={{
-                    background: C.panel,
-                    border: `1px solid ${C.line}`,
-                    padding: '16px 20px',
-                    borderRadius: 0,
-                    marginBottom: 24
-                }}>
-                    <div style={{ fontFamily: MONO, fontSize: '11px', fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
-                        ✨ {t('ฟีเจอร์ที่ได้รับสิทธิ์ (Licensed Features)', 'Licensed Features')}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {status.features.map((feat, idx) => (
-                            <span key={idx} style={{
-                                fontFamily: MONO,
-                                fontSize: '11px',
-                                padding: '4px 10px',
-                                background: C.panel2,
-                                border: `1px solid ${C.line}`,
-                                color: C.ink,
-                                borderRadius: 3
-                            }}>
-                                ✓ {feat}
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            )}
-
             {/* Admin Activation Section */}
             {user?.role === 'admin' && (
                 <div style={{
@@ -321,15 +310,64 @@ export const LicensePage: React.FC = () => {
                         {t('วาง License Token (Base64) ที่ได้รับจากผู้พัฒนาเพื่อเพิ่มโควตามิเตอร์หรือขยายระยะเวลาใช้งาน', 'Paste the cryptographically signed License Key token to expand meter limits or extend validity')}
                     </p>
 
+                    {/* Current key, so it can be copied or kept as a backup before upgrading */}
+                    {currentKey && (
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <label style={{ fontFamily: MONO, fontSize: '11px', fontWeight: 700, color: C.ink, textTransform: 'uppercase' }}>
+                                    {t('License Key ที่ใช้งานอยู่ตอนนี้:', 'Current License Key:')}
+                                </label>
+                                <button
+                                    onClick={handleCopyKey}
+                                    style={{
+                                        fontFamily: MONO,
+                                        fontSize: '10px',
+                                        fontWeight: 700,
+                                        padding: '4px 10px',
+                                        background: C.panel,
+                                        color: copied ? '#16a34a' : C.accent,
+                                        border: `1px solid ${copied ? '#16a34a' : C.accent}`,
+                                        cursor: 'pointer',
+                                        textTransform: 'uppercase'
+                                    }}
+                                >
+                                    {copied ? `✓ ${t('คัดลอกแล้ว', 'Copied')}` : `📋 ${t('คัดลอก', 'Copy')}`}
+                                </button>
+                            </div>
+                            <textarea
+                                rows={3}
+                                readOnly
+                                value={currentKey}
+                                onFocus={(e) => e.currentTarget.select()}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    fontFamily: MONO,
+                                    fontSize: '11px',
+                                    background: C.bar,
+                                    color: C.sub,
+                                    border: `1px solid ${C.line}`,
+                                    borderRadius: 0,
+                                    resize: 'vertical',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <div style={{ fontFamily: MONO, fontSize: '10px', color: C.sub, marginTop: 6 }}>
+                                {t('เก็บคีย์นี้ไว้ก่อนอัปเกรด — ถ้าอยากย้อนกลับมาใช้ค่าเดิม ให้วางคีย์นี้กลับเข้าช่องด้านล่างแล้วกด Activate',
+                                   'Keep this key before upgrading — to roll back, paste it into the box below and press Activate')}
+                            </div>
+                        </div>
+                    )}
+
                     <div style={{ marginBottom: 16 }}>
                         <label style={{ display: 'block', fontFamily: MONO, fontSize: '11px', fontWeight: 700, color: C.ink, marginBottom: 6, textTransform: 'uppercase' }}>
-                            {t('License Key Token:', 'License Key Token:')}
+                            {t('วาง License Key ใหม่ที่นี่ (สำหรับอัปเกรด):', 'Paste New License Key here (for upgrade):')}
                         </label>
                         <textarea
                             rows={4}
                             value={licenseInput}
                             onChange={(e) => setLicenseInput(e.target.value)}
-                            placeholder="eyJwYXlsb2FkIjp7ImN1c3RvbWVyTmFtZSI6IktFIEdyb3VwIiwibWF4TWV0ZXJzIjo1MC4uLiJ9LCJzaWduYXR1cmUiOiJNRVFDSU..."
+                            placeholder={t('คลิกที่นี่แล้ววาง License Key ที่ได้รับ (ขึ้นต้นด้วย eyJ...)', 'Click here and paste the License Key you received (starts with eyJ...)')}
                             style={{
                                 width: '100%',
                                 padding: '10px 12px',
@@ -343,6 +381,11 @@ export const LicensePage: React.FC = () => {
                                 boxSizing: 'border-box'
                             }}
                         />
+                        <div style={{ fontFamily: MONO, fontSize: '10px', color: hasInput ? C.accent : C.sub, marginTop: 6 }}>
+                            {hasInput
+                                ? `✓ ${t('รับคีย์แล้ว', 'Key entered')} — ${licenseInput.trim().length} ${t('ตัวอักษร', 'characters')}`
+                                : t('ยังไม่ได้วางคีย์ — ปุ่มด้านล่างจะกดได้เมื่อวางคีย์แล้ว', 'No key pasted yet — the buttons below unlock once a key is entered')}
+                        </div>
                     </div>
 
                     {/* Decoded preview if verified */}
@@ -368,18 +411,19 @@ export const LicensePage: React.FC = () => {
                     <div style={{ display: 'flex', gap: 10 }}>
                         <button
                             onClick={handleVerify}
-                            disabled={verifying || activating || !licenseInput.trim()}
+                            disabled={verifyDisabled}
+                            title={!hasInput ? t('กรุณาวาง License Key ในช่องด้านบนก่อน', 'Paste a License Key in the box above first') : ''}
                             style={{
                                 fontFamily: MONO,
                                 fontSize: '11px',
                                 fontWeight: 700,
                                 padding: '8px 16px',
-                                background: C.panel2,
-                                color: C.ink,
-                                border: `1px solid ${C.line}`,
-                                cursor: 'pointer',
+                                background: C.panel,
+                                color: verifyDisabled ? C.sub : C.accent,
+                                border: `1px solid ${verifyDisabled ? C.line : C.accent}`,
+                                cursor: verifyDisabled ? 'not-allowed' : 'pointer',
                                 textTransform: 'uppercase',
-                                opacity: !licenseInput.trim() ? 0.6 : 1
+                                opacity: verifyDisabled ? 0.6 : 1
                             }}
                         >
                             {verifying ? t('กำลังตรวจสอบ...', 'Verifying...') : `🔍 ${t('ตรวจสอบความถูกต้อง (Verify)', 'Verify Key')}`}
@@ -387,18 +431,19 @@ export const LicensePage: React.FC = () => {
 
                         <button
                             onClick={handleActivate}
-                            disabled={activating || !licenseInput.trim()}
+                            disabled={activateDisabled}
+                            title={!hasInput ? t('กรุณาวาง License Key ในช่องด้านบนก่อน', 'Paste a License Key in the box above first') : ''}
                             style={{
                                 fontFamily: MONO,
                                 fontSize: '11px',
                                 fontWeight: 700,
                                 padding: '8px 20px',
-                                background: C.accent,
-                                color: '#ffffff',
+                                background: activateDisabled ? C.bar : C.accent,
+                                color: activateDisabled ? C.sub : '#ffffff',
                                 border: 'none',
-                                cursor: 'pointer',
+                                cursor: activateDisabled ? 'not-allowed' : 'pointer',
                                 textTransform: 'uppercase',
-                                opacity: !licenseInput.trim() ? 0.6 : 1
+                                opacity: activateDisabled ? 0.6 : 1
                             }}
                         >
                             {activating ? t('กำลังเปิดใช้งาน...', 'Activating...') : `🚀 ${t('เปิดใช้งานทันที (Activate)', 'Activate Now')}`}

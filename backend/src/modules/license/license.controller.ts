@@ -9,7 +9,8 @@ export class LicenseController {
      */
     async getStatus(req: Request, res: Response, next: NextFunction) {
         try {
-            const status = await licenseService.getLicenseStatus();
+            const isAdmin = (req as any).user?.role === 'admin';
+            const status = await licenseService.getLicenseStatus(isAdmin);
             res.json(successResponse(status));
         } catch (error) {
             next(error);
