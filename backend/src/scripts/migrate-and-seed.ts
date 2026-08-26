@@ -615,17 +615,222 @@ async function migrateAndSeed() {
         console.log('  ✅ system_license');
 
         // ═══════════════════════════════════════════════════════
-        // 2. SEED DATA
+        // 2. SEED DATA (Minimal — production-ready for customer)
         // ═══════════════════════════════════════════════════════
 
-        console.log('\n📦 Seeding sample data...\n');
+        console.log('\n📦 Seeding essential data...\n');
 
         // --- Company ---
         await client.query(`
       INSERT INTO company (company_id, company_name, address, contact_name, contact_phone, domain)
-      VALUES (1, 'บริษัท กลุ่มเคอี จำกัด', '111 ถ.พหลโยธิน แขวงจตุจักร เขตจตุจักร กรุงเทพฯ 10900', 'Admin', '02-123-4567', 'energyplus.kegroup.co.th')
+      VALUES (1, 'Wanwanach', '', 'Admin', '', '')
       ON CONFLICT (company_id) DO NOTHING
     `);
+        console.log('  ✅ company');
+
+        // --- User Groups ---
+        const groups = [
+            { id: 1, name: 'Administrator', desc: 'Full access to all features' },
+            { id: 2, name: 'Technician', desc: 'Access to monitoring, meters, and alarms' },
+            { id: 3, name: 'Tenant Service', desc: 'View monitoring and billing' },
+            { id: 4, name: 'User', desc: 'Basic view access' },
+            { id: 5, name: 'View', desc: 'Dashboard view only' },
+            { id: 6, name: 'Guest', desc: 'Limited guest access' },
+        ];
+        for (const g of groups) {
+            await client.query(
+                `INSERT INTO group_user (group_id, group_name, description) VALUES ($1, $2, $3)
+                 ON CONFLICT (group_id) DO UPDATE SET group_name = $2, description = $3`,
+                [g.id, g.name, g.desc]
+            );
+        }
+        console.log('  ✅ group_user (6 groups)');
+
+        // --- Users (admin only) ---
+        const passwordHash = await bcrypt.hash('admin123', 12);
+        await client.query(
+            `INSERT INTO app_user (user_name, display_name, email, password_hash, group_id, role, site_access_mode, created_by)
+             VALUES ('admin', 'Administrator', '', $1, 1, 'admin', 'all', 'system')
+             ON CONFLICT (user_name) DO UPDATE SET
+               display_name = 'Administrator',
+               group_id = 1,
+               role = 'admin',
+               site_access_mode = 'all',
+               is_active = true`,
+            [passwordHash]
+        );
+        console.log('  ✅ app_user (admin)');
+
+        // --- Meter Brands (reference data) ---
+        const brands = [
+            { id: 1, name: 'Siemens', model: 'AB5478' },
+            { id: 2, name: 'Schneider Electric', model: 'PM5110' },
+            { id: 3, name: 'ABB', model: 'M4M 30' },
+            { id: 4, name: 'Socomec', model: 'DIRIS A40' },
+            { id: 5, name: 'Hioki', model: 'PW3365' },
+            { id: 6, name: 'CET', model: 'PMC-53A' },
+            { id: 7, name: 'CHINT', model: 'DTSU666' },
+            { id: 8, name: 'Eastron', model: 'SDM630' },
+        ];
+        for (const b of brands) {
+            await client.query(
+                `INSERT INTO meter_brand (meter_brand_id, meter_brand_name, model_name) VALUES ($1, $2, $3)
+                 ON CONFLICT (meter_brand_id) DO UPDATE SET meter_brand_name = $2, model_name = $3`,
+                [b.id, b.name, b.model]
+            );
+        }
+        await client.query(`SELECT setval('meter_brand_meter_brand_id_seq', (SELECT GREATEST(MAX(meter_brand_id), 8) FROM meter_brand))`);
+        console.log('  ✅ meter_brand (8 brands)');
+
+        // --- Meter Types (reference data) ---
+        const types = [
+            { id: 1, name: 'ไฟฟ้า', icon: 'fa fa-bolt' },
+            { id: 2, name: 'น้ำ', icon: 'fa fa-tint' },
+            { id: 3, name: 'แก๊ส', icon: 'fa fa-fire' },
+        ];
+        for (const t of types) {
+            await client.query(
+                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name) VALUES ($1, $2, $3)
+                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3`,
+                [t.id, t.name, t.icon]
+            );
+        }
+        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 3) FROM meter_type))`);
+        console.log('  ✅ meter_type (3 types)');
+
+        // --- Protocols (reference data) ---
+        const protocols = [
+            { id: 1, name: 'Modbus RTU' },
+            { id: 2, name: 'Modbus TCP' },
+            { id: 3, name: 'BACnet' },
+        ];
+        for (const p of protocols) {
+            await client.query(
+                `INSERT INTO protocol (protocol_id, protocol_name) VALUES ($1, $2)
+                 ON CONFLICT (protocol_id) DO UPDATE SET protocol_name = $2`,
+                [p.id, p.name]
+            );
+        }
+        await client.query(`SELECT setval('protocol_protocol_id_seq', (SELECT GREATEST(MAX(protocol_id), 3) FROM protocol))`);
+        console.log('  ✅ protocol (3 protocols)');
+
+        // --- Energy Values (reference data) ---
+        const energyValues = [
+            { id: 1, name: 'kWh', unit: 'kWh', col: 'energy_kwh', order: 1 },
+            { id: 2, name: 'kW', unit: 'kW', col: 'energy_kw', order: 2 },
+            { id: 3, name: 'kVA', unit: 'kVA', col: 'energy_kva', order: 3 },
+            { id: 4, name: 'kVAR', unit: 'kVAR', col: 'energy_kvar', order: 4 },
+            { id: 5, name: 'Frequency', unit: 'Hz', col: 'energy_frequency', order: 5 },
+            { id: 6, name: 'Volt P1', unit: 'V', col: 'energy_volt_p1', order: 6 },
+            { id: 7, name: 'Volt P2', unit: 'V', col: 'energy_volt_p2', order: 7 },
+            { id: 8, name: 'Volt P3', unit: 'V', col: 'energy_volt_p3', order: 8 },
+            { id: 9, name: 'Volt L1', unit: 'V', col: 'energy_volt_l1', order: 9 },
+            { id: 10, name: 'Volt L2', unit: 'V', col: 'energy_volt_l2', order: 10 },
+            { id: 11, name: 'Volt L3', unit: 'V', col: 'energy_volt_l3', order: 11 },
+            { id: 12, name: 'Amp P1', unit: 'A', col: 'energy_amp1', order: 12 },
+            { id: 13, name: 'Amp P2', unit: 'A', col: 'energy_amp2', order: 13 },
+            { id: 14, name: 'Amp P3', unit: 'A', col: 'energy_amp3', order: 14 },
+            { id: 15, name: 'PF P1', unit: '', col: 'energy_pf1', order: 15 },
+            { id: 16, name: 'PF P2', unit: '', col: 'energy_pf2', order: 16 },
+            { id: 17, name: 'PF P3', unit: '', col: 'energy_pf3', order: 17 },
+            { id: 18, name: 'THD V1', unit: '%', col: 'energy_thd_v1', order: 18 },
+            { id: 19, name: 'THD A1', unit: '%', col: 'energy_thd_a1', order: 19 },
+            { id: 20, name: 'Water', unit: 'm³', col: 'water_value', order: 20 },
+            { id: 21, name: 'Gas', unit: 'm³', col: 'gas_value', order: 21 },
+        ];
+        for (const ev of energyValues) {
+            await client.query(
+                `INSERT INTO energy_value (energy_value_id, energy_value_name, unit, column_name, display_order) VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (energy_value_id) DO UPDATE SET energy_value_name = $2, unit = $3, column_name = $4, display_order = $5`,
+                [ev.id, ev.name, ev.unit, ev.col, ev.order]
+            );
+        }
+        await client.query(`SELECT setval('energy_value_energy_value_id_seq', (SELECT GREATEST(MAX(energy_value_id), 21) FROM energy_value))`);
+        console.log('  ✅ energy_value (21 types)');
+
+        // --- User Permissions ---
+        const allModules = ['dashboard', 'monitoring', 'meters', 'alarms', 'users', 'billing', 'reports', 'settings', 'company', 'sites'];
+
+        // Admin = full access
+        for (const mod of allModules) {
+            await client.query(
+                `INSERT INTO user_permission (group_id, permission_key, can_view, can_create, can_edit, can_delete)
+                 VALUES (1, $1, true, true, true, true)
+                 ON CONFLICT (group_id, permission_key) DO UPDATE SET can_view = true, can_create = true, can_edit = true, can_delete = true`,
+                [mod]
+            );
+        }
+        // Technician = monitor + create/edit
+        for (const mod of ['dashboard', 'monitoring', 'meters', 'alarms', 'reports']) {
+            await client.query(
+                `INSERT INTO user_permission (group_id, permission_key, can_view, can_create, can_edit, can_delete)
+                 VALUES (2, $1, true, true, true, false)
+                 ON CONFLICT (group_id, permission_key) DO UPDATE SET can_view = true, can_create = true, can_edit = true, can_delete = false`,
+                [mod]
+            );
+        }
+        // Tenant Service = view billing + reports
+        for (const mod of ['dashboard', 'monitoring', 'billing', 'reports']) {
+            await client.query(
+                `INSERT INTO user_permission (group_id, permission_key, can_view, can_create, can_edit, can_delete)
+                 VALUES (3, $1, true, false, false, false)
+                 ON CONFLICT (group_id, permission_key) DO UPDATE SET can_view = true, can_create = false, can_edit = false, can_delete = false`,
+                [mod]
+            );
+        }
+        // User = view dashboard, monitoring, reports
+        for (const mod of ['dashboard', 'monitoring', 'reports']) {
+            await client.query(
+                `INSERT INTO user_permission (group_id, permission_key, can_view, can_create, can_edit, can_delete)
+                 VALUES (4, $1, true, false, false, false)
+                 ON CONFLICT (group_id, permission_key) DO UPDATE SET can_view = true, can_create = false, can_edit = false, can_delete = false`,
+                [mod]
+            );
+        }
+        // View = view all main screens
+        for (const mod of ['dashboard', 'monitoring', 'reports', 'meters', 'alarms', 'company', 'sites', 'billing', 'settings']) {
+            await client.query(
+                `INSERT INTO user_permission (group_id, permission_key, can_view, can_create, can_edit, can_delete)
+                 VALUES (5, $1, true, false, false, false)
+                 ON CONFLICT (group_id, permission_key) DO UPDATE SET can_view = true, can_create = false, can_edit = false, can_delete = false`,
+                [mod]
+            );
+        }
+        console.log('  ✅ user_permission');
+
+        // --- System License ---
+        const defaultLicense = generateLicense(LICENSE_CONFIG.DEFAULT_LICENSE);
+        await client.query(
+            `INSERT INTO system_license (id, license_key, customer_name, license_type, max_meters, features, issued_date, expiry_date, is_valid, last_verified_on, created_on)
+             VALUES (1, $1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+             ON CONFLICT (id) DO UPDATE SET
+               customer_name = EXCLUDED.customer_name,
+               license_type = EXCLUDED.license_type,
+               max_meters = EXCLUDED.max_meters,
+               features = EXCLUDED.features,
+               is_valid = true`,
+            [
+                defaultLicense.licenseKey,
+                defaultLicense.payload.customerName,
+                defaultLicense.payload.licenseType,
+                defaultLicense.payload.maxMeters,
+                JSON.stringify(defaultLicense.payload.features),
+                defaultLicense.payload.issuedDate,
+                defaultLicense.payload.expiryDate
+            ]
+        );
+        await client.query(`SELECT setval('system_license_id_seq', (SELECT GREATEST(MAX(id), 1) FROM system_license))`);
+        console.log('  ✅ system_license (Wanwanach 5-meter License)');
+
+        await client.query('COMMIT');
+
+        console.log('\n✅ Migration and seeding completed successfully!\n');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('  📌 Login:');
+        console.log('     Admin:   admin / admin123');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+
         console.log('  ✅ company');
 
         // --- User Groups ---
