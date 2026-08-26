@@ -1,5 +1,7 @@
 import pool from '../config/database';
 import bcrypt from 'bcryptjs';
+import { LICENSE_CONFIG } from '../config/license.config';
+import { generateLicense } from '../utils/license-generator';
 
 async function migrateAndSeed() {
     const client = await pool.connect();
@@ -1122,9 +1124,6 @@ async function migrateAndSeed() {
         console.log('  ✅ user_permission (admin, technician, view, tenant, user)');
 
         // --- System License ---
-        const path = require('path');
-        const { generateLicense } = require(path.resolve(__dirname, '../../scripts/generate-license'));
-        const { LICENSE_CONFIG } = require(path.resolve(__dirname, '../config/license.config'));
         const defaultLicense = generateLicense(LICENSE_CONFIG.DEFAULT_LICENSE);
         await client.query(
             `INSERT INTO system_license (id, license_key, customer_name, license_type, max_meters, features, issued_date, expiry_date, is_valid, last_verified_on, created_on)

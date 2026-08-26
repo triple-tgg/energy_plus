@@ -25,6 +25,9 @@ RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev
 # Copy compiled backend
 COPY --from=backend-build /app/backend/dist ./dist
 
+# Copy backend scripts
+COPY --from=backend-build /app/backend/scripts ./scripts
+
 # Copy frontend static files
 COPY --from=frontend-build /app/frontend/dist ./public
 

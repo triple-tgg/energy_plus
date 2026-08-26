@@ -7,6 +7,7 @@ import {
     LicenseTokenStructure,
     LicenseStatusResult
 } from '../../config/license.config';
+import { generateLicense } from '../../utils/license-generator';
 
 export class LicenseService {
     /**
@@ -240,8 +241,6 @@ export class LicenseService {
         // quota is enforced from max_meters, and activating a real key always requires a valid signature.
         let licenseKey = '';
         try {
-            const path = require('path');
-            const { generateLicense } = require(path.resolve(__dirname, '../../../scripts/generate-license'));
             licenseKey = generateLicense(LICENSE_CONFIG.DEFAULT_LICENSE).licenseKey;
         } catch (e) {
             licenseKey = 'BUILTIN-DEFAULT';
