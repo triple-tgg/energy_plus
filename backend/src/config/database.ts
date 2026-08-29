@@ -7,6 +7,8 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
+const useSsl = process.env.DB_SSL === 'true';
+
 const poolConfig: PoolConfig = {
     user: process.env.DB_USER || 'energyadmin',
     host: process.env.DB_HOST || 'localhost',
@@ -14,9 +16,11 @@ const poolConfig: PoolConfig = {
     password: process.env.DB_PASSWORD || '',
     port: parseInt(process.env.DB_PORT || '25060', 10),
     max: 20,
-    ssl: {
-        rejectUnauthorized: false,
-    },
+    ssl: useSsl
+        ? {
+            rejectUnauthorized: false,
+        }
+        : false,
 };
 
 const pool = new Pool(poolConfig);

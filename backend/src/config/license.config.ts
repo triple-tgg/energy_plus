@@ -6,14 +6,14 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaSdokfShglVaDYe8Q1eyZQfD83pe
 -----END PUBLIC KEY-----`,
 
     // Fallback meter quota if no license is found
-    DEFAULT_FALLBACK_METERS: 10,
+    DEFAULT_FALLBACK_METERS: 1,
 
     // License seeded automatically on a fresh database.
     // daysValid = 0 means the license never expires.
     DEFAULT_LICENSE: {
-        customerName: 'บริษัท กลุ่มเคอี จำกัด (KE Group)',
+        customerName: 'Wanwanach',
         licenseType: 'Enterprise Standard',
-        maxMeters: 50,
+        maxMeters: 1,
         daysValid: 0,
         features: ['dashboard', 'monitoring', 'reports', 'meters', 'alarms', 'company', 'sites', 'billing', 'settings']
     },
