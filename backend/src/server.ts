@@ -25,6 +25,8 @@ import exportsRoutes from './modules/exports/exports.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 import { ensureAccessControlSchema } from './config/accessControl';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerDocument } from './config/swagger';
 import { alertEngine } from './modules/alarms/alert-engine.service';
 
 const app = createApp();
@@ -70,6 +72,10 @@ app.use(`${API_PREFIX}/reports`, reportsRoutes);
 app.use(`${API_PREFIX}/data-cleanup`, dataCleanupRoutes);
 app.use(`${API_PREFIX}/license`, licenseRoutes);
 app.use(`${API_PREFIX}/exports`, exportsRoutes);
+
+// Swagger API Documentation
+app.use(`${API_PREFIX}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 
 
@@ -188,6 +194,7 @@ const startServer = async () => {
     const server = app.listen(PORT, () => {
         console.log(`\n🚀 Energy Monitoring API Server running on port ${PORT}`);
         console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
+        console.log(`📖 Swagger API Docs: http://localhost:${PORT}${API_PREFIX}/docs`);
         console.log(`💚 Health check: http://localhost:${PORT}${API_PREFIX}/health`);
         console.log(`📡 Redis Pub/Sub: http://localhost:${PORT}${API_PREFIX}/redis/channels\n`);
     });
