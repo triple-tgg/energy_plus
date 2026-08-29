@@ -192,7 +192,7 @@ const startServer = async () => {
     }
 
     const server = app.listen(PORT, () => {
-        console.log(`\n🚀 Energy Monitoring API Server running on port ${PORT}`);
+        console.log(`\n🚀 MSoft Energy Monitoring API Server running on port ${PORT}`);
         console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
         console.log(`📖 Swagger API Docs: http://localhost:${PORT}${API_PREFIX}/docs`);
         console.log(`💚 Health check: http://localhost:${PORT}${API_PREFIX}/health`);

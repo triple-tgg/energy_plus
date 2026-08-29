@@ -1,11 +1,11 @@
 export const swaggerDocument = {
     openapi: '3.0.3',
     info: {
-        title: 'EnergyPlus Monitoring API',
+        title: 'MSoft Monitoring API',
         version: '1.0.0',
-        description: 'Comprehensive REST API documentation for EnergyPlus - Energy Monitoring & Management System',
+        description: 'Comprehensive REST API documentation for MSoft - Energy Monitoring & Management System',
         contact: {
-            name: 'EnergyPlus Support',
+            name: 'MSoft Support',
         },
     },
     servers: [
