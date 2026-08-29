@@ -215,6 +215,10 @@ async function migrateAndSeed() {
         phase VARCHAR(20),
         circuit VARCHAR(100),
         floor INTEGER,
+        meter_group VARCHAR(100),
+        max_kwh DECIMAL(18,2),
+        subaddress INTEGER,
+        converter VARCHAR(100),
         parent_meter_id INTEGER REFERENCES meter(meter_id),
         is_active BOOLEAN DEFAULT true,
         status VARCHAR(50) DEFAULT 'Manual',
@@ -229,6 +233,10 @@ async function migrateAndSeed() {
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS meter_group VARCHAR(100)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
 
         // Actual Meter Data (15-min snapshot history)
         await client.query(`
@@ -669,42 +677,25 @@ async function migrateAndSeed() {
         );
         console.log('  ✅ app_user (admin)');
 
-        // --- Meter Brands (reference data) ---
-        const brands = [
-            { id: 1, name: 'Siemens', model: 'AB5478' },
-            { id: 2, name: 'Schneider Electric', model: 'PM5110' },
-            { id: 3, name: 'ABB', model: 'M4M 30' },
-            { id: 4, name: 'Socomec', model: 'DIRIS A40' },
-            { id: 5, name: 'Hioki', model: 'PW3365' },
-            { id: 6, name: 'CET', model: 'PMC-53A' },
-            { id: 7, name: 'CHINT', model: 'DTSU666' },
-            { id: 8, name: 'Eastron', model: 'SDM630' },
-        ];
-        for (const b of brands) {
-            await client.query(
-                `INSERT INTO meter_brand (meter_brand_id, meter_brand_name, model_name) VALUES ($1, $2, $3)
-                 ON CONFLICT (meter_brand_id) DO UPDATE SET meter_brand_name = $2, model_name = $3`,
-                [b.id, b.name, b.model]
-            );
-        }
-        await client.query(`SELECT setval('meter_brand_meter_brand_id_seq', (SELECT GREATEST(MAX(meter_brand_id), 8) FROM meter_brand))`);
-        console.log('  ✅ meter_brand (8 brands)');
-
         // --- Meter Types (reference data) ---
         const types = [
-            { id: 1, name: 'ไฟฟ้า', icon: 'fa fa-bolt' },
-            { id: 2, name: 'น้ำ', icon: 'fa fa-tint' },
-            { id: 3, name: 'แก๊ส', icon: 'fa fa-fire' },
+            { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
+            { id: 2, name: 'WAT', icon: 'fa fa-tint' },
+            { id: 3, name: 'GAS', icon: 'fa fa-fire' },
+            { id: 4, name: 'MDB', icon: 'fa fa-plug' },
+            { id: 5, name: 'SOL', icon: 'fa fa-solar-panel' },
+            { id: 6, name: 'Humidity', icon: 'fa fa-smog' },
+            { id: 7, name: 'Temperature', icon: 'fa fa-thermometer-half' },
         ];
         for (const t of types) {
             await client.query(
-                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name) VALUES ($1, $2, $3)
-                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3`,
+                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name, is_active) VALUES ($1, $2, $3, true)
+                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3, is_active = true`,
                 [t.id, t.name, t.icon]
             );
         }
-        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 3) FROM meter_type))`);
-        console.log('  ✅ meter_type (3 types)');
+        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 7) FROM meter_type))`);
+        console.log('  ✅ meter_type (7 types: ELE, WAT, GAS, MDB, SOL, Humidity, Temperature)');
 
         // --- Protocols (reference data) ---
         const protocols = [

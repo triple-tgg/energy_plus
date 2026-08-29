@@ -21,9 +21,12 @@ import layoutRoutes from './modules/layouts/layouts.routes';
 import reportsRoutes from './modules/reports/reports.routes';
 import dataCleanupRoutes from './modules/data-cleanup/dataCleanup.routes';
 import licenseRoutes from './modules/license/license.routes';
+import exportsRoutes from './modules/exports/exports.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 import { ensureAccessControlSchema } from './config/accessControl';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerDocument } from './config/swagger';
 import { alertEngine } from './modules/alarms/alert-engine.service';
 
 const app = createApp();
@@ -68,6 +71,11 @@ app.use(`${API_PREFIX}/layouts`, layoutRoutes);
 app.use(`${API_PREFIX}/reports`, reportsRoutes);
 app.use(`${API_PREFIX}/data-cleanup`, dataCleanupRoutes);
 app.use(`${API_PREFIX}/license`, licenseRoutes);
+app.use(`${API_PREFIX}/exports`, exportsRoutes);
+
+// Swagger API Documentation
+app.use(`${API_PREFIX}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 
 
@@ -99,11 +107,52 @@ const startServer = async () => {
     // Ensure meter table has all columns that services expect.
     // Safe to run every startup – ADD COLUMN IF NOT EXISTS is a no-op when the column already exists.
     try {
-        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS phase VARCHAR(50)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ALTER COLUMN phase TYPE VARCHAR(50) USING phase::varchar`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
-        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS floor VARCHAR(50)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ALTER COLUMN floor TYPE VARCHAR(50) USING floor::varchar`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS meter_group VARCHAR(100)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
+
+        await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_th VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_en VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS building_name_th VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS building_name_en VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS job_name VARCHAR(100) NOT NULL DEFAULT 'job'`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'success'`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_read INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_written INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_skipped INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_start TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_end TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS error_message TEXT`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NOW()`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`);
+
+        // Ensure standard 7 meter types exist
+        const standardTypes = [
+            { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
+            { id: 2, name: 'WAT', icon: 'fa fa-tint' },
+            { id: 3, name: 'GAS', icon: 'fa fa-fire' },
+            { id: 4, name: 'MDB', icon: 'fa fa-plug' },
+            { id: 5, name: 'SOL', icon: 'fa fa-solar-panel' },
+            { id: 6, name: 'Humidity', icon: 'fa fa-smog' },
+            { id: 7, name: 'Temperature', icon: 'fa fa-thermometer-half' },
+        ];
+        for (const t of standardTypes) {
+            await pool.query(
+                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name, is_active) VALUES ($1, $2, $3, true)
+                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3, is_active = true`,
+                [t.id, t.name, t.icon]
+            );
+        }
     } catch (e: any) {
-        console.warn('⚠️  Schema patch (meter columns) skipped:', e.message);
+        console.warn('⚠️  Schema patch (meter columns / types) skipped:', e.message);
     }
 
     await ensureAccessControlSchema();
@@ -143,8 +192,9 @@ const startServer = async () => {
     }
 
     const server = app.listen(PORT, () => {
-        console.log(`\n🚀 Energy Monitoring API Server running on port ${PORT}`);
+        console.log(`\n🚀 MSoft Energy Monitoring API Server running on port ${PORT}`);
         console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
+        console.log(`📖 Swagger API Docs: http://localhost:${PORT}${API_PREFIX}/docs`);
         console.log(`💚 Health check: http://localhost:${PORT}${API_PREFIX}/health`);
         console.log(`📡 Redis Pub/Sub: http://localhost:${PORT}${API_PREFIX}/redis/channels\n`);
     });

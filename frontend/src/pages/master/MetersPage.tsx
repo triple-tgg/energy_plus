@@ -52,27 +52,33 @@ const emptyForm: MeterForm = {
     parentMeterId: '', isActive: true,
 };
 
-// Excel column mapping for the 111PMT format
+// Excel column mapping for meter import (supporting standard & final multi-sheet template)
 interface ParsedMeter {
+    no?: number | string | null;
+    status?: string;
     address: string;
+    subaddress?: number | null;
     circuit: string;
     siteName: string;
+    siteEl: number | string | null;
     building: string;
+    floor: number | null;
     zone: string;
+    roomCode: string;
+    roomName: string;
+    meterGroup?: string;
     meterType: string;
     meterCode: string;
     meterName: string;
-    roomCode: string;
-    roomName: string;
-    loop: number | null;
     meterModel: string;
-    siteEl: number | null;
-    portNumber: number | null;
+    maxKwh?: number | null;
+    phase: number | string | null;
+    loop: number | null;
     ipAddress: string;
-    phase: number | null;
-    floor: number | null;
-    previousKwh: number | null;
-    currentKwh: number | null;
+    portNumber: number | null;
+    converter?: string;
+    previousKwh?: number | null;
+    currentKwh?: number | null;
 }
 
 const MetersPage: React.FC = () => {
@@ -141,6 +147,9 @@ const MetersPage: React.FC = () => {
     const [showImportPreview, setShowImportPreview] = useState(false);
     const [parsedMeters, setParsedMeters] = useState<ParsedMeter[]>([]);
     const [importFileName, setImportFileName] = useState('');
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+    const [selectedSheet, setSelectedSheet] = useState<string>('');
+    const [currentWorkbook, setCurrentWorkbook] = useState<any>(null);
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState<any>(null);
     const [showImportResult, setShowImportResult] = useState(false);
@@ -529,10 +538,128 @@ const MetersPage: React.FC = () => {
     };
 
     // ==========================================
-    // IMPORT EXCEL LOGIC
+    // IMPORT EXCEL LOGIC (Smart Multi-Sheet & Dynamic Header)
     // ==========================================
     const handleImportClick = () => {
         fileInputRef.current?.click();
+    };
+
+    const headerAliases: Record<string, string[]> = {
+        no: ['no.', 'no', 'ลำดับ', 'ลำดับที่'],
+        status: ['status', 'สถานะ'],
+        circuit: ['circuit', 'วงจร'],
+        siteName: ['site', 'ไซต์', 'โครงการ', 'project', 'site name', 'sitename'],
+        siteEl: ['(site el)', 'site el', 'site_el', 'siteel', 'site-el'],
+        building: ['building', 'อาคาร', 'ตึก'],
+        floor: ['floor', 'ชั้น'],
+        zone: ['zone', 'โซน', 'zone for chart'],
+        roomCode: ['room code', 'รหัสห้อง', 'room_code', 'roomcode'],
+        roomName: ['room name', 'ชื่อห้อง', 'room_name', 'roomname'],
+        meterGroup: ['meter group', 'กลุ่มมิเตอร์', 'กลุ่ม', 'metergroup', 'group'],
+        meterType: ['meter type', 'ประเภทมิเตอร์', 'ประเภท', 'type', 'metertype'],
+        meterCode: ['meter code', 'รหัสมิเตอร์', 'code', 'metercode'],
+        meterName: ['meter name', 'ชื่อมิเตอร์', 'name', 'metername'],
+        meterModel: ['meter model', 'รุ่นมิเตอร์', 'รุ่น', 'model', 'metermodel'],
+        maxKwh: ['max kwh', 'max_kwh', 'maxkwh', 'max value'],
+        address: ['address', 'แอดเดรส', 'modbus address', 'modbus', 'addr'],
+        subaddress: ['subaddress', 'sub address', 'sub_address'],
+        phase: ['phase', 'เฟส'],
+        loop: ['loop no.', 'loop no', 'loop', 'ลูป', 'loop_no'],
+        ipAddress: ['ip address', 'ip converter', 'ip', 'ไอพี', 'ip_address'],
+        portNumber: ['port', 'port number', 'พอร์ต', 'port_number'],
+        converter: ['converter', 'datalogger', 'ตัวแปลง', 'data logger'],
+    };
+
+    const parseSheetData = (sheet: any): ParsedMeter[] => {
+        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        if (!rows || rows.length < 2) return [];
+
+        let headerRowIdx = -1;
+        const colMap: Record<string, number> = {};
+
+        // Search first 10 rows for header row
+        for (let rIdx = 0; rIdx < Math.min(10, rows.length); rIdx++) {
+            const row = rows[rIdx];
+            if (!Array.isArray(row)) continue;
+            let matches = 0;
+            const tempMap: Record<string, number> = {};
+            for (let cIdx = 0; cIdx < row.length; cIdx++) {
+                const cell = row[cIdx];
+                if (cell == null || cell === '') continue;
+                const cellStr = String(cell).trim().toLowerCase();
+                for (const [key, aliases] of Object.entries(headerAliases)) {
+                    if (aliases.some(a => a === cellStr || cellStr.startsWith(a))) {
+                        tempMap[key] = cIdx;
+                        matches++;
+                        break;
+                    }
+                }
+            }
+            if (matches >= 3) {
+                headerRowIdx = rIdx;
+                Object.assign(colMap, tempMap);
+                break;
+            }
+        }
+
+        if (headerRowIdx === -1) {
+            headerRowIdx = 0;
+        }
+
+        const parsed: ParsedMeter[] = [];
+        for (let rIdx = headerRowIdx + 1; rIdx < rows.length; rIdx++) {
+            const row = rows[rIdx];
+            if (!Array.isArray(row) || !row.some(x => x != null && x !== '')) continue;
+
+            const getVal = (key: string, fallbackIdx?: number) => {
+                if (key in colMap) {
+                    const c = colMap[key];
+                    return c < row.length ? row[c] : null;
+                }
+                if (fallbackIdx != null && fallbackIdx < row.length) {
+                    return row[fallbackIdx];
+                }
+                return null;
+            };
+
+            const addrVal = getVal('address', 2);
+            const siteElVal = getVal('siteEl', 4);
+            const meterModelVal = getVal('meterModel', 14);
+            const roomNameVal = getVal('roomName', 9);
+
+            // Skip row if no essential meter identifying fields
+            if (addrVal == null && siteElVal == null && meterModelVal == null && roomNameVal == null) {
+                continue;
+            }
+
+            parsed.push({
+                no: getVal('no', 0),
+                status: getVal('status', 1) ? String(getVal('status', 1)) : '',
+                circuit: getVal('circuit', 2) ? String(getVal('circuit', 2)).trim() : '',
+                siteName: getVal('siteName', 3) ? String(getVal('siteName', 3)).trim() : '',
+                siteEl: getVal('siteEl', 4),
+                building: getVal('building', 5) ? String(getVal('building', 5)).trim() : '',
+                floor: getVal('floor', 6) != null && getVal('floor', 6) !== '' ? Number(getVal('floor', 6)) : null,
+                zone: getVal('zone', 7) ? String(getVal('zone', 7)).trim() : '',
+                roomCode: getVal('roomCode', 8) ? String(getVal('roomCode', 8)).trim() : '',
+                roomName: getVal('roomName', 9) ? String(getVal('roomName', 9)).trim() : '',
+                meterGroup: getVal('meterGroup', 10) ? String(getVal('meterGroup', 10)).trim() : '',
+                meterType: getVal('meterType', 11) ? String(getVal('meterType', 11)).trim() : 'ELE',
+                meterCode: getVal('meterCode', 12) ? String(getVal('meterCode', 12)).trim() : '',
+                meterName: getVal('meterName', 13) ? String(getVal('meterName', 13)).trim() : '',
+                meterModel: getVal('meterModel', 14) ? String(getVal('meterModel', 14)).trim() : '',
+                maxKwh: getVal('maxKwh', 15) != null && getVal('maxKwh', 15) !== '' ? Number(getVal('maxKwh', 15)) : null,
+                address: addrVal != null ? String(addrVal).trim() : '',
+                subaddress: getVal('subaddress', 17) != null && getVal('subaddress', 17) !== '' ? Number(getVal('subaddress', 17)) : null,
+                phase: getVal('phase', 18) != null ? String(getVal('phase', 18)).trim() : null,
+                loop: getVal('loop', 19) != null && getVal('loop', 19) !== '' ? Number(getVal('loop', 19)) : null,
+                ipAddress: getVal('ipAddress', 20) ? String(getVal('ipAddress', 20)).trim() : '',
+                portNumber: getVal('portNumber', 21) != null && getVal('portNumber', 21) !== '' ? Number(getVal('portNumber', 21)) : null,
+                converter: getVal('converter', 22) ? String(getVal('converter', 22)).trim() : '',
+            });
+        }
+
+        return parsed;
     };
 
     const parseExcelFile = (file: File) => {
@@ -541,48 +668,21 @@ const MetersPage: React.FC = () => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const sheet = workbook.Sheets[sheetName];
-                const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                setCurrentWorkbook(workbook);
+                setAvailableSheets(workbook.SheetNames);
 
-                if (rows.length < 2) {
-                    alert(t('ไฟล์ไม่มีข้อมูล', 'File contains no data'));
-                    return;
-                }
+                // Find candidate sheet (exclude 'Summary' and 'Data logger' if other customer sheets exist)
+                const candidateSheets = workbook.SheetNames.filter(
+                    (s: string) => !['summary', 'data logger', 'datalogger', 'sensor list'].includes(s.trim().toLowerCase())
+                );
+                const initialSheet = candidateSheets.length > 0 ? candidateSheets[0] : workbook.SheetNames[0];
+                setSelectedSheet(initialSheet);
 
-                // Parse rows (skip header row 0)
-                const parsed: ParsedMeter[] = [];
-                for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i];
-                    // Skip empty rows (check if address column C has a value)
-                    if (row[2] === undefined || row[2] === null || row[2] === '') continue;
-
-                    parsed.push({
-                        address: row[2] != null ? String(row[2]).trim() : '',     // C: Address
-                        circuit: row[4] != null ? String(row[4]) : '',             // E: circuit
-                        building: row[5] != null ? String(row[5]).trim() : '',      // F: อาคาร
-                        zone: row[6] != null ? String(row[6]).trim() : '',         // G: Zone
-                        meterType: row[7] != null ? String(row[7]).trim() : '',    // H: ประเภทมิเตอร์
-                        meterCode: row[8] != null ? String(row[8]).trim() : '',    // I: รหัสมิเตอร์
-                        meterName: row[9] != null ? String(row[9]).trim() : '',    // J: ชื่อมิเตอร์
-                        roomCode: row[10] != null ? String(row[10]).trim() : '',   // K: รหัสห้อง
-                        roomName: row[11] != null ? String(row[11]).trim() : '',   // L: ชื่อห้อง
-                        loop: row[12] != null ? Number(row[12]) : null,            // M: Loop
-                        meterModel: row[13] != null ? String(row[13]).trim() : '', // N: Meter Model
-                        siteName: row[14] != null ? String(row[14]).trim() : '',    // O: Project / Site
-                        siteEl: row[15] != null && row[15] !== '' ? Number(row[15]) : null, // P: (Site EL)
-                        portNumber: null,
-                        ipAddress: '',
-                        phase: row[16] != null ? Number(row[16]) : null,           // Q: Phase
-                        floor: row[17] != null ? Number(row[17]) : null,           // R: ชั้น
-                        previousKwh: row[18] != null && row[18] !== '' ? Number(row[18]) : null, // S: Previous Kwh
-                        currentKwh: row[21] != null && row[21] !== '' ? Number(row[21]) : null,  // V: Current Kwh
-                    });
-                }
+                const sheet = workbook.Sheets[initialSheet];
+                const parsed = parseSheetData(sheet);
 
                 if (parsed.length === 0) {
-                    alert(t('ไม่พบข้อมูลมิเตอร์ในไฟล์', 'No meter data found in file'));
-                    return;
+                    alert(t('ไม่พบข้อมูลมิเตอร์ใน Sheet นี้ กรุณาเลือก Sheet ที่ต้องการ', 'No meter data found in this sheet. Please select a sheet.'));
                 }
 
                 setParsedMeters(parsed);
@@ -594,6 +694,14 @@ const MetersPage: React.FC = () => {
             }
         };
         reader.readAsArrayBuffer(file);
+    };
+
+    const handleSheetSelect = (sheetName: string) => {
+        if (!currentWorkbook || !currentWorkbook.Sheets[sheetName]) return;
+        setSelectedSheet(sheetName);
+        const sheet = currentWorkbook.Sheets[sheetName];
+        const parsed = parseSheetData(sheet);
+        setParsedMeters(parsed);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -623,10 +731,11 @@ const MetersPage: React.FC = () => {
     // Import summary stats
     const importSummary = {
         total: parsedMeters.length,
+        sites: [...new Set(parsedMeters.map(m => m.siteName).filter(Boolean))],
         buildings: [...new Set(parsedMeters.map(m => m.building).filter(Boolean))],
         zones: [...new Set(parsedMeters.map(m => m.zone).filter(Boolean))],
         meterTypes: [...new Set(parsedMeters.map(m => m.meterType).filter(Boolean))],
-        meterModels: [...new Set(parsedMeters.map(m => m.meterModel).filter(Boolean))],
+        meterModels: [...new Set(parsedMeters.map(m => m.meterModel || m.meterName).filter(Boolean))],
         loops: [...new Set(parsedMeters.map(m => m.loop).filter(v => v !== null))],
     };
 
@@ -676,16 +785,22 @@ const MetersPage: React.FC = () => {
 
     // Preview columns for import
     const previewColumns = [
-        { label: '#', width: '40px' },
-        { label: t('รหัสมิเตอร์', 'Meter Code'), width: 'auto' },
-        { label: t('ชื่อมิเตอร์', 'Meter Name'), width: 'auto' },
+        { label: '#', width: '35px' },
+        { label: t('รหัส', 'Code'), width: 'auto' },
+        { label: t('ชื่อมิเตอร์', 'Name'), width: 'auto' },
+        { label: t('ไซต์', 'Site'), width: 'auto' },
+        { label: t('Site EL', 'Site EL'), width: 'auto' },
         { label: t('อาคาร', 'Building'), width: 'auto' },
+        { label: t('ชั้น', 'Floor'), width: '45px' },
         { label: t('โซน', 'Zone'), width: 'auto' },
-        { label: t('รหัสห้อง', 'Room Code'), width: 'auto' },
-        { label: 'IP', width: '120px' },
-        { label: t('Address', 'Address'), width: '60px' },
-        { label: t('เฟส', 'Phase'), width: '50px' },
-        { label: t('ชั้น', 'Floor'), width: '50px' },
+        { label: t('ห้อง', 'Room'), width: 'auto' },
+        { label: t('กลุ่ม', 'Group'), width: 'auto' },
+        { label: t('ประเภท', 'Type'), width: 'auto' },
+        { label: t('รุ่น', 'Model'), width: 'auto' },
+        { label: t('Address', 'Address'), width: '55px' },
+        { label: t('เฟส', 'Phase'), width: '45px' },
+        { label: t('Loop', 'Loop'), width: '45px' },
+        { label: t('Converter', 'Converter'), width: 'auto' },
     ];
 
     return (
@@ -1127,43 +1242,66 @@ const MetersPage: React.FC = () => {
                     </div>
                 }
             >
-                {/* File name */}
+                {/* File & Sheet Selection Header */}
                 <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
-                    padding: '10px 14px', background: C.panel2,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+                    marginBottom: 16, padding: '10px 14px', background: C.panel2,
                     borderRadius: 0, border: `1px solid ${C.line}`,
                 }}>
-                    <span style={{ fontSize: 20 }}>📄</span>
-                    <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: '12px', color: C.ink }}>{importFileName}</div>
-                        <div style={{ fontFamily: MONO, fontSize: '10.5px', color: C.sub }}>
-                            {parsedMeters.length} {t('แถวข้อมูล', 'DATA ROWS')} | SHEET1
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 22 }}>📄</span>
+                        <div>
+                            <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: '12px', color: C.ink }}>{importFileName}</div>
+                            <div style={{ fontFamily: MONO, fontSize: '10.5px', color: C.sub }}>
+                                {parsedMeters.length} {t('แถวข้อมูลที่พบ', 'DATA ROWS FOUND')}
+                            </div>
                         </div>
                     </div>
+
+                    {availableSheets.length > 1 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <label style={{ fontFamily: MONO, fontSize: '11px', fontWeight: 700, color: C.ink }}>
+                                📑 {t('เลือก Sheet', 'Select Sheet')}:
+                            </label>
+                            <select
+                                className="form-control"
+                                style={{ width: 'auto', minWidth: 160, padding: '4px 8px', fontSize: 12, fontFamily: MONO }}
+                                value={selectedSheet}
+                                onChange={(e) => handleSheetSelect(e.target.value)}
+                            >
+                                {availableSheets.map((sName) => (
+                                    <option key={sName} value={sName}>
+                                        {sName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
 
                 {/* Summary Cards */}
                 <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                    gap: 10, marginBottom: 16,
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                    gap: 8, marginBottom: 16,
                 }}>
                     {[
-                        { label: t('มิเตอร์ทั้งหมด', 'Total Meters'), value: importSummary.total, icon: '⚡', color: '#3b82f6' },
+                        { label: t('มิเตอร์', 'Meters'), value: importSummary.total, icon: '⚡', color: '#3b82f6' },
+                        { label: t('ไซต์', 'Sites'), value: importSummary.sites.length, icon: '📍', color: '#10b981' },
                         { label: t('อาคาร', 'Buildings'), value: importSummary.buildings.length, icon: '🏢', color: '#8b5cf6' },
-                        { label: t('โซน', 'Zones'), value: importSummary.zones.length, icon: '📍', color: '#f59e0b' },
-                        { label: t('ประเภท', 'Types'), value: importSummary.meterTypes.length, icon: '🔌', color: '#10b981' },
+                        { label: t('โซน', 'Zones'), value: importSummary.zones.length, icon: '🧭', color: '#f59e0b' },
+                        { label: t('ประเภท', 'Types'), value: importSummary.meterTypes.length, icon: '🔌', color: '#06b6d4' },
                         { label: t('รุ่น', 'Models'), value: importSummary.meterModels.length, icon: '🏭', color: '#ef4444' },
-                        { label: t('ลูป', 'Loops'), value: importSummary.loops.length, icon: '🔄', color: '#06b6d4' },
+                        { label: t('ลูป', 'Loops'), value: importSummary.loops.length, icon: '🔄', color: '#6366f1' },
                     ].map((card, idx) => (
                         <div key={idx} style={{
-                            padding: '12px', borderRadius: 8,
+                            padding: '10px 8px', borderRadius: 8,
                             background: `${card.color}15`,
                             border: `1px solid ${card.color}30`,
                             textAlign: 'center',
                         }}>
-                            <div style={{ fontSize: 22 }}>{card.icon}</div>
-                            <div style={{ fontSize: 22, fontWeight: 800, color: card.color }}>{card.value}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{card.label}</div>
+                            <div style={{ fontSize: 18 }}>{card.icon}</div>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: card.color }}>{card.value}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{card.label}</div>
                         </div>
                     ))}
                 </div>
@@ -1177,44 +1315,11 @@ const MetersPage: React.FC = () => {
                         ⚡ {t('Master Data ที่จะถูกสร้างอัตโนมัติ (ถ้ายังไม่มีในระบบ)', 'Master Data will be auto-created if not existing')}
                     </div>
                     <div style={{ fontSize: 12, lineHeight: 1.8 }}>
-                        <div><strong>{t('อาคาร', 'Buildings')}:</strong> {importSummary.buildings.join(', ') || '—'}</div>
-                        <div><strong>{t('โซน', 'Zones')}:</strong> {importSummary.zones.join(', ') || '—'}</div>
-                        <div><strong>{t('ประเภท', 'Types')}:</strong> {importSummary.meterTypes.join(', ') || '—'}</div>
-                        <div><strong>{t('รุ่น', 'Models')}:</strong> {importSummary.meterModels.join(', ') || '—'}</div>
-                    </div>
-                </div>
-
-                {/* Column Mapping */}
-                <div style={{
-                    padding: '10px 14px', marginBottom: 16,
-                    background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 0,
-                }}>
-                    <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', marginBottom: 8, color: C.accent, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                        🔗 {t('การ MAPPING คอลัมน์', 'COLUMN MAPPING')}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px', fontSize: '11px', fontFamily: MONO }}>
-                        {[
-                            ['C: Address', '→ address (Modbus)'],
-                            ['E: circuit', '→ circuit'],
-                            ['F: อาคาร', '→ building_id (lookup)'],
-                            ['G: Zone', '→ zone_id (lookup)'],
-                            ['H: ประเภท', '→ meter_type_id (lookup)'],
-                            ['I: รหัสมิเตอร์', '→ meter_code'],
-                            ['J: ชื่อมิเตอร์', '→ meter_name'],
-                            ['K: รหัสห้อง', '→ room_code'],
-                            ['L: ชื่อห้อง', '→ room_name'],
-                            ['M: Loop', '→ loop_id (lookup)'],
-                            ['N: Meter Model', '→ meter_brand_id (lookup)'],
-                            ['O: Port', '→ port_number'],
-                            ['P: IP', '→ ip_address'],
-                            ['Q: Phase', '→ phase'],
-                            ['R: ชั้น', '→ floor'],
-                        ].map(([from, to], idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: `1px solid ${C.line}` }}>
-                                <span style={{ color: C.sub }}>{from}</span>
-                                <span style={{ color: C.accent, fontWeight: 700 }}>{to}</span>
-                            </div>
-                        ))}
+                        <div>📍 <strong>{t('ไซต์', 'Sites')}:</strong> {importSummary.sites.join(', ') || '—'}</div>
+                        <div>🏢 <strong>{t('อาคาร', 'Buildings')}:</strong> {importSummary.buildings.join(', ') || '—'}</div>
+                        <div>🧭 <strong>{t('โซน', 'Zones')}:</strong> {importSummary.zones.join(', ') || '—'}</div>
+                        <div>🔌 <strong>{t('ประเภท', 'Types')}:</strong> {importSummary.meterTypes.join(', ') || '—'}</div>
+                        <div>🏭 <strong>{t('รุ่น/แบรนด์', 'Models/Brands')}:</strong> {importSummary.meterModels.join(', ') || '—'}</div>
                     </div>
                 </div>
 
@@ -1222,13 +1327,13 @@ const MetersPage: React.FC = () => {
                 <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', marginBottom: 8, color: C.accent, letterSpacing: '1px', textTransform: 'uppercase' }}>
                     📋 {t('ตัวอย่างข้อมูล', 'DATA PREVIEW')} ({t('แสดง 10 แถวแรก', 'FIRST 10 ROWS')})
                 </div>
-                <div style={{ overflowX: 'auto', maxHeight: 300, borderRadius: 0, border: `1px solid ${C.line}` }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, minWidth: 800 }}>
+                <div style={{ overflowX: 'auto', maxHeight: 320, borderRadius: 0, border: `1px solid ${C.line}` }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 1000 }}>
                         <thead>
-                            <tr style={{ background: C.bar, position: 'sticky', top: 0, color: C.ink }}>
+                            <tr style={{ background: C.bar, position: 'sticky', top: 0, color: C.ink, zIndex: 1 }}>
                                 {previewColumns.map((col, idx) => (
                                     <th key={idx} style={{
-                                        padding: '7px 10px', fontFamily: MONO, fontWeight: 700, fontSize: '10px',
+                                        padding: '7px 8px', fontFamily: MONO, fontWeight: 700, fontSize: '10px',
                                         letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap',
                                         borderBottom: `2px solid ${C.accent}`,
                                         width: col.width,
@@ -1239,21 +1344,29 @@ const MetersPage: React.FC = () => {
                         <tbody>
                             {parsedMeters.slice(0, 10).map((m, idx) => (
                                 <tr key={idx} style={{ borderBottom: `1px solid ${C.line}`, background: idx % 2 === 0 ? 'transparent' : C.panel2, fontFamily: MONO }}>
-                                    <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                                    <td style={{ padding: '6px 10px', fontWeight: 600, fontFamily: 'monospace' }}>{m.meterCode}</td>
-                                    <td style={{ padding: '6px 10px' }}>{m.meterName}</td>
-                                    <td style={{ padding: '6px 10px' }}>{m.building}</td>
-                                    <td style={{ padding: '6px 10px' }}>
-                                        <span style={{
-                                            background: '#8b5cf620', color: '#a78bfa',
-                                            padding: '2px 6px', borderRadius: 4, fontSize: 10.5,
-                                        }}>{m.zone}</span>
+                                    <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{m.no || idx + 1}</td>
+                                    <td style={{ padding: '6px 8px', fontWeight: 600, fontFamily: 'monospace' }}>{m.meterCode || '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.meterName || '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.siteName || '—'}</td>
+                                    <td style={{ padding: '6px 8px', color: '#10b981' }}>{m.siteEl || '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.building || '—'}</td>
+                                    <td style={{ padding: '6px 8px', textAlign: 'center' }}>{m.floor ?? '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>
+                                        {m.zone ? (
+                                            <span style={{
+                                                background: '#8b5cf620', color: '#a78bfa',
+                                                padding: '2px 6px', borderRadius: 4, fontSize: 10,
+                                            }}>{m.zone}</span>
+                                        ) : '—'}
                                     </td>
-                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontSize: 11 }}>{m.roomCode}</td>
-                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontSize: 11 }}>{m.ipAddress}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center' }}>{m.address}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center' }}>{m.phase}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center' }}>{m.floor}</td>
+                                    <td style={{ padding: '6px 8px', fontSize: 10.5 }}>{m.roomName || m.roomCode || '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.meterGroup || '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.meterType || '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.meterModel || '—'}</td>
+                                    <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 600 }}>{m.address || '—'}</td>
+                                    <td style={{ padding: '6px 8px', textAlign: 'center' }}>{m.phase || '—'}</td>
+                                    <td style={{ padding: '6px 8px', textAlign: 'center' }}>{m.loop || '—'}</td>
+                                    <td style={{ padding: '6px 8px', fontSize: 10.5 }}>{m.converter || m.ipAddress || '—'}</td>
                                 </tr>
                             ))}
                         </tbody>

@@ -128,6 +128,17 @@ export class AggregationService {
                 finished_at TIMESTAMPTZ
             )
         `);
+
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS job_name VARCHAR(100) NOT NULL DEFAULT 'job'`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'success'`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_read INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_written INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_skipped INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_start TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_end TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS error_message TEXT`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NOW()`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`);
     }
 
     async aggregateRecentMinutes(now = new Date()): Promise<void> {
@@ -264,7 +275,7 @@ export class AggregationService {
                     [fromTime, toTime, aggregationConfig.intervalMinutes]
                 );
 
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'minute',
                     bucketStart: fromTime,
                     bucketEnd: toTime,
@@ -275,7 +286,7 @@ export class AggregationService {
                     startedAt,
                 });
             } catch (error: any) {
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'minute',
                     bucketStart: fromTime,
                     bucketEnd: toTime,
@@ -338,7 +349,7 @@ export class AggregationService {
                     [targetDate, aggregationConfig.timezone]
                 );
 
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'daily',
                     bucketStart: targetDate,
                     bucketEnd: targetDate,
@@ -348,7 +359,7 @@ export class AggregationService {
                     startedAt,
                 });
             } catch (error: any) {
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'daily',
                     bucketStart: targetDate,
                     bucketEnd: targetDate,
@@ -413,7 +424,7 @@ export class AggregationService {
                     [yearMonth]
                 );
 
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'monthly',
                     bucketStart: `${yearMonth}-01`,
                     bucketEnd: `${yearMonth}-01`,
@@ -423,7 +434,7 @@ export class AggregationService {
                     startedAt,
                 });
             } catch (error: any) {
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'monthly',
                     bucketStart: `${yearMonth}-01`,
                     bucketEnd: `${yearMonth}-01`,
@@ -471,14 +482,14 @@ export class AggregationService {
                     console.log(`🗑️  Retention cleanup: deleted ${totalDeleted} realtime records older than ${retentionHours}h`);
                 }
 
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'retention',
                     status: 'success',
                     rowsWritten: totalDeleted,
                     startedAt,
                 });
             } catch (error: any) {
-                await this.logJob(client, {
+                await this.logJob({
                     jobName: 'retention',
                     status: 'failed',
                     rowsWritten: totalDeleted,
@@ -496,48 +507,54 @@ export class AggregationService {
             await client.query('BEGIN');
             const lock = await client.query('SELECT pg_try_advisory_xact_lock($1) AS locked', [advisoryLockIds[jobName]]);
             if (!lock.rows[0]?.locked) {
-                await this.logJob(client, {
+                await client.query('COMMIT');
+                await this.logJob({
                     jobName,
                     status: 'skipped',
                     errorMessage: 'Another worker holds the advisory lock',
                     startedAt: new Date(),
                 });
-                await client.query('COMMIT');
                 return;
             }
 
             await callback(client);
             await client.query('COMMIT');
-        } catch (error) {
-            await client.query('ROLLBACK');
+        } catch (error: any) {
+            try {
+                await client.query('ROLLBACK');
+            } catch (_) {}
             throw error;
         } finally {
             client.release();
         }
     }
 
-    private async logJob(client: PoolClient, input: JobLogInput): Promise<void> {
-        await client.query(
-            `
-            INSERT INTO aggregation_job_runs (
-                job_name, bucket_start, bucket_end, status,
-                rows_read, rows_written, rows_skipped, error_message,
-                started_at, finished_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-            `,
-            [
-                input.jobName,
-                input.bucketStart || null,
-                input.bucketEnd || null,
-                input.status,
-                input.rowsRead || 0,
-                input.rowsWritten || 0,
-                input.rowsSkipped || 0,
-                input.errorMessage || null,
-                input.startedAt,
-            ]
-        );
+    private async logJob(input: JobLogInput): Promise<void> {
+        try {
+            await pool.query(
+                `
+                INSERT INTO aggregation_job_runs (
+                    job_name, bucket_start, bucket_end, status,
+                    rows_read, rows_written, rows_skipped, error_message,
+                    started_at, finished_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                `,
+                [
+                    input.jobName,
+                    input.bucketStart || null,
+                    input.bucketEnd || null,
+                    input.status,
+                    input.rowsRead || 0,
+                    input.rowsWritten || 0,
+                    input.rowsSkipped || 0,
+                    input.errorMessage || null,
+                    input.startedAt,
+                ]
+            );
+        } catch (e: any) {
+            console.warn('⚠️ Failed to write aggregation job log:', e.message);
+        }
     }
 }
 
