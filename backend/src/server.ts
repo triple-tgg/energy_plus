@@ -99,13 +99,21 @@ const startServer = async () => {
     // Ensure meter table has all columns that services expect.
     // Safe to run every startup – ADD COLUMN IF NOT EXISTS is a no-op when the column already exists.
     try {
-        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS phase VARCHAR(50)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ALTER COLUMN phase TYPE VARCHAR(50) USING phase::varchar`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
-        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS floor VARCHAR(50)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ALTER COLUMN floor TYPE VARCHAR(50) USING floor::varchar`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS meter_group VARCHAR(100)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
+
+        await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_th VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_en VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS building_name_th VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS building_name_en VARCHAR(200)`);
+        await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
 
         // Ensure standard 7 meter types exist
         const standardTypes = [
