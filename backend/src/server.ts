@@ -102,6 +102,10 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS meter_group VARCHAR(100)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
     } catch (e: any) {
         console.warn('⚠️  Schema patch (meter columns) skipped:', e.message);
     }

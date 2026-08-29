@@ -215,6 +215,10 @@ async function migrateAndSeed() {
         phase VARCHAR(20),
         circuit VARCHAR(100),
         floor INTEGER,
+        meter_group VARCHAR(100),
+        max_kwh DECIMAL(18,2),
+        subaddress INTEGER,
+        converter VARCHAR(100),
         parent_meter_id INTEGER REFERENCES meter(meter_id),
         is_active BOOLEAN DEFAULT true,
         status VARCHAR(50) DEFAULT 'Manual',
@@ -229,6 +233,10 @@ async function migrateAndSeed() {
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS meter_group VARCHAR(100)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
 
         // Actual Meter Data (15-min snapshot history)
         await client.query(`

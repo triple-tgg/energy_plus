@@ -282,10 +282,14 @@ export class MetersService {
         try {
             await client.query('BEGIN');
 
-            // Ensure phase, circuit, floor columns exist
-            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase INTEGER`);
-            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(50)`);
+            // Ensure phase, circuit, floor, meter_group, max_kwh, subaddress, converter columns exist
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS meter_group VARCHAR(100)`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site VARCHAR(200)`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site_el INTEGER`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(100)`);
@@ -303,17 +307,18 @@ export class MetersService {
             existingSites.rows.forEach((r: any) => siteCache.set(r.site_name, r.site_id));
 
             const existingBuildings = await client.query(`SELECT building_id, building_name, site_id FROM buildings`);
-            existingBuildings.rows.forEach((r: any) => buildingCache.set(r.building_name, r.building_id));
+            existingBuildings.rows.forEach((r: any) => buildingCache.set(`${r.site_id || ''}_${r.building_name}`, r.building_id));
 
             const existingZones = await client.query(`SELECT zone_id, zone_name, building_id FROM zones`);
-            existingZones.rows.forEach((r: any) => zoneCache.set(r.zone_name, r.zone_id));
+            existingZones.rows.forEach((r: any) => zoneCache.set(`${r.building_id || ''}_${r.zone_name}`, r.zone_id));
 
             const existingTypes = await client.query(`SELECT meter_type_id, meter_type_name FROM meter_type`);
             existingTypes.rows.forEach((r: any) => meterTypeCache.set(r.meter_type_name, r.meter_type_id));
 
             const existingBrands = await client.query(`SELECT meter_brand_id, meter_brand_name, model_name FROM meter_brand`);
             existingBrands.rows.forEach((r: any) => {
-                meterBrandCache.set(r.model_name || r.meter_brand_name, r.meter_brand_id);
+                if (r.model_name) meterBrandCache.set(r.model_name, r.meter_brand_id);
+                if (r.meter_brand_name) meterBrandCache.set(r.meter_brand_name, r.meter_brand_id);
             });
 
             const existingLoops = await client.query(`SELECT loop_id, port_no FROM loop`);
@@ -322,41 +327,46 @@ export class MetersService {
             // Helper: get or create site
             const getOrCreateSite = async (siteName: string): Promise<number | null> => {
                 if (!siteName) return null;
-                if (siteCache.has(siteName)) return siteCache.get(siteName)!;
+                const trimmed = siteName.trim();
+                if (siteCache.has(trimmed)) return siteCache.get(trimmed)!;
                 const res = await client.query(
                     `INSERT INTO sites (site_name, created_by) VALUES ($1, $2) RETURNING site_id`,
-                    [siteName, createdBy]
+                    [trimmed, createdBy]
                 );
                 const id = res.rows[0].site_id;
-                siteCache.set(siteName, id);
-                results.createdMasterData.sites.push(siteName);
+                siteCache.set(trimmed, id);
+                results.createdMasterData.sites.push(trimmed);
                 return id;
             };
 
             // Helper: get or create building (linked to site)
             const getOrCreateBuilding = async (buildingName: string, siteId: number | null): Promise<number | null> => {
                 if (!buildingName) return null;
-                if (buildingCache.has(buildingName)) return buildingCache.get(buildingName)!;
+                const trimmed = buildingName.trim();
+                const cacheKey = `${siteId || ''}_${trimmed}`;
+                if (buildingCache.has(cacheKey)) return buildingCache.get(cacheKey)!;
                 const res = await client.query(
                     `INSERT INTO buildings (building_name, site_id, created_by) VALUES ($1, $2, $3) RETURNING building_id`,
-                    [buildingName, siteId, createdBy]
+                    [trimmed, siteId, createdBy]
                 );
                 const id = res.rows[0].building_id;
-                buildingCache.set(buildingName, id);
-                results.createdMasterData.buildings.push(buildingName);
+                buildingCache.set(cacheKey, id);
+                results.createdMasterData.buildings.push(trimmed);
                 return id;
             };
 
             // Helper: get or create zone (linked to building)
             const getOrCreateZone = async (zoneName: string, buildingId: number | null): Promise<number | null> => {
                 if (!zoneName) return null;
-                if (zoneCache.has(zoneName)) return zoneCache.get(zoneName)!;
+                const trimmed = zoneName.trim();
+                const cacheKey = `${buildingId || ''}_${trimmed}`;
+                if (zoneCache.has(cacheKey)) return zoneCache.get(cacheKey)!;
                 const res = await client.query(
                     `INSERT INTO zones (zone_name, building_id) VALUES ($1, $2) RETURNING zone_id`,
-                    [zoneName, buildingId]
+                    [trimmed, buildingId]
                 );
                 const id = res.rows[0].zone_id;
-                zoneCache.set(zoneName, id);
+                zoneCache.set(cacheKey, id);
                 results.createdMasterData.zones.push(zoneName);
                 return id;
             };
@@ -364,42 +374,53 @@ export class MetersService {
             // Helper: get or create meter type
             const getOrCreateMeterType = async (typeName: string): Promise<number | null> => {
                 if (!typeName) return null;
-                if (meterTypeCache.has(typeName)) return meterTypeCache.get(typeName)!;
+                const trimmed = typeName.trim();
+                if (meterTypeCache.has(trimmed)) return meterTypeCache.get(trimmed)!;
                 const res = await client.query(
                     `INSERT INTO meter_type (meter_type_name, is_active) VALUES ($1, true) RETURNING meter_type_id`,
-                    [typeName]
+                    [trimmed]
                 );
                 const id = res.rows[0].meter_type_id;
-                meterTypeCache.set(typeName, id);
-                results.createdMasterData.meterTypes.push(typeName);
+                meterTypeCache.set(trimmed, id);
+                results.createdMasterData.meterTypes.push(trimmed);
                 return id;
             };
 
-            // Helper: get or create meter brand (by model_name)
-            const getOrCreateMeterBrand = async (modelName: string): Promise<number | null> => {
-                if (!modelName) return null;
-                if (meterBrandCache.has(modelName)) return meterBrandCache.get(modelName)!;
+            // Helper: get or create meter brand & model
+            const getOrCreateMeterBrand = async (brandName: string, modelName: string): Promise<number | null> => {
+                const bName = (brandName || '').trim();
+                const mName = (modelName || '').trim();
+                const lookupKey = mName || bName;
+                if (!lookupKey) return null;
+
+                if (meterBrandCache.has(lookupKey)) return meterBrandCache.get(lookupKey)!;
+
+                const brandToInsert = bName || mName || 'Generic';
+                const modelToInsert = mName || bName || 'Standard';
+
                 const res = await client.query(
                     `INSERT INTO meter_brand (meter_brand_name, model_name, is_active) VALUES ($1, $2, true) RETURNING meter_brand_id`,
-                    [modelName, modelName]
+                    [brandToInsert, modelToInsert]
                 );
                 const id = res.rows[0].meter_brand_id;
-                meterBrandCache.set(modelName, id);
-                results.createdMasterData.meterBrands.push(modelName);
+                if (mName) meterBrandCache.set(mName, id);
+                if (bName) meterBrandCache.set(bName, id);
+                results.createdMasterData.meterBrands.push(`${brandToInsert} ${modelToInsert}`);
                 return id;
             };
 
             // Helper: get or create loop (by loop number)
-            const getOrCreateLoop = async (loopNo: number): Promise<number | null> => {
-                if (!loopNo && loopNo !== 0) return null;
-                if (loopCache.has(loopNo)) return loopCache.get(loopNo)!;
+            const getOrCreateLoop = async (loopNo: number | null): Promise<number | null> => {
+                if (loopNo === null || loopNo === undefined || isNaN(Number(loopNo))) return null;
+                const loopNum = Number(loopNo);
+                if (loopCache.has(loopNum)) return loopCache.get(loopNum)!;
                 const res = await client.query(
                     `INSERT INTO loop (loop_name, port_no, baudrate, is_active) VALUES ($1, $2, 9600, true) RETURNING loop_id`,
-                    [`Loop ${loopNo}`, loopNo]
+                    [`Loop ${loopNum}`, loopNum]
                 );
                 const id = res.rows[0].loop_id;
-                loopCache.set(loopNo, id);
-                results.createdMasterData.loops.push(loopNo);
+                loopCache.set(loopNum, id);
+                results.createdMasterData.loops.push(loopNum);
                 return id;
             };
 
@@ -415,24 +436,82 @@ export class MetersService {
                 const row = meters[i];
                 try {
                     // Resolve lookups — auto-create if not found
-                    const siteName = String(row.siteName || '').trim() || deriveSiteName(row.building || '');
-                    const meterSite = String(row.siteName || '').trim() || null;
-                    const meterSiteEl = row.siteEl !== null && row.siteEl !== undefined && row.siteEl !== ''
-                        ? Number(row.siteEl)
-                        : null;
+                    const siteName = String(row.siteName || '').trim() || deriveSiteName(row.building || '') || 'Main Site';
+                    const meterSite = siteName;
+
+                    // Parse siteEl (e.g. "1000_1" -> site_el: 1000, or numeric 1000)
+                    let meterSiteEl: number | null = null;
+                    let derivedAddressFromEl: string | null = null;
+                    if (row.siteEl !== null && row.siteEl !== undefined && row.siteEl !== '') {
+                        const strEl = String(row.siteEl).trim();
+                        if (strEl.includes('_')) {
+                            const [sPart, aPart] = strEl.split('_');
+                            const sNum = parseInt(sPart, 10);
+                            if (Number.isFinite(sNum)) meterSiteEl = sNum;
+                            if (aPart) derivedAddressFromEl = aPart;
+                        } else {
+                            const sNum = parseInt(strEl, 10);
+                            if (Number.isFinite(sNum)) meterSiteEl = sNum;
+                        }
+                    }
+
+                    const buildingName = String(row.building || '').trim() || 'Building 1';
+                    const zoneName = String(row.zone || '').trim() || 'General Zone';
+                    const meterTypeName = String(row.meterType || '').trim() || 'ELE';
+
                     const siteId = await getOrCreateSite(siteName);
-                    const buildingId = await getOrCreateBuilding(row.building, siteId);
-                    const zoneId = await getOrCreateZone(row.zone, buildingId);
-                    const meterTypeId = await getOrCreateMeterType(row.meterType);
-                    const meterBrandId = await getOrCreateMeterBrand(row.meterModel);
+                    const buildingId = await getOrCreateBuilding(buildingName, siteId);
+                    const zoneId = await getOrCreateZone(zoneName, buildingId);
+                    const meterTypeId = await getOrCreateMeterType(meterTypeName);
+                    const meterBrandId = await getOrCreateMeterBrand(row.meterName || '', row.meterModel || '');
                     const loopId = await getOrCreateLoop(row.loop);
 
-                    // Check for existing meter by meter_code first, then ip_address + address (legacy composite key)
-                    const ipAddr = row.ipAddress || null;
-                    const modbusAddr = row.address ? String(row.address).trim() : null;
-                    let existingId: number | null = null;
+                    // Address handling
+                    let modbusAddr = row.address !== null && row.address !== undefined && row.address !== ''
+                        ? String(row.address).trim()
+                        : derivedAddressFromEl;
 
-                    const meterCode = String(row.meterCode || '').trim();
+                    if (!modbusAddr) {
+                        modbusAddr = String(i + 1);
+                    }
+
+                    // Meter Code generation if empty
+                    let meterCode = String(row.meterCode || '').trim();
+                    if (!meterCode) {
+                        if (row.roomCode) {
+                            meterCode = String(row.roomCode).trim();
+                        } else {
+                            meterCode = `${siteName}_M${modbusAddr}`;
+                        }
+                    }
+
+                    // Meter Name handling
+                    let meterName = String(row.meterName || '').trim();
+                    if (!meterName) {
+                        meterName = String(row.roomName || '').trim() || String(row.meterModel || '').trim() || `Meter ${modbusAddr}`;
+                    }
+
+                    const ipAddr = row.ipAddress ? String(row.ipAddress).trim() : null;
+                    const portNumber = row.portNumber ? Number(row.portNumber) : null;
+                    const subAddress = row.subaddress !== null && row.subaddress !== undefined && row.subaddress !== ''
+                        ? Number(row.subaddress)
+                        : null;
+                    const meterGroup = row.meterGroup ? String(row.meterGroup).trim() : null;
+                    const maxKwh = row.maxKwh !== null && row.maxKwh !== undefined && row.maxKwh !== ''
+                        ? Number(row.maxKwh)
+                        : null;
+                    const converter = row.converter ? String(row.converter).trim() : null;
+                    const status = row.status ? String(row.status).trim() : 'Manual';
+                    const phase = row.phase !== null && row.phase !== undefined && row.phase !== ''
+                        ? String(row.phase).trim()
+                        : null;
+                    const circuit = row.circuit ? String(row.circuit).trim() : null;
+                    const floor = row.floor !== null && row.floor !== undefined && row.floor !== ''
+                        ? Number(row.floor)
+                        : null;
+
+                    // Check for existing meter by meter_code first, then (site_id, address) or (ip_address, address)
+                    let existingId: number | null = null;
                     if (meterCode) {
                         const existing = await client.query(
                             `SELECT meter_id FROM meter WHERE meter_code = $1`,
@@ -443,13 +522,15 @@ export class MetersService {
                         }
                     }
 
-                    if (!existingId && ipAddr && modbusAddr !== null) {
-                        const existing = await client.query(
-                            `SELECT meter_id FROM meter WHERE ip_address = $1 AND address = $2`,
-                            [ipAddr, modbusAddr]
-                        );
-                        if (existing.rows.length > 0) {
-                            existingId = existing.rows[0].meter_id;
+                    if (!existingId && modbusAddr !== null) {
+                        if (siteId) {
+                            const existing = await client.query(
+                                `SELECT meter_id FROM meter WHERE site_id = $1 AND address = $2`,
+                                [siteId, modbusAddr]
+                            );
+                            if (existing.rows.length > 0) {
+                                existingId = existing.rows[0].meter_id;
+                            }
                         }
                     }
 
@@ -458,13 +539,16 @@ export class MetersService {
                     if (existingId) {
                         // UPDATE existing meter
                         await client.query(
-                            `UPDATE meter SET meter_code=$1, meter_name=$2, meter_brand_id=$3, meter_type_id=$4, loop_id=$5,
-                             site_id=$6, building_id=$7, zone_id=$8, ip_address=$9, port_number=$10, room_code=$11, room_name=$12,
-                             phase=$13, circuit=$14, floor=$15, site=$16, site_el=$17, last_modified_by=$18, last_modified_on=NOW()
-                             WHERE meter_id=$19`,
+                            `UPDATE meter SET
+                                meter_code=$1, meter_name=$2, meter_brand_id=$3, meter_type_id=$4, loop_id=$5,
+                                site_id=$6, building_id=$7, zone_id=$8, ip_address=$9, port_number=$10,
+                                room_code=$11, room_name=$12, phase=$13, circuit=$14, floor=$15,
+                                site=$16, site_el=$17, meter_group=$18, max_kwh=$19, subaddress=$20,
+                                converter=$21, status=$22, last_modified_by=$23, last_modified_on=NOW()
+                             WHERE meter_id=$24`,
                             [
                                 meterCode,
-                                row.meterName || '',
+                                meterName,
                                 meterBrandId,
                                 meterTypeId,
                                 loopId,
@@ -472,14 +556,19 @@ export class MetersService {
                                 buildingId,
                                 zoneId,
                                 ipAddr,
-                                row.portNumber || null,
+                                portNumber,
                                 row.roomCode || null,
                                 row.roomName || null,
-                                row.phase || null,
-                                row.circuit || null,
-                                row.floor || null,
+                                phase,
+                                circuit,
+                                floor,
                                 meterSite,
-                                Number.isFinite(meterSiteEl) ? meterSiteEl : null,
+                                meterSiteEl,
+                                meterGroup,
+                                maxKwh,
+                                subAddress,
+                                converter,
+                                status,
                                 createdBy,
                                 existingId,
                             ]
@@ -488,14 +577,22 @@ export class MetersService {
                     } else {
                         // INSERT new meter
                         const inserted = await client.query(
-                            `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
-                             site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
-                             phase, circuit, floor, site, site_el, created_by, created_on)
-                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+                            `INSERT INTO meter (
+                                meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
+                                site_id, building_id, zone_id, is_active, ip_address, port_number,
+                                room_code, room_name, phase, circuit, floor, site, site_el,
+                                meter_group, max_kwh, subaddress, converter, status, created_by, created_on
+                             )
+                             VALUES (
+                                $1, $2, $3, $4, $5, $6,
+                                $7, $8, $9, true, $10, $11,
+                                $12, $13, $14, $15, $16, $17, $18,
+                                $19, $20, $21, $22, $23, $24, NOW()
+                             )
                              RETURNING meter_id`,
                             [
                                 meterCode,
-                                row.meterName || '',
+                                meterName,
                                 modbusAddr,
                                 meterBrandId,
                                 meterTypeId,
@@ -504,14 +601,19 @@ export class MetersService {
                                 buildingId,
                                 zoneId,
                                 ipAddr,
-                                row.portNumber || null,
+                                portNumber,
                                 row.roomCode || null,
                                 row.roomName || null,
-                                row.phase || null,
-                                row.circuit || null,
-                                row.floor || null,
+                                phase,
+                                circuit,
+                                floor,
                                 meterSite,
-                                Number.isFinite(meterSiteEl) ? meterSiteEl : null,
+                                meterSiteEl,
+                                meterGroup,
+                                maxKwh,
+                                subAddress,
+                                converter,
+                                status,
                                 createdBy,
                             ]
                         );
