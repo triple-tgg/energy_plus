@@ -302,7 +302,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
         LEFT JOIN zones z ON m.zone_id = z.zone_id
         WHERE 1=1
             ${whereClause}
-        ORDER BY s.site_name, b.building_name, COALESCE(m.floor, 0), m.meter_code`,
+        ORDER BY s.site_name, b.building_name, COALESCE(m.floor, '0'), m.meter_code`,
         params
     );
     return result.rows;

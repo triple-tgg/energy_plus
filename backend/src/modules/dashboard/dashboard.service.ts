@@ -146,7 +146,7 @@ export class DashboardService {
             LEFT JOIN day_start ON day_start.meter_id = m.meter_id
             LEFT JOIN day_counts ON day_counts.meter_id = m.meter_id
             ${meterFilter}
-            ORDER BY s.site_name, b.building_name, COALESCE(m.floor, 0), z.zone_name, m.meter_code`,
+            ORDER BY s.site_name, b.building_name, COALESCE(m.floor, '0'), z.zone_name, m.meter_code`,
             params
         );
 
