@@ -83,7 +83,7 @@ const LoginPage: React.FC = () => {
 
     const headerStyle = {
         background: C.bar,
-        color: '#fff',
+        color: C.ink,
         padding: '10px 16px',
         display: 'flex',
         alignItems: 'center',
@@ -277,7 +277,7 @@ const LoginPage: React.FC = () => {
                     </button>
 
                     <p style={{ textAlign: 'center', fontSize: '9px', color: C.sub, marginTop: 24, margin: '24px 0 0 0' }}>
-                        © 2026 M Soft // v{__APP_VERSION__}
+                        © 2026 M Soft // {__APP_VERSION__.startsWith('v') ? __APP_VERSION__ : `v${__APP_VERSION__}`}
                     </p>
                 </form>
             </div>

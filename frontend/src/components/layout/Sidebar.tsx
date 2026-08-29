@@ -209,7 +209,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNa
             {/* Footer */}
             {!collapsed && (
                 <div className="sidebar-footer">
-                    <span>v{__APP_VERSION__} — M Soft</span>
+                    <span>{__APP_VERSION__.startsWith('v') ? __APP_VERSION__ : `v${__APP_VERSION__}`} — M Soft</span>
                 </div>
             )}
         </aside>

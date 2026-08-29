@@ -28,6 +28,7 @@ import { ensureAccessControlSchema } from './config/accessControl';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerDocument } from './config/swagger';
 import { alertEngine } from './modules/alarms/alert-engine.service';
+import { migrateAndSeed } from './scripts/migrate-and-seed';
 
 const app = createApp();
 const PORT = process.env.PORT || 3003;
@@ -114,6 +115,18 @@ app.use(errorHandler);
 
 // Start server with Redis connection
 const startServer = async () => {
+    // Check if database schema needs initialization (fresh deployment)
+    try {
+        const tableCheck = await pool.query("SELECT to_regclass('public.app_user') as has_app_user");
+        if (!tableCheck.rows[0]?.has_app_user) {
+            console.log('🔄 First run detected: initializing database schema & default seed data...');
+            await migrateAndSeed(false);
+            console.log('✅ Database schema and seed initialized successfully');
+        }
+    } catch (e: any) {
+        console.warn('⚠️ Auto-migration check skipped:', e.message);
+    }
+
     // Ensure meter table has all columns that services expect.
     // Safe to run every startup – ADD COLUMN IF NOT EXISTS is a no-op when the column already exists.
     try {
