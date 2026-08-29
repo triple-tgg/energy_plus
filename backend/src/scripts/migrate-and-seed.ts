@@ -700,19 +700,23 @@ async function migrateAndSeed() {
 
         // --- Meter Types (reference data) ---
         const types = [
-            { id: 1, name: 'ไฟฟ้า', icon: 'fa fa-bolt' },
-            { id: 2, name: 'น้ำ', icon: 'fa fa-tint' },
-            { id: 3, name: 'แก๊ส', icon: 'fa fa-fire' },
+            { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
+            { id: 2, name: 'WAT', icon: 'fa fa-tint' },
+            { id: 3, name: 'GAS', icon: 'fa fa-fire' },
+            { id: 4, name: 'MDB', icon: 'fa fa-plug' },
+            { id: 5, name: 'SOL', icon: 'fa fa-solar-panel' },
+            { id: 6, name: 'Humidity', icon: 'fa fa-smog' },
+            { id: 7, name: 'Temperature', icon: 'fa fa-thermometer-half' },
         ];
         for (const t of types) {
             await client.query(
-                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name) VALUES ($1, $2, $3)
-                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3`,
+                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name, is_active) VALUES ($1, $2, $3, true)
+                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3, is_active = true`,
                 [t.id, t.name, t.icon]
             );
         }
-        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 3) FROM meter_type))`);
-        console.log('  ✅ meter_type (3 types)');
+        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 7) FROM meter_type))`);
+        console.log('  ✅ meter_type (7 types: ELE, WAT, GAS, MDB, SOL, Humidity, Temperature)');
 
         // --- Protocols (reference data) ---
         const protocols = [

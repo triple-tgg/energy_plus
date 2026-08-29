@@ -106,8 +106,26 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
+
+        // Ensure standard 7 meter types exist
+        const standardTypes = [
+            { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
+            { id: 2, name: 'WAT', icon: 'fa fa-tint' },
+            { id: 3, name: 'GAS', icon: 'fa fa-fire' },
+            { id: 4, name: 'MDB', icon: 'fa fa-plug' },
+            { id: 5, name: 'SOL', icon: 'fa fa-solar-panel' },
+            { id: 6, name: 'Humidity', icon: 'fa fa-smog' },
+            { id: 7, name: 'Temperature', icon: 'fa fa-thermometer-half' },
+        ];
+        for (const t of standardTypes) {
+            await pool.query(
+                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name, is_active) VALUES ($1, $2, $3, true)
+                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3, is_active = true`,
+                [t.id, t.name, t.icon]
+            );
+        }
     } catch (e: any) {
-        console.warn('⚠️  Schema patch (meter columns) skipped:', e.message);
+        console.warn('⚠️  Schema patch (meter columns / types) skipped:', e.message);
     }
 
     await ensureAccessControlSchema();
