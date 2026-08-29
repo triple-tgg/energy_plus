@@ -677,27 +677,6 @@ async function migrateAndSeed() {
         );
         console.log('  ✅ app_user (admin)');
 
-        // --- Meter Brands (reference data) ---
-        const brands = [
-            { id: 1, name: 'Siemens', model: 'AB5478' },
-            { id: 2, name: 'Schneider Electric', model: 'PM5110' },
-            { id: 3, name: 'ABB', model: 'M4M 30' },
-            { id: 4, name: 'Socomec', model: 'DIRIS A40' },
-            { id: 5, name: 'Hioki', model: 'PW3365' },
-            { id: 6, name: 'CET', model: 'PMC-53A' },
-            { id: 7, name: 'CHINT', model: 'DTSU666' },
-            { id: 8, name: 'Eastron', model: 'SDM630' },
-        ];
-        for (const b of brands) {
-            await client.query(
-                `INSERT INTO meter_brand (meter_brand_id, meter_brand_name, model_name) VALUES ($1, $2, $3)
-                 ON CONFLICT (meter_brand_id) DO UPDATE SET meter_brand_name = $2, model_name = $3`,
-                [b.id, b.name, b.model]
-            );
-        }
-        await client.query(`SELECT setval('meter_brand_meter_brand_id_seq', (SELECT GREATEST(MAX(meter_brand_id), 8) FROM meter_brand))`);
-        console.log('  ✅ meter_brand (8 brands)');
-
         // --- Meter Types (reference data) ---
         const types = [
             { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
