@@ -212,6 +212,9 @@ async function migrateAndSeed() {
         room_name VARCHAR(200),
         site VARCHAR(200),
         site_el INTEGER,
+        phase VARCHAR(20),
+        circuit VARCHAR(100),
+        floor INTEGER,
         parent_meter_id INTEGER REFERENCES meter(meter_id),
         is_active BOOLEAN DEFAULT true,
         status VARCHAR(50) DEFAULT 'Manual',
@@ -221,6 +224,11 @@ async function migrateAndSeed() {
       )
     `);
         console.log('  ✅ meter');
+
+        // Add columns that may be missing from older deployments
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
 
         // Actual Meter Data (15-min snapshot history)
         await client.query(`
