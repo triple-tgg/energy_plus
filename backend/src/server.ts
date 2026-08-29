@@ -115,6 +115,13 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS building_name_en VARCHAR(200)`);
         await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
 
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_read INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_written INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_skipped INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_start TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_end TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`);
+
         // Ensure standard 7 meter types exist
         const standardTypes = [
             { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
