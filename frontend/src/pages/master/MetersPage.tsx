@@ -988,19 +988,67 @@ const MetersPage: React.FC = () => {
                         <button
                             onClick={() => {
                                 const headers = [
-                                    'No.', 'Status', 'Address', 'Loop', 'Circuit', 'Building', 'Zone',
-                                    'Meter Type', 'Meter Code', 'Meter Name', 'Room Code', 'Room Name',
-                                    'Loop No.', 'Meter Model', 'Port', 'IP Address', 'Phase', 'Floor'
+                                    'No.', 'Status', 'Circuit', 'Site', '(Site EL)', 'Building', 'Floor', 'Zone',
+                                    'Room Code', 'Room Name', 'Meter Group', 'Meter Type', 'Meter Code', 'Meter Name',
+                                    'Meter Model', 'Max kwh', 'Address', 'Subaddress', 'Phase', 'Loop No.',
+                                    'IP Address', 'Port', 'Converter'
                                 ];
-                                const sampleRow = [
-                                    1, '', 1, 1, 'MDB-01', '111PMT_Building A', 'Common_A',
-                                    'ELE', 'MTR-001', 'Main Meter', 'R-101', 'Room 101',
-                                    1, 'MPR-47S', 23, '192.168.1.100', 3, 1,
+                                const sampleRows = [
+                                    [
+                                        1, 'Manual', 'Main MDB', 'Wanwanach Bakery', '1000_1', 'Building A', '1', 'Production',
+                                        'R-101', 'Main Pump Room', 'ส่วนกลาง', 'ELE', 'MTR-001', 'Main Production Meter',
+                                        'MPR-45S', 5000, 1, 1, '3P4W', 1,
+                                        '192.168.1.100', 502, 'EL-300E(10)'
+                                    ],
+                                    [
+                                        2, 'Manual', 'Sub Meter', 'Wanwanach Bakery', '1000_1', 'Building A', '1', 'Kitchen',
+                                        'R-102', 'Oven Area', 'Kitchen Group', 'ELE', 'MTR-002', 'Oven Meter 1',
+                                        'PM5110', 2000, 2, 2, '3P4W', 1,
+                                        '192.168.1.100', 502, 'EL-300E(10)'
+                                    ],
+                                    [
+                                        3, 'Manual', 'Water Main', 'Wanwanach Bakery', '1000_1', 'Building A', '1', 'Outdoor',
+                                        'W-001', 'Water Supply Tank', 'Utilities', 'WAT', 'WAT-001', 'Main Water Meter',
+                                        'WaterFlow-50', 500, 3, null, '1P2W', 1,
+                                        '192.168.1.100', 502, 'EL-300E(10)'
+                                    ]
                                 ];
-                                const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
-                                ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 14) }));
+
+                                const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+                                ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 5, 14) }));
+
+                                const guideHeaders = ['Field Name', 'ชื่อคอลัมน์ (TH)', 'Description (EN)', 'ความสำคัญ / ตัวอย่าง (Examples)'];
+                                const guideRows = [
+                                    ['No.', 'ลำดับ', 'Row sequence number', '1, 2, 3...'],
+                                    ['Status', 'สถานะมิเตอร์', 'Meter connection mode', 'Manual, Auto'],
+                                    ['Circuit', 'วงจรไฟฟ้า / วัตถุประสงค์', 'Circuit / Panel identification', 'Main MDB, Sub Meter, Air Condition, Lighting'],
+                                    ['Site', 'ชื่อไซต์ / โครงการ', 'Site Name (Auto-created if not exists)', 'วรรณวนัช เบเกอรี่, Headquarter'],
+                                    ['(Site EL)', 'รหัส Site EL สำหรับ Realtime Channel', 'Site EL code for Redis streaming', '1000_1, 1000, 2000'],
+                                    ['Building', 'ชื่ออาคาร', 'Building Name (Auto-created if not exists)', 'Building A, อาคารผลิต, Main Building'],
+                                    ['Floor', 'ชั้น', 'Floor designation (text or number)', '1, 2, 3, G, B1, FL.1'],
+                                    ['Zone', 'ชื่อโซน / พื้นที่', 'Zone Name (Auto-created if not exists)', 'Production, Kitchen, Office, Common Area'],
+                                    ['Room Code', 'รหัสห้อง', 'Room Code', 'R-101, R-102, K-01'],
+                                    ['Room Name', 'ชื่อห้อง', 'Room Name', 'Main Pump Room, Oven Area, Server Room'],
+                                    ['Meter Group', 'กลุ่มมิเตอร์', 'Meter grouping', 'ส่วนกลาง, Tenant, Utilities, Production'],
+                                    ['Meter Type', 'ประเภทมิเตอร์', 'Supported Types: ELE, WAT, GAS, MDB, SOL, Humidity, Temperature', 'ELE (ไฟฟ้า), WAT (น้ำ), GAS, MDB, SOL'],
+                                    ['Meter Code', 'รหัสมิเตอร์ (ต้องไม่ซ้ำกัน)', 'Unique Meter Code (Required)', 'MTR-001, MTR-002, WAT-001'],
+                                    ['Meter Name', 'ชื่อมิเตอร์', 'Meter display name', 'Main Production Meter, Oven Meter 1'],
+                                    ['Meter Model', 'ยี่ห้อและรุ่นมิเตอร์', 'Model Name (Auto-created if not exists)', 'MPR-45S, PM5110, SDM630, M4M 30'],
+                                    ['Max kwh', 'พิกัดกำลังไฟฟ้าสูงสุด (kWh)', 'Maximum kWh rating limit', '5000, 2000, 1000'],
+                                    ['Address', 'Modbus Address (ตัวเลข)', 'Modbus Slave ID / Address (1-247)', '1, 2, 3...'],
+                                    ['Subaddress', 'Subaddress ย่อย (ถ้ามี)', 'Subaddress for multi-channel devices', '1, 2'],
+                                    ['Phase', 'เฟสไฟฟ้า', 'Electrical Phase system', '3P4W, 3P3W, 1P2W, 3, 1'],
+                                    ['Loop No.', 'หมายเลข Loop หรือ Port', 'Loop / Channel number', '1, 2'],
+                                    ['IP Address', 'ไอพี Converter / Datalogger', 'Hardware Gateway IP address', '192.168.1.100'],
+                                    ['Port', 'พอร์ตการสื่อสาร', 'Communication port (e.g. 502 Modbus TCP)', '502, 4001, 23'],
+                                    ['Converter', 'ชื่อรุ่นตัวแปลงสัญญาณ / Datalogger', 'Converter device model', 'EL-300E(10), USR-TCP232, Moxa']
+                                ];
+                                const wsGuide = XLSX.utils.aoa_to_sheet([guideHeaders, ...guideRows]);
+                                wsGuide['!cols'] = [{ wch: 16 }, { wch: 42 }, { wch: 42 }, { wch: 45 }];
+
                                 const wb = XLSX.utils.book_new();
-                                XLSX.utils.book_append_sheet(wb, ws, 'Meter Import Template');
+                                XLSX.utils.book_append_sheet(wb, ws, 'Meter Import');
+                                XLSX.utils.book_append_sheet(wb, wsGuide, 'Guide & Description');
                                 XLSX.writeFile(wb, 'meter_import_template.xlsx');
                             }}
                             style={{
