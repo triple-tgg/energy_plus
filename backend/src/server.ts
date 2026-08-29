@@ -96,6 +96,16 @@ app.use(errorHandler);
 
 // Start server with Redis connection
 const startServer = async () => {
+    // Ensure meter table has all columns that services expect.
+    // Safe to run every startup – ADD COLUMN IF NOT EXISTS is a no-op when the column already exists.
+    try {
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+    } catch (e: any) {
+        console.warn('⚠️  Schema patch (meter columns) skipped:', e.message);
+    }
+
     await ensureAccessControlSchema();
     let meterSubscriptionSyncTimer: NodeJS.Timeout | null = null;
 
