@@ -1,11 +1,23 @@
 import crypto from 'crypto';
 import { LicensePayload } from '../config/license.config';
 
-const PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg7emgOEsn1Qe9IrNd
-TWOV9Zb+v4I2lhWug3CrIJSt1I6hRANCAARpJ2iR9KGCVVoNh7xDV7JlB8Pzel79
-DAbcqjzXt9smLwUaH9S11fA+pGDbULCvWmjm3w6xKMpPvnOoIpbzpWrR
------END PRIVATE KEY-----`;
+/**
+ * The ECDSA P-256 private key is read from the LICENSE_PRIVATE_KEY
+ * environment variable.  This key must NEVER be committed to source
+ * control or baked into production Docker images.
+ *
+ * Set it only in trusted environments (dev machine, CI for seeding).
+ */
+function getPrivateKey(): string {
+    const key = process.env.LICENSE_PRIVATE_KEY;
+    if (!key) {
+        throw new Error(
+            'LICENSE_PRIVATE_KEY environment variable is not set. ' +
+            'License generation is only available in trusted environments.'
+        );
+    }
+    return key.replace(/\\n/g, '\n');
+}
 
 export interface GenerateLicenseOptions {
     customerName?: string;
@@ -51,7 +63,7 @@ export function generateLicense({
     const sign = crypto.createSign('SHA256');
     sign.update(payloadString);
     sign.end();
-    const signature = sign.sign(PRIVATE_KEY, 'base64');
+    const signature = sign.sign(getPrivateKey(), 'base64');
 
     const tokenObject = {
         payload,

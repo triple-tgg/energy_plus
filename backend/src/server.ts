@@ -69,27 +69,7 @@ app.use(`${API_PREFIX}/reports`, reportsRoutes);
 app.use(`${API_PREFIX}/data-cleanup`, dataCleanupRoutes);
 app.use(`${API_PREFIX}/license`, licenseRoutes);
 
-// DEBUG: List databases and tables
-app.get(`${API_PREFIX}/debug/tables`, async (req, res) => {
-    const dbs = await pool.query(`SELECT datname FROM pg_database WHERE datistemplate = false`);
-    const schemas = await pool.query(`SELECT schema_name FROM information_schema.schemata`);
-    const tables = await pool.query(`SELECT schemaname, tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema')`);
-    res.json({ databases: dbs.rows, schemas: schemas.rows, tables: tables.rows });
-});
 
-app.get(`${API_PREFIX}/debug/users`, async (req, res) => {
-    try {
-        const r = await pool.query(`SELECT "Id","UserName","Email" FROM "AspNetUsers" LIMIT 10`);
-        res.json(r.rows);
-    } catch (e: any) {
-        try {
-            const r2 = await pool.query(`SELECT * FROM aspnetusers LIMIT 10`);
-            res.json(r2.rows);
-        } catch (e2: any) {
-            res.json({ error1: e.message, error2: e2.message });
-        }
-    }
-});
 
 // Serve uploaded files statically
 const uploadsPath = path.join(__dirname, '..', 'public/uploads');
