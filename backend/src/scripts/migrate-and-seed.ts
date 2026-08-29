@@ -799,7 +799,35 @@ async function migrateAndSeed() {
         console.log('  ✅ user_permission');
 
         // --- System License ---
-        const defaultLicense = generateLicense(LICENSE_CONFIG.DEFAULT_LICENSE);
+        // Try to generate a cryptographically signed license.
+        // On production the private key is intentionally absent, so we
+        // fall back to seeding an unsigned record from config defaults.
+        let licenseKey = 'BUILTIN-DEFAULT';
+        let licensePayload: {
+            customerName: string;
+            licenseType?: string;
+            maxMeters: number;
+            issuedDate: string;
+            expiryDate: string | null;
+            features?: string[];
+        } = {
+            customerName: LICENSE_CONFIG.DEFAULT_LICENSE.customerName,
+            licenseType: LICENSE_CONFIG.DEFAULT_LICENSE.licenseType,
+            maxMeters: LICENSE_CONFIG.DEFAULT_LICENSE.maxMeters,
+            issuedDate: new Date().toISOString(),
+            expiryDate: null,
+            features: LICENSE_CONFIG.DEFAULT_LICENSE.features,
+        };
+
+        try {
+            const signed = generateLicense(LICENSE_CONFIG.DEFAULT_LICENSE);
+            licenseKey = signed.licenseKey;
+            licensePayload = signed.payload;
+            console.log('  🔑 License signed with private key');
+        } catch (_e) {
+            console.log('  ⚠️  LICENSE_PRIVATE_KEY not set — seeding unsigned default license');
+        }
+
         await client.query(
             `INSERT INTO system_license (id, license_key, customer_name, license_type, max_meters, features, issued_date, expiry_date, is_valid, last_verified_on, created_on)
              VALUES (1, $1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
@@ -810,13 +838,13 @@ async function migrateAndSeed() {
                features = EXCLUDED.features,
                is_valid = true`,
             [
-                defaultLicense.licenseKey,
-                defaultLicense.payload.customerName,
-                defaultLicense.payload.licenseType,
-                defaultLicense.payload.maxMeters,
-                JSON.stringify(defaultLicense.payload.features),
-                defaultLicense.payload.issuedDate,
-                defaultLicense.payload.expiryDate
+                licenseKey,
+                licensePayload.customerName,
+                licensePayload.licenseType,
+                licensePayload.maxMeters,
+                JSON.stringify(licensePayload.features),
+                licensePayload.issuedDate,
+                licensePayload.expiryDate
             ]
         );
         await client.query(`SELECT setval('system_license_id_seq', (SELECT GREATEST(MAX(id), 1) FROM system_license))`);
