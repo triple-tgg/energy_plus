@@ -277,7 +277,7 @@ const LoginPage: React.FC = () => {
                     </button>
 
                     <p style={{ textAlign: 'center', fontSize: '9px', color: C.sub, marginTop: 24, margin: '24px 0 0 0' }}>
-                        © 2026 M Soft // ACCESS AUDITED
+                        © 2026 M Soft // v{__APP_VERSION__}
                     </p>
                 </form>
             </div>

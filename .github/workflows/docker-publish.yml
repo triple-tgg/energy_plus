@@ -3,7 +3,7 @@ name: Build and Push Energy Plus
 on:
   push:
     branches:
-      - wanwanach
+      - production
     tags:
       - "v*.*.*"
 
@@ -25,6 +25,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Determine application version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            SAFE_REF="${GITHUB_REF_NAME//\//-}"
+            VERSION="${SAFE_REF}-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${VERSION}"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -41,9 +55,14 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=wanwanach,enable=${{ github.ref == 'refs/heads/wanwanach' }}
-            type=ref,event=tag
+            type=raw,value=production,enable=${{ github.ref == 'refs/heads/production' }}
+            type=raw,value=${{ steps.version.outputs.version }}
             type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.title=Energy Plus
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
       - name: Build and push image
         uses: docker/build-push-action@v6
@@ -51,6 +70,9 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
+            GIT_SHA=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
