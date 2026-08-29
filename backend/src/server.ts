@@ -21,6 +21,7 @@ import layoutRoutes from './modules/layouts/layouts.routes';
 import reportsRoutes from './modules/reports/reports.routes';
 import dataCleanupRoutes from './modules/data-cleanup/dataCleanup.routes';
 import licenseRoutes from './modules/license/license.routes';
+import exportsRoutes from './modules/exports/exports.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 import { ensureAccessControlSchema } from './config/accessControl';
@@ -68,6 +69,7 @@ app.use(`${API_PREFIX}/layouts`, layoutRoutes);
 app.use(`${API_PREFIX}/reports`, reportsRoutes);
 app.use(`${API_PREFIX}/data-cleanup`, dataCleanupRoutes);
 app.use(`${API_PREFIX}/license`, licenseRoutes);
+app.use(`${API_PREFIX}/exports`, exportsRoutes);
 
 
 
@@ -115,11 +117,15 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS building_name_en VARCHAR(200)`);
         await pool.query(`ALTER TABLE IF EXISTS buildings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
 
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS job_name VARCHAR(100) NOT NULL DEFAULT 'job'`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'success'`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_read INTEGER DEFAULT 0`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_written INTEGER DEFAULT 0`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS rows_skipped INTEGER DEFAULT 0`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_start TIMESTAMPTZ`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS bucket_end TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS error_message TEXT`);
+        await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NOW()`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`);
 
         // Ensure standard 7 meter types exist
