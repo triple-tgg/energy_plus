@@ -362,9 +362,27 @@ export const getRealtimeHistory = async (filters?: {
             m.meter_id, m.meter_code, m.meter_name, m.room_code,
             ROUND(COALESCE(d.energy_kw, 0)::numeric, 2)::float AS kw_3ph,
             ROUND(COALESCE(d.energy_kva, 0)::numeric, 2)::float AS kva_3ph,
-            ROUND(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0)::numeric, 1)::float AS avg_voltage,
-            ROUND(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0)::numeric, 2)::float AS avg_current,
-            ROUND(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0)::numeric, 3)::float AS avg_pf,
+            ROUND(COALESCE(d.energy_volt_p1, 0)::numeric, 1)::float AS vl1,
+            ROUND(COALESCE(d.energy_volt_p2, 0)::numeric, 1)::float AS vl2,
+            ROUND(COALESCE(d.energy_volt_p3, 0)::numeric, 1)::float AS vl3,
+            ROUND(COALESCE(d.energy_amp1, 0)::numeric, 2)::float AS il1,
+            ROUND(COALESCE(d.energy_amp2, 0)::numeric, 2)::float AS il2,
+            ROUND(COALESCE(d.energy_amp3, 0)::numeric, 2)::float AS il3,
+            ROUND(COALESCE(d.energy_pf1, 0)::numeric, 3)::float AS pf1,
+            ROUND(COALESCE(d.energy_pf2, 0)::numeric, 3)::float AS pf2,
+            ROUND(COALESCE(d.energy_pf3, 0)::numeric, 3)::float AS pf3,
+            CASE 
+                WHEN COALESCE(d.energy_volt_p2, 0) = 0 AND COALESCE(d.energy_volt_p3, 0) = 0 THEN ROUND(COALESCE(d.energy_volt_p1, 0)::numeric, 1)::float
+                ELSE ROUND(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0)::numeric, 1)::float
+            END AS avg_voltage,
+            CASE
+                WHEN COALESCE(d.energy_amp2, 0) = 0 AND COALESCE(d.energy_amp3, 0) = 0 THEN ROUND(COALESCE(d.energy_amp1, 0)::numeric, 2)::float
+                ELSE ROUND(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0)::numeric, 2)::float
+            END AS avg_current,
+            CASE
+                WHEN COALESCE(d.energy_pf2, 0) = 0 AND COALESCE(d.energy_pf3, 0) = 0 THEN ROUND(COALESCE(d.energy_pf1, 0)::numeric, 3)::float
+                ELSE ROUND(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0)::numeric, 3)::float
+            END AS avg_pf,
             ROUND(COALESCE(d.energy_frequency, 0)::numeric, 2)::float AS hz,
             1 AS readings
         FROM actual_meter_data d
@@ -410,9 +428,27 @@ export const getRealtimeHistory = async (filters?: {
             m.meter_id, m.meter_code, m.meter_name, m.room_code,
             ROUND(AVG(mr.kw_3ph)::numeric, 2)::float AS kw_3ph,
             ROUND(AVG(mr.kva_3ph)::numeric, 2)::float AS kva_3ph,
-            ROUND(AVG((mr.vl1 + mr.vl2 + mr.vl3) / 3.0)::numeric, 1)::float AS avg_voltage,
-            ROUND(AVG((mr.il1 + mr.il2 + mr.il3) / 3.0)::numeric, 2)::float AS avg_current,
-            ROUND(AVG((mr.pf1 + mr.pf2 + mr.pf3) / 3.0)::numeric, 3)::float AS avg_pf,
+            ROUND(AVG(mr.vl1)::numeric, 1)::float AS vl1,
+            ROUND(AVG(mr.vl2)::numeric, 1)::float AS vl2,
+            ROUND(AVG(mr.vl3)::numeric, 1)::float AS vl3,
+            ROUND(AVG(mr.il1)::numeric, 2)::float AS il1,
+            ROUND(AVG(mr.il2)::numeric, 2)::float AS il2,
+            ROUND(AVG(mr.il3)::numeric, 2)::float AS il3,
+            ROUND(AVG(mr.pf1)::numeric, 3)::float AS pf1,
+            ROUND(AVG(mr.pf2)::numeric, 3)::float AS pf2,
+            ROUND(AVG(mr.pf3)::numeric, 3)::float AS pf3,
+            CASE 
+                WHEN AVG(mr.vl2) = 0 AND AVG(mr.vl3) = 0 THEN ROUND(AVG(mr.vl1)::numeric, 1)::float
+                ELSE ROUND(AVG((mr.vl1 + mr.vl2 + mr.vl3) / 3.0)::numeric, 1)::float
+            END AS avg_voltage,
+            CASE
+                WHEN AVG(mr.il2) = 0 AND AVG(mr.il3) = 0 THEN ROUND(AVG(mr.il1)::numeric, 2)::float
+                ELSE ROUND(AVG((mr.il1 + mr.il2 + mr.il3) / 3.0)::numeric, 2)::float
+            END AS avg_current,
+            CASE
+                WHEN AVG(mr.pf2) = 0 AND AVG(mr.pf3) = 0 THEN ROUND(AVG(mr.pf1)::numeric, 3)::float
+                ELSE ROUND(AVG((mr.pf1 + mr.pf2 + mr.pf3) / 3.0)::numeric, 3)::float
+            END AS avg_pf,
             ROUND(AVG(mr.hz)::numeric, 2)::float AS hz,
             COUNT(*)::int AS readings
         FROM mapped_readings mr

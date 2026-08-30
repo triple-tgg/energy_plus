@@ -6,7 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { reportsApi } from '../../api/client';
 import { exportReport, fetchAllReportRows, type ReportExportFormat } from '../../utils/reportExport';
-import { LayoutGrid, Trash2, DownloadCloud, AlertTriangle } from 'lucide-react';
+import { LayoutGrid, Trash2, DownloadCloud, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -193,13 +193,26 @@ const AlarmReportPage: React.FC = () => {
         <div>
             {successMsg && <div className="toast-success" style={{ fontFamily: MONO, borderRadius: 0, marginBottom: 16 }}>✅ {successMsg}</div>}
             {/* Command bar */}
-            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
+            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.accent}`, marginBottom: 16, flexWrap: 'wrap', gap: 10, paddingRight: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
-                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
+                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><ShieldAlert size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>REPORTS // ALARMS</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('รายงาน // การแจ้งเตือน', 'REPORTS // ALARMS')}</div>
                         <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('ประวัติรายการตรวจสอบและการรายงานสัญญาณเตือน (Alarm Notifications)', 'History of inspections and alarm reports (Alarm Notifications)')}</div>
                     </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', flexWrap: 'wrap' }}>
+                    <ExportButtons onExport={handleExport} loading={exporting} />
+                    <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        onClick={() => setShowExportClearModal(true)}
+                        disabled={loading || clearing || total === 0}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, borderRadius: 4 }}
+                    >
+                        <Trash2 size={15} />
+                        {t('Export แล้ว Clear Data', 'Export & Clear Data')}
+                    </button>
                 </div>
             </div>
 
@@ -210,21 +223,6 @@ const AlarmReportPage: React.FC = () => {
                 showSite={false}
                 showBuilding={false}
                 showZone={false}
-                actions={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <ExportButtons onExport={handleExport} loading={exporting} />
-                        <button
-                            type="button"
-                            className="btn btn-danger btn-sm"
-                            onClick={() => setShowExportClearModal(true)}
-                            disabled={loading || clearing || total === 0}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, borderRadius: 4 }}
-                        >
-                            <Trash2 size={15} />
-                            {t('Export แล้ว Clear Data', 'Export & Clear Data')}
-                        </button>
-                    </div>
-                }
             />
 
             <DataTable

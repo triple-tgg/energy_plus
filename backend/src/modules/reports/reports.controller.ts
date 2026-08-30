@@ -54,4 +54,18 @@ export class ReportsController {
             res.json(successResponse(result.data, undefined, paginationHelper(result.page, result.limit, result.total)));
         } catch (e) { next(e); }
     }
+
+    async getEnergyMonthlyReport(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await svc.getEnergyMonthlyReport(req.query);
+            res.json(successResponse(result.data, undefined, paginationHelper(result.page, result.limit, result.total)));
+        } catch (e) { next(e); }
+    }
+
+    async getTouMonthlyReport(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await svc.getTouMonthlyReport(req.query);
+            res.json(successResponse(result.data, undefined, paginationHelper(result.page, result.limit, result.total)));
+        } catch (e) { next(e); }
+    }
 }

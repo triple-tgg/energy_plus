@@ -9,7 +9,7 @@ import {
     Wrench, Bell, AlertTriangle, Coins, TrendingDown, Map, Upload, Trash2, ShieldCheck,
     Radio, BarChart3, Network, Activity,
     FileText, BarChartBig, History, GitCompare, Clock,
-    LayoutDashboard, MapPinned, Gauge, Table,
+    LayoutDashboard, MapPinned, Gauge, Table, CalendarDays, CalendarRange,
     type LucideIcon,
 } from 'lucide-react';
 import logo from '../../assets/logo.jpg';
@@ -56,8 +56,10 @@ const navGroups: NavGroup[] = [
         icon: FileText,
         items: [
             { labelEn: 'Consumption Report', labelTh: 'รายงานการใช้พลังงาน', path: '/reports/consumption', icon: Table, permissionKey: 'reports' },
-            { labelEn: 'Energy Report', labelTh: 'รายงานการใช้พลังงาน', path: '/reports/energy', icon: BarChartBig, permissionKey: 'reports' },
+            { labelEn: 'Energy Report', labelTh: 'รายงานการใช้พลังงานทั่วไป', path: '/reports/energy', icon: BarChartBig, permissionKey: 'reports' },
+            { labelEn: 'Energy Monthly Report', labelTh: 'รายงานค่าไฟรายเดือน', path: '/reports/energy-monthly', icon: CalendarDays, permissionKey: 'reports' },
             { labelEn: 'TOU Report', labelTh: 'รายงาน TOU', path: '/reports/tou', icon: Clock, permissionKey: 'reports' },
+            { labelEn: 'TOU Monthly Report', labelTh: 'รายงาน TOU รายเดือน', path: '/reports/tou-monthly', icon: CalendarRange, permissionKey: 'reports' },
             { labelEn: 'Monthly Comparison', labelTh: 'รายงานเปรียบเทียบรายเดือน', path: '/reports/comparison', icon: GitCompare, permissionKey: 'reports' },
             { labelEn: 'Historical Report', labelTh: 'รายงานข้อมูลย้อนหลัง', path: '/reports/history', icon: History, permissionKey: 'reports' },
             { labelEn: 'Alarm Reports', labelTh: 'รายงานการแจ้งเตือน', path: '/reports/alarms', icon: Clock, permissionKey: 'reports' },

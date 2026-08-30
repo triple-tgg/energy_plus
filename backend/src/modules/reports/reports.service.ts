@@ -182,33 +182,35 @@ export class ReportsService {
         const dataParams = [...params, limit, offset];
         const result = await query(
             `SELECT
-                d.date_keep AS timestamp,
+                to_char((d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, 'YYYY-MM-DD') AS timestamp,
+                to_char((d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, 'YYYY-MM-DD') AS date,
                 m.meter_id, m.meter_code, m.meter_name,
-                COALESCE(d.energy_kwh, 0) AS kwh,
-                COALESCE(d.energy_kva, 0) AS kva,
-                COALESCE(d.energy_kw, 0) AS kw,
-                COALESCE(d.energy_kvar, 0) AS kvar,
-                COALESCE(d.energy_frequency, 0) AS frequency,
-                COALESCE(d.energy_pf1, 0) AS pwl1,
-                COALESCE(d.energy_pf2, 0) AS pwl2,
-                COALESCE(d.energy_pf3, 0) AS pwl3,
-                NULL::numeric AS kw1, NULL::numeric AS kw2, NULL::numeric AS kw3,
-                NULL::numeric AS kvah, NULL::numeric AS kvarh,
-                COALESCE(d.energy_volt_p1, 0) AS volt_p1,
-                COALESCE(d.energy_volt_p2, 0) AS volt_p2,
-                COALESCE(d.energy_volt_p3, 0) AS volt_p3,
-                COALESCE(d.energy_volt_l1, 0) AS volt_l1,
-                COALESCE(d.energy_volt_l2, 0) AS volt_l2,
-                COALESCE(d.energy_volt_l3, 0) AS volt_l3,
-                COALESCE(d.energy_amp1, 0) AS amp1,
-                COALESCE(d.energy_amp2, 0) AS amp2,
-                COALESCE(d.energy_amp3, 0) AS amp3,
-                d.water_value, d.gas_value, d.status,
+                ROUND(GREATEST(COALESCE(MAX(d.energy_kwh) - MIN(d.energy_kwh), 0), 0)::numeric, 2) AS kwh_used,
+                ROUND(COALESCE(MAX(d.energy_kwh), 0)::numeric, 2) AS kwh,
+                ROUND(COALESCE(MAX(d.energy_kw), 0)::numeric, 2) AS max_kw,
+                ROUND(COALESCE(AVG(d.energy_kw), 0)::numeric, 2) AS kw,
+                ROUND(COALESCE(AVG(d.energy_kva), 0)::numeric, 2) AS kva,
+                ROUND(COALESCE(AVG(d.energy_kvar), 0)::numeric, 2) AS kvar,
+                ROUND(COALESCE(AVG(d.energy_frequency), 0)::numeric, 2) AS frequency,
+                ROUND(COALESCE(AVG(d.energy_pf1), 0)::numeric, 3) AS pwl1,
+                ROUND(COALESCE(AVG(d.energy_pf2), 0)::numeric, 3) AS pwl2,
+                ROUND(COALESCE(AVG(d.energy_pf3), 0)::numeric, 3) AS pwl3,
+                ROUND(COALESCE(AVG(d.energy_volt_p1), 0)::numeric, 1) AS volt_p1,
+                ROUND(COALESCE(AVG(d.energy_volt_p2), 0)::numeric, 1) AS volt_p2,
+                ROUND(COALESCE(AVG(d.energy_volt_p3), 0)::numeric, 1) AS volt_p3,
+                ROUND(COALESCE(AVG(d.energy_volt_l1), 0)::numeric, 1) AS volt_l1,
+                ROUND(COALESCE(AVG(d.energy_volt_l2), 0)::numeric, 1) AS volt_l2,
+                ROUND(COALESCE(AVG(d.energy_volt_l3), 0)::numeric, 1) AS volt_l3,
+                ROUND(COALESCE(AVG(d.energy_amp1), 0)::numeric, 2) AS amp1,
+                ROUND(COALESCE(AVG(d.energy_amp2), 0)::numeric, 2) AS amp2,
+                ROUND(COALESCE(AVG(d.energy_amp3), 0)::numeric, 2) AS amp3,
+                COUNT(*)::int AS readings_count,
                 COUNT(*) OVER()::int AS full_count
             FROM actual_meter_data d
             JOIN meter m ON m.meter_id = d.meter_id
             WHERE ${filters.join(' AND ')}
-            ORDER BY d.date_keep DESC, d.id DESC
+            GROUP BY (d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, m.meter_id, m.meter_code, m.meter_name
+            ORDER BY (d.date_keep AT TIME ZONE 'Asia/Bangkok')::date DESC, m.meter_code ASC
             LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
             dataParams
         );
@@ -632,4 +634,258 @@ export class ReportsService {
 
         return { data: rows, total, page, limit, tariff: rate };
     }
+
+    async getEnergyMonthlyReport(queryParams: any) {
+        const { page, limit, offset } = parsePagination(queryParams);
+        const { siteId, buildingId, zoneId, meterTypeId, meterId, search, mdb } = queryParams;
+        const now = new Date();
+        const year = parseInt(queryParams.year) || (queryParams.month?.includes('-') ? parseInt(queryParams.month.split('-')[0]) : now.getFullYear());
+        const month = parseInt(queryParams.month?.includes('-') ? queryParams.month.split('-')[1] : queryParams.month) || (now.getMonth() + 1);
+
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+        const params: any[] = [];
+        const meterFilters: string[] = ['m.is_active IS DISTINCT FROM false'];
+
+        const mdbScope = String(mdb || '').toLowerCase();
+        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        if (mdbScope === 'only') {
+            meterFilters.push(MDB_MATCH);
+        } else if (mdbScope === 'exclude') {
+            meterFilters.push(`NOT ${MDB_MATCH}`);
+        }
+
+        if (siteId) { params.push(parseInt(siteId)); meterFilters.push(`m.site_id = $${params.length}`); }
+        if (buildingId) { params.push(parseInt(buildingId)); meterFilters.push(`m.building_id = $${params.length}`); }
+        if (zoneId) { params.push(parseInt(zoneId)); meterFilters.push(`m.zone_id = $${params.length}`); }
+        if (meterTypeId) { params.push(parseInt(meterTypeId)); meterFilters.push(`m.meter_type_id = $${params.length}`); }
+        if (meterId) { params.push(parseInt(meterId)); meterFilters.push(`m.meter_id = $${params.length}`); }
+        if (search) {
+            params.push(`%${String(search).trim()}%`);
+            meterFilters.push(`(m.meter_code ILIKE $${params.length} OR m.meter_name ILIKE $${params.length} OR m.room_name ILIKE $${params.length})`);
+        }
+
+        params.push(startDate);
+        const startParam = params.length;
+        params.push(endDate);
+        const endParam = params.length;
+
+        const baseCtes = `WITH mapped AS (
+            SELECT r.id, r.channel, r.site_id, r.address_id, r.received_at, r.import_kwhr,
+                   COALESCE(rmm.meter_id, fallback_meter.meter_id) AS mapped_meter_id
+            FROM meter_data_realtime r
+            LEFT JOIN realtime_meter_map rmm
+              ON rmm.realtime_site_id = r.site_id
+             AND rmm.realtime_address_id = r.address_id
+             AND rmm.is_active = true
+             AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+            LEFT JOIN meter fallback_meter
+             ON fallback_meter.site_el = r.site_id
+             AND fallback_meter.address::text = r.address_id::text
+             AND rmm.id IS NULL
+            WHERE r.received_at >= (($${startParam}::date - 60)::timestamp AT TIME ZONE 'Asia/Bangkok')
+              AND r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+        ), meter_scope AS (
+            SELECT m.*, b.building_name, z.zone_name, s.site_name AS project_name
+            FROM meter m
+            LEFT JOIN buildings b ON b.building_id = m.building_id
+            LEFT JOIN zones z ON z.zone_id = m.zone_id
+            LEFT JOIN sites s ON s.site_id = m.site_id
+            WHERE ${meterFilters.join(' AND ')}
+        ), start_points_before AS (
+            SELECT DISTINCT ON (m.meter_id)
+                m.meter_id, r.received_at AS start_date, r.import_kwhr AS start_reading
+            FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
+            WHERE r.received_at <= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY m.meter_id, r.received_at DESC, r.id DESC
+        ), start_points_first AS (
+            SELECT DISTINCT ON (m.meter_id)
+                m.meter_id, r.received_at AS start_date, r.import_kwhr AS start_reading
+            FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
+            WHERE r.received_at >= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+              AND r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY m.meter_id, r.received_at ASC, r.id ASC
+        ), end_points AS (
+            SELECT DISTINCT ON (m.meter_id)
+                m.meter_id, r.received_at AS end_date, r.import_kwhr AS end_reading
+            FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
+            WHERE r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY m.meter_id, r.received_at DESC, r.id DESC
+        ), actual_start AS (
+            SELECT DISTINCT ON (d.meter_id)
+                d.meter_id, d.date_keep AS start_date, d.energy_kwh AS start_reading
+            FROM actual_meter_data d
+            JOIN meter_scope m ON m.meter_id = d.meter_id
+            WHERE d.date_keep <= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY d.meter_id, d.date_keep DESC, d.id DESC
+        ), actual_end AS (
+            SELECT DISTINCT ON (d.meter_id)
+                d.meter_id, d.date_keep AS end_date, d.energy_kwh AS end_reading
+            FROM actual_meter_data d
+            JOIN meter_scope m ON m.meter_id = d.meter_id
+            WHERE d.date_keep < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY d.meter_id, d.date_keep DESC, d.id DESC
+        ), report_rows AS (
+            SELECT
+                m.meter_id, m.meter_code, m.meter_name AS customer_name,
+                m.building_name, m.floor, m.room_code AS site_code,
+                COALESCE(m.room_name, m.zone_name, m.project_name) AS site_name,
+                COALESCE(spb.start_date, act_s.start_date, spf.start_date, $${startParam}::timestamp) AS start_date,
+                COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0) AS start_reading,
+                COALESCE(ep.end_date, act_e.end_date, $${endParam}::timestamp) AS end_date,
+                COALESCE(ep.end_reading, act_e.end_reading, spb.start_reading, act_s.start_reading, 0) AS end_reading,
+                GREATEST(
+                    COALESCE(ep.end_reading, act_e.end_reading, 0) -
+                    COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0),
+                    0
+                ) AS units_used,
+                COALESCE(rate.unit_price, 4.15) AS unit_price,
+                COALESCE(rate.rate_mode, 'tiered') AS rate_mode,
+                COALESCE(rate.tier1_limit, 200.00) AS tier1_limit,
+                COALESCE(rate.tier1_rate, 3.0000) AS tier1_rate,
+                COALESCE(rate.tier2_rate, 4.2200) AS tier2_rate,
+                COALESCE(rate.service_charge, 24.6200) AS service_charge,
+                COALESCE(rate.ft_rate, 0.1623) AS ft_rate,
+                COALESCE(rate.vat_percent, 7.00) AS vat_percent,
+                rate.effective_date AS tariff_effective_date
+            FROM meter_scope m
+            LEFT JOIN end_points ep ON ep.meter_id = m.meter_id
+            LEFT JOIN actual_end act_e ON act_e.meter_id = m.meter_id
+            LEFT JOIN start_points_before spb ON spb.meter_id = m.meter_id
+            LEFT JOIN start_points_first spf ON spf.meter_id = m.meter_id
+            LEFT JOIN actual_start act_s ON act_s.meter_id = m.meter_id
+            LEFT JOIN LATERAL (
+                SELECT * FROM billing_config
+                WHERE is_active = true AND effective_date <= $${endParam}::date
+                ORDER BY effective_date DESC, id DESC LIMIT 1
+            ) rate ON true
+            WHERE ep.end_reading IS NOT NULL OR act_e.end_reading IS NOT NULL OR spb.start_reading IS NOT NULL OR act_s.start_reading IS NOT NULL
+        )`;
+
+        const dataParams = [...params, limit, offset];
+        const result = await query(
+            `${baseCtes} SELECT report_rows.*, COUNT(*) OVER()::int AS full_count FROM report_rows
+             ORDER BY building_name, floor, meter_code
+             LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+            dataParams
+        );
+        const total = Number(result.rows[0]?.full_count || 0);
+
+        const rows = result.rows.map(({ full_count, ...r }: any) => {
+            const unitsUsed = Number(r.units_used || 0);
+            const rateMode = r.rate_mode || 'tiered';
+            const tier1Limit = Number(r.tier1_limit || 200);
+            const tier1Rate = Number(r.tier1_rate || 3.00);
+            const tier2Rate = Number(r.tier2_rate || 4.22);
+            const unitPrice = Number(r.unit_price || 4.15);
+            const serviceCharge = Number(r.service_charge || 24.62);
+            const ftRate = Number(r.ft_rate || 0.1623);
+            const vatPercent = Number(r.vat_percent || 7.00);
+
+            let tier1Units = 0;
+            let tier1Amount = 0;
+            let tier2Units = 0;
+            let tier2Amount = 0;
+            let energyAmount = 0;
+
+            if (rateMode === 'tiered') {
+                tier1Units = Math.min(unitsUsed, tier1Limit);
+                tier2Units = Math.max(0, unitsUsed - tier1Limit);
+                tier1Amount = tier1Units * tier1Rate;
+                tier2Amount = tier2Units * tier2Rate;
+                energyAmount = tier1Amount + tier2Amount;
+            } else {
+                tier1Units = unitsUsed;
+                tier1Amount = unitsUsed * unitPrice;
+                energyAmount = tier1Amount;
+            }
+
+            const ftAmount = unitsUsed * ftRate;
+            const subtotal = energyAmount + serviceCharge + ftAmount;
+            const vatAmount = subtotal * (vatPercent / 100);
+            const totalAmount = subtotal + vatAmount;
+
+            return {
+                ...r,
+                billing_month: monthStr,
+                billing_period: `${startDate} — ${endDate}`,
+                units_used: unitsUsed,
+                rate_mode: rateMode,
+                tier1_limit: tier1Limit,
+                tier1_rate: tier1Rate,
+                tier1_units: tier1Units,
+                tier1_amount: tier1Amount,
+                tier2_rate: tier2Rate,
+                tier2_units: tier2Units,
+                tier2_amount: tier2Amount,
+                energy_amount: energyAmount,
+                service_charge: serviceCharge,
+                ft_rate: ftRate,
+                ft_amount: ftAmount,
+                subtotal: subtotal,
+                vat_percent: vatPercent,
+                vat_amount: vatAmount,
+                total_amount: totalAmount,
+                tariff_info: {
+                    effective_date: r.tariff_effective_date,
+                    rate_mode: rateMode,
+                    tier1_limit: tier1Limit,
+                    tier1_rate: tier1Rate,
+                    tier2_rate: tier2Rate,
+                    unit_price: unitPrice,
+                    service_charge: serviceCharge,
+                    ft_rate: ftRate,
+                    vat_percent: vatPercent,
+                },
+            };
+        });
+
+        return {
+            data: rows,
+            total,
+            page,
+            limit,
+            billingMonth: monthStr,
+            billingPeriod: { startDate, endDate },
+        };
+    }
+
+    async getTouMonthlyReport(queryParams: any) {
+        const { page, limit, offset } = parsePagination(queryParams);
+        const { siteId, buildingId, zoneId, meterTypeId, meterId, search, mdb } = queryParams;
+        const now = new Date();
+        const year = parseInt(queryParams.year) || (queryParams.month?.includes('-') ? parseInt(queryParams.month.split('-')[0]) : now.getFullYear());
+        const month = parseInt(queryParams.month?.includes('-') ? queryParams.month.split('-')[1] : queryParams.month) || (now.getMonth() + 1);
+
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+        // Forward to getTouReport with exact month start and end dates
+        const result = await this.getTouReport({
+            ...queryParams,
+            startDate,
+            endDate,
+            page,
+            limit,
+        });
+
+        const rows = result.data.map((r: any) => ({
+            ...r,
+            billing_month: monthStr,
+            billing_period: `${startDate} — ${endDate}`,
+        }));
+
+        return {
+            ...result,
+            data: rows,
+            billingMonth: monthStr,
+            billingPeriod: { startDate, endDate },
+        };
+    }
 }
+
