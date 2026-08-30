@@ -101,7 +101,9 @@ export const latest = async (req: Request, res: Response): Promise<void> => {
     try {
         const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
-        const data = await getLatestRealtimeData({ siteId, buildingId });
+        const floor = req.query.floor !== undefined && req.query.floor !== '' ? String(req.query.floor) : undefined;
+        const zoneId = req.query.zoneId ? parseInt(req.query.zoneId as string) : undefined;
+        const data = await getLatestRealtimeData({ siteId, buildingId, floor, zoneId });
         res.json(successResponse(data));
     } catch (error: any) {
         console.error('Latest real-time error:', error);
@@ -112,14 +114,16 @@ export const latest = async (req: Request, res: Response): Promise<void> => {
 /**
  * GET /history
  * Fetch time-bucketed realtime history data for chart display.
- * Optional query params: minutes (default 30), siteId, buildingId
+ * Optional query params: minutes (default 30), siteId, buildingId, floor, zoneId
  */
 export const realtimeHistory = async (req: Request, res: Response): Promise<void> => {
     try {
         const minutes = req.query.minutes ? parseInt(req.query.minutes as string) : 30;
         const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
-        const data = await getRealtimeHistory({ minutes, siteId, buildingId });
+        const floor = req.query.floor !== undefined && req.query.floor !== '' ? String(req.query.floor) : undefined;
+        const zoneId = req.query.zoneId ? parseInt(req.query.zoneId as string) : undefined;
+        const data = await getRealtimeHistory({ minutes, siteId, buildingId, floor, zoneId });
         res.json(successResponse(data));
     } catch (error: any) {
         console.error('Realtime history error:', error);
@@ -132,7 +136,9 @@ export const realtimeAlerts = async (req: Request, res: Response): Promise<void>
     try {
         const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
-        res.json(successResponse(await getRealtimeAlerts({ siteId, buildingId })));
+        const floor = req.query.floor !== undefined && req.query.floor !== '' ? String(req.query.floor) : undefined;
+        const zoneId = req.query.zoneId ? parseInt(req.query.zoneId as string) : undefined;
+        res.json(successResponse(await getRealtimeAlerts({ siteId, buildingId, floor, zoneId })));
     } catch (error: any) {
         res.status(500).json(errorResponse('REALTIME_ALERTS_ERROR', error.message));
     }

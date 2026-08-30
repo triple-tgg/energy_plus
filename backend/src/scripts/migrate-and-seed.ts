@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { LICENSE_CONFIG } from '../config/license.config';
 import { generateLicense } from '../utils/license-generator';
 
-async function migrateAndSeed() {
+export async function migrateAndSeed(closePool: boolean = true) {
     const client = await pool.connect();
 
     try {
@@ -214,7 +214,7 @@ async function migrateAndSeed() {
         site_el INTEGER,
         phase VARCHAR(20),
         circuit VARCHAR(100),
-        floor INTEGER,
+        floor VARCHAR(50),
         meter_group VARCHAR(100),
         max_kwh DECIMAL(18,2),
         subaddress INTEGER,
@@ -232,7 +232,7 @@ async function migrateAndSeed() {
         // Add columns that may be missing from older deployments
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS phase VARCHAR(20)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS circuit VARCHAR(100)`);
-        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor INTEGER`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS floor VARCHAR(50)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS meter_group VARCHAR(100)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
@@ -863,8 +863,12 @@ async function migrateAndSeed() {
         throw error;
     } finally {
         client.release();
-        await pool.end();
+        if (closePool) {
+            await pool.end();
+        }
     }
 }
 
-migrateAndSeed();
+if (require.main === module) {
+    migrateAndSeed(true).catch(() => process.exit(1));
+}
