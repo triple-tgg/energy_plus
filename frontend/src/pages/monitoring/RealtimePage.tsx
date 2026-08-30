@@ -3,7 +3,7 @@ import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 import {
     Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid, X,
     ChevronDown, Gauge, BatteryCharging, TrendingUp, BarChart2, Check, RotateCcw,
-    SlidersHorizontal, Layers, Filter, Sparkles, Clock, Eye, EyeOff
+    SlidersHorizontal, Layers, Filter, Sparkles, Clock, Eye, EyeOff, Search
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -166,22 +166,50 @@ const parseNum = (v: any, fallback = 0): number => {
     return isFinite(n) ? n : fallback;
 };
 
-/** Detect meter as "offline" when active but all key measurement values are zero */
-const isMeterOffline = (m: RealtimeMeterData): boolean => {
-    // Inactive meters are classified as "inactive", not "offline"
-    if (m.is_active === false) return false;
-    // Backend may provide is_all_zero flag
-    if (m.is_all_zero === true) return true;
-    // Fallback: check client-side
-    return m.vl1 === 0 && m.vl2 === 0 && m.vl3 === 0
+export type RealtimeStatus = 'online' | 'zero' | 'offline' | 'inactive';
+const REALTIME_STALE_MS = 120000;
+
+/** Calculate 4 standardized statuses: Online, Zero Reading, No Signal (offline), Inactive */
+export const getMeterRealtimeStatus = (m: RealtimeMeterData, now = Date.now()): RealtimeStatus => {
+    if (m.is_active === false || m.meter_status === 'disabled') return 'inactive';
+
+    const receivedAt = m.received_at ? new Date(m.received_at).getTime() : 0;
+    const deviceTime = m.device_datetime ? new Date(m.device_datetime.replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '')).getTime() : 0;
+    const latestTime = Math.max(receivedAt, deviceTime);
+
+    if (latestTime === 0 || (now - latestTime > REALTIME_STALE_MS)) {
+        return 'offline'; // No Signal
+    }
+
+    const isZero = m.is_all_zero === true || (
+        m.vl1 === 0 && m.vl2 === 0 && m.vl3 === 0
         && m.il1 === 0 && m.il2 === 0 && m.il3 === 0
         && m.kw_3ph === 0 && m.kva_3ph === 0
-        && m.hz === 0 && m.import_kwhr === 0;
+        && m.hz === 0 && m.import_kwhr === 0
+    );
+
+    if (isZero) return 'zero'; // Zero Reading
+
+    return 'online'; // Online
+};
+
+export const getRealtimeStatusInfo = (status: RealtimeStatus | string) => {
+    switch (status) {
+        case 'offline':
+            return { color: '#EF4444', labelTh: 'ไม่มีสัญญาณ', labelEn: 'No Signal', badgeBg: 'rgba(239, 68, 68, 0.12)', badgeBorder: 'rgba(239, 68, 68, 0.3)' };
+        case 'zero':
+            return { color: '#F59E0B', labelTh: 'ค่าเป็นศูนย์', labelEn: 'Zero Reading', badgeBg: 'rgba(245, 158, 11, 0.12)', badgeBorder: 'rgba(245, 158, 11, 0.3)' };
+        case 'inactive':
+            return { color: '#6B7280', labelTh: 'ไม่ใช้งาน', labelEn: 'Inactive', badgeBg: 'rgba(107, 114, 128, 0.15)', badgeBorder: 'rgba(107, 114, 128, 0.3)' };
+        case 'online':
+        default:
+            return { color: '#10B981', labelTh: 'ออนไลน์', labelEn: 'Online', badgeBg: 'rgba(16, 185, 129, 0.12)', badgeBorder: 'rgba(16, 185, 129, 0.3)' };
+    }
 };
 
 /** Format device_datetime from DB — DB stores Bangkok time but PG sends as UTC.
  *  Strip timezone suffix so JS treats it as local time (no double +7 offset). */
-const formatDeviceTime = (dt: string | null | undefined, mode: 'time' | 'full' = 'time'): string => {
+const formatDeviceTime = (dt: string | null | undefined, mode: 'time' | 'full' | 'auto' = 'auto'): string => {
     if (!dt) return '—';
     try {
         // Strip Z, +00, +07 etc. so JS treats as local time (already Bangkok)
@@ -191,7 +219,19 @@ const formatDeviceTime = (dt: string | null | undefined, mode: 'time' | 'full' =
         if (mode === 'full') {
             return d.toLocaleString('th-TH');
         }
-        return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        if (mode === 'time') {
+            return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+        // 'auto': If date is today, show HH:mm:ss. If older, show DD/MM HH:mm:ss
+        const now = new Date();
+        const isSameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+        if (isSameDay) {
+            return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const time = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return `${day}/${month} ${time}`;
     } catch { return '—'; }
 };
 
@@ -219,11 +259,11 @@ interface MeterGraphModalProps {
     theme: 'light' | 'dark';
     language: 'th' | 'en';
     C: typeof THEMES['light'];
-    isOffline: boolean;
+    status: RealtimeStatus;
 }
 
 const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
-    meter, onClose, theme, language, C, isOffline
+    meter, onClose, theme, language, C, status
 }) => {
     const { t } = useLanguage();
     const [minutes, setMinutes] = useState(1440);
@@ -351,22 +391,19 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
                                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>
                                     [{meter.meter_code}]
                                 </span>
-                                {meter.is_active === false ? (
-                                    <span style={{
-                                        fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
-                                        background: 'rgba(107,114,128,0.15)', color: '#6B7280', border: '1px solid rgba(107,114,128,0.3)'
-                                    }}>⚪ {t('ไม่ใช้งาน', 'INACTIVE')}</span>
-                                ) : isOffline ? (
-                                    <span style={{
-                                        fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
-                                        background: `${C.red}18`, color: C.red, border: `1px solid ${C.red}30`
-                                    }}>🔴 {t('ออฟไลน์', 'OFFLINE')}</span>
-                                ) : (
-                                    <span style={{
-                                        fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
-                                        background: `${C.green}18`, color: C.green, border: `1px solid ${C.green}30`
-                                    }}>🟢 {t('ออนไลน์', 'ONLINE')}</span>
-                                )}
+                                {(() => {
+                                    const st = getRealtimeStatusInfo(status);
+                                    return (
+                                        <span style={{
+                                            fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
+                                            background: st.badgeBg, color: st.color, border: `1px solid ${st.badgeBorder}`,
+                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                        }}>
+                                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.color, display: 'inline-block' }} />
+                                            {t(st.labelTh, st.labelEn).toUpperCase()}
+                                        </span>
+                                    );
+                                })()}
                                 <span style={{
                                     fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
                                     background: `${C.accent}20`, color: C.accent, border: `1px solid ${C.accent}40`
@@ -664,20 +701,28 @@ const RealtimePage: React.FC = () => {
     // Filters
     const [selectedSiteId, setSelectedSiteId] = useState<number | undefined>(undefined);
     const [selectedBuildingId, setSelectedBuildingId] = useState<number | undefined>(undefined);
+    const [selectedFloor, setSelectedFloor] = useState<string | undefined>(undefined);
+    const [selectedZoneId, setSelectedZoneId] = useState<number | undefined>(undefined);
     const [siteOptions, setSiteOptions] = useState<{ id: number; nameTh: string; nameEn: string; name: string }[]>([]);
     const [allBuildings, setAllBuildings] = useState<{ id: number; nameTh: string; nameEn: string; name: string; site_id: number }[]>([]);
+    const [allZones, setAllZones] = useState<{ id: number; nameTh: string; nameEn: string; name: string; building_id: number }[]>([]);
+
+    // Table specific filters (Status & Search)
+    const [tableStatusFilter, setTableStatusFilter] = useState<'all' | RealtimeStatus>('all');
+    const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
 
     // Track previous timestamps for flash detection
     const previousTimestamps = useRef<Record<string, string>>({});
 
-    // Load sites & buildings once on mount
+    // Load sites, buildings & zones once on mount
     useEffect(() => {
         (async () => {
             try {
                 const { sitesApi } = await import('../../api/client');
-                const [sitesRes, buildingsRes] = await Promise.all([
+                const [sitesRes, buildingsRes, zonesRes] = await Promise.all([
                     sitesApi.getAll({ limit: 100, activeOnly: true }),
                     sitesApi.getAllBuildings({ limit: 200 }),
+                    sitesApi.getZones({ limit: 500 }),
                 ]);
                 const sites = sitesRes.data?.data || [];
                 setSiteOptions(sites.map((s: any) => ({
@@ -694,8 +739,16 @@ const RealtimePage: React.FC = () => {
                     name: b.building_name,
                     site_id: b.site_id,
                 })));
+                const zones = zonesRes.data?.data || [];
+                setAllZones(zones.map((z: any) => ({
+                    id: z.zone_id,
+                    nameTh: z.zone_name_th || z.zone_name,
+                    nameEn: z.zone_name_en || z.zone_name,
+                    name: z.zone_name,
+                    building_id: z.building_id,
+                })));
             } catch (err) {
-                console.error('Failed to load sites/buildings for filter:', err);
+                console.error('Failed to load sites/buildings/zones for filter:', err);
             }
         })();
     }, []);
@@ -709,10 +762,42 @@ const RealtimePage: React.FC = () => {
         }));
     }, [allBuildings, selectedSiteId, language]);
 
+    // Floor options extracted from meters & filtered by building
+    const floorOptions = React.useMemo(() => {
+        const floors = new Set<string>();
+        meters.forEach(m => {
+            if (m.floor !== null && m.floor !== undefined && String(m.floor).trim() !== '') {
+                if (!selectedBuildingId || m.building_id === selectedBuildingId) {
+                    floors.add(String(m.floor));
+                }
+            }
+        });
+        return Array.from(floors).sort((a, b) => {
+            const na = parseFloat(a);
+            const nb = parseFloat(b);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            return a.localeCompare(b);
+        });
+    }, [meters, selectedBuildingId]);
+
+    // Zone options filtered by selected building
+    const zoneOptions = React.useMemo(() => {
+        const list = selectedBuildingId ? allZones.filter(z => z.building_id === selectedBuildingId) : allZones;
+        return list.map(z => ({
+            id: z.id,
+            name: language === 'en' ? (z.nameEn || z.name) : (z.nameTh || z.name),
+        }));
+    }, [allZones, selectedBuildingId, language]);
+
     // Persisted alarms: same source used by Alarm Report, so alerts survive refreshes.
     const fetchAlerts = useCallback(async () => {
         try {
-            const res = await realtimeApi.getAlerts({ siteId: selectedSiteId, buildingId: selectedBuildingId });
+            const res = await realtimeApi.getAlerts({
+                siteId: selectedSiteId,
+                buildingId: selectedBuildingId,
+                floor: selectedFloor,
+                zoneId: selectedZoneId,
+            });
             const rows = res.data?.data || [];
             setAlerts(rows.map((row: any) => ({
                 id: String(row.id),
@@ -723,7 +808,7 @@ const RealtimePage: React.FC = () => {
         } catch (error) {
             console.error('Failed to load realtime alerts:', error);
         }
-    }, [selectedSiteId, selectedBuildingId, language]);
+    }, [selectedSiteId, selectedBuildingId, selectedFloor, selectedZoneId, language]);
 
     // Fetch latest meter data
     const fetchLatestData = useCallback(async (isInitial = false) => {
@@ -733,6 +818,8 @@ const RealtimePage: React.FC = () => {
             const res = await realtimeApi.getLatest({
                 siteId: selectedSiteId,
                 buildingId: selectedBuildingId,
+                floor: selectedFloor,
+                zoneId: selectedZoneId,
             });
 
             if (res.data?.success && Array.isArray(res.data.data)) {
@@ -786,7 +873,7 @@ const RealtimePage: React.FC = () => {
             console.error('Failed to poll latest realtime data:', error);
             setDbSyncStatus('error');
         }
-    }, [selectedSiteId, selectedBuildingId]);
+    }, [selectedSiteId, selectedBuildingId, selectedFloor, selectedZoneId]);
 
     // Fetch chart history data
     const fetchChartHistory = useCallback(async () => {
@@ -795,6 +882,8 @@ const RealtimePage: React.FC = () => {
                 minutes: 60,
                 siteId: selectedSiteId,
                 buildingId: selectedBuildingId,
+                floor: selectedFloor,
+                zoneId: selectedZoneId,
             });
 
             if (res.data?.success && Array.isArray(res.data.data)) {
@@ -803,8 +892,7 @@ const RealtimePage: React.FC = () => {
                 const bucketMap = new Map<string, ChartDataPoint>();
 
                 rows.forEach((row: any) => {
-                    const rawT = String(row.t).replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '').replace(/[+-]\d{4}$/, '');
-                    const time = new Date(rawT).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    const time = row.time || (row.t ? new Date(String(row.t).replace(/[Z]$/i, '')).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '—');
                     const label = row.meter_name || row.meter_code || `M${row.meter_id}`;
 
                     if (!bucketMap.has(time)) {
@@ -832,7 +920,7 @@ const RealtimePage: React.FC = () => {
         } catch (error) {
             console.error('Failed to fetch chart history:', error);
         }
-    }, [selectedSiteId, selectedBuildingId]);
+    }, [selectedSiteId, selectedBuildingId, selectedFloor, selectedZoneId]);
 
     // Initial fetch + polling
     useEffect(() => {
@@ -854,11 +942,13 @@ const RealtimePage: React.FC = () => {
     }, [fetchLatestData, fetchChartHistory, fetchAlerts]);
 
     // Summary calculations
-    const activeMeters = meters.filter(m => m.is_active !== false);
-    const inactiveMeters = meters.filter(m => m.is_active === false);
+    const now = Date.now();
     const totalMeters = meters.length;
-    const onlineMeters = activeMeters.filter(m => !isMeterOffline(m));
-    const offlineMeters = activeMeters.filter(m => isMeterOffline(m));
+    const onlineMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'online');
+    const zeroMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'zero');
+    const noSignalMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'offline');
+    const inactiveMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'inactive');
+
     const totalPower = onlineMeters.reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
     const totalEnergy = meters.reduce((sum, m) => sum + (m.import_kwhr || 0), 0);
 
@@ -873,6 +963,26 @@ const RealtimePage: React.FC = () => {
 
     // Chart colors
     const chartColors = [C.accent, C.green, C.yellow, C.red, '#8b5cf6', '#f97316', '#06b6d4', '#ec4899'];
+
+    // Filter meters for diagnostics table based on tableStatusFilter & tableSearchQuery
+    const displayedTableMeters = React.useMemo(() => {
+        return meters.filter(m => {
+            if (tableStatusFilter !== 'all') {
+                const st = getMeterRealtimeStatus(m, now);
+                if (st !== tableStatusFilter) return false;
+            }
+            if (tableSearchQuery.trim()) {
+                const q = tableSearchQuery.toLowerCase();
+                const matchCode = (m.meter_code || '').toLowerCase().includes(q);
+                const matchName = (m.meter_name || '').toLowerCase().includes(q);
+                const matchRoom = (m.room_code || '').toLowerCase().includes(q) || (m.room_name || '').toLowerCase().includes(q);
+                const matchBuilding = (m.building_name || '').toLowerCase().includes(q);
+                const matchZone = (m.zone_name || '').toLowerCase().includes(q);
+                if (!matchCode && !matchName && !matchRoom && !matchBuilding && !matchZone) return false;
+            }
+            return true;
+        });
+    }, [meters, tableStatusFilter, tableSearchQuery, now]);
 
     // Get unique meter labels from chart data
     const chartMeterLabels = React.useMemo(() => {
@@ -903,11 +1013,17 @@ const RealtimePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Site / Building filter */}
+                {/* Site / Building / Floor / Zone filters */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', flexWrap: 'wrap' }}>
+                    {/* Site Filter */}
                     <select
                         value={selectedSiteId || ''}
-                        onChange={e => { setSelectedSiteId(e.target.value ? parseInt(e.target.value) : undefined); setSelectedBuildingId(undefined); }}
+                        onChange={e => {
+                            setSelectedSiteId(e.target.value ? parseInt(e.target.value) : undefined);
+                            setSelectedBuildingId(undefined);
+                            setSelectedFloor(undefined);
+                            setSelectedZoneId(undefined);
+                        }}
                         style={{
                             fontFamily: MONO, fontSize: 11, padding: '5px 8px',
                             background: C.panel, color: C.ink, border: `1px solid ${C.line}`,
@@ -920,9 +1036,14 @@ const RealtimePage: React.FC = () => {
                         ))}
                     </select>
 
+                    {/* Building Filter */}
                     <select
                         value={selectedBuildingId || ''}
-                        onChange={e => setSelectedBuildingId(e.target.value ? parseInt(e.target.value) : undefined)}
+                        onChange={e => {
+                            setSelectedBuildingId(e.target.value ? parseInt(e.target.value) : undefined);
+                            setSelectedFloor(undefined);
+                            setSelectedZoneId(undefined);
+                        }}
                         style={{
                             fontFamily: MONO, fontSize: 11, padding: '5px 8px',
                             background: C.panel, color: C.ink, border: `1px solid ${C.line}`,
@@ -934,6 +1055,58 @@ const RealtimePage: React.FC = () => {
                             <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                     </select>
+
+                    {/* Floor Filter */}
+                    <select
+                        value={selectedFloor || ''}
+                        onChange={e => setSelectedFloor(e.target.value || undefined)}
+                        style={{
+                            fontFamily: MONO, fontSize: 11, padding: '5px 8px',
+                            background: C.panel, color: C.ink, border: `1px solid ${C.line}`,
+                            cursor: 'pointer', outline: 'none',
+                        }}
+                    >
+                        <option value="">{t('ทุกชั้น', 'All Floors')}</option>
+                        {floorOptions.map(f => (
+                            <option key={f} value={f}>{t(`ชั้น ${f}`, `Floor ${f}`)}</option>
+                        ))}
+                    </select>
+
+                    {/* Zone Filter */}
+                    <select
+                        value={selectedZoneId || ''}
+                        onChange={e => setSelectedZoneId(e.target.value ? parseInt(e.target.value) : undefined)}
+                        style={{
+                            fontFamily: MONO, fontSize: 11, padding: '5px 8px',
+                            background: C.panel, color: C.ink, border: `1px solid ${C.line}`,
+                            cursor: 'pointer', outline: 'none',
+                        }}
+                    >
+                        <option value="">{t('ทุกโซน', 'All Zones')}</option>
+                        {zoneOptions.map(z => (
+                            <option key={z.id} value={z.id}>{z.name}</option>
+                        ))}
+                    </select>
+
+                    {/* Clear Filter Button */}
+                    {(selectedSiteId || selectedBuildingId || selectedFloor || selectedZoneId) && (
+                        <button
+                            onClick={() => {
+                                setSelectedSiteId(undefined);
+                                setSelectedBuildingId(undefined);
+                                setSelectedFloor(undefined);
+                                setSelectedZoneId(undefined);
+                            }}
+                            title={t('ล้างตัวกรองทั้งหมด', 'Clear All Filters')}
+                            style={{
+                                fontFamily: MONO, fontSize: 10.5, padding: '4px 8px',
+                                background: 'transparent', color: C.red, border: `1px solid ${C.red}60`,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                            }}
+                        >
+                            <RotateCcw size={12} /> {t('ล้างตัวกรอง', 'Reset')}
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1003,22 +1176,68 @@ const RealtimePage: React.FC = () => {
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.ink }}>
                         {onlineMeters.length}<span style={{ fontSize: 14, fontWeight: 600, color: C.sub }}>/{totalMeters}</span>
                     </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '11px', fontFamily: MONO, fontWeight: 600 }}>
-                        <span style={{ color: C.green, display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '11px', fontFamily: MONO, fontWeight: 600, flexWrap: 'wrap' }}>
+                        <button
+                            onClick={() => setTableStatusFilter(tableStatusFilter === 'online' ? 'all' : 'online')}
+                            style={{
+                                background: 'transparent', border: 'none', padding: '2px 4px',
+                                color: '#10B981', display: 'flex', alignItems: 'center', gap: 4,
+                                cursor: 'pointer', fontFamily: MONO, fontSize: 11, fontWeight: 600,
+                                opacity: tableStatusFilter === 'all' || tableStatusFilter === 'online' ? 1 : 0.4,
+                                textDecoration: tableStatusFilter === 'online' ? 'underline' : 'none',
+                            }}
+                            title={t('กรองดูเฉพาะมิเตอร์ที่ออนไลน์', 'Filter by Online')}
+                        >
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
                             {t('ออนไลน์', 'ONLINE')} {onlineMeters.length}
-                        </span>
-                        {offlineMeters.length > 0 && (
-                            <span style={{ color: C.red, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, display: 'inline-block' }} />
-                                {t('ออฟไลน์', 'OFFLINE')} {offlineMeters.length}
-                            </span>
+                        </button>
+                        {zeroMeters.length > 0 && (
+                            <button
+                                onClick={() => setTableStatusFilter(tableStatusFilter === 'zero' ? 'all' : 'zero')}
+                                style={{
+                                    background: 'transparent', border: 'none', padding: '2px 4px',
+                                    color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 4,
+                                    cursor: 'pointer', fontFamily: MONO, fontSize: 11, fontWeight: 600,
+                                    opacity: tableStatusFilter === 'all' || tableStatusFilter === 'zero' ? 1 : 0.4,
+                                    textDecoration: tableStatusFilter === 'zero' ? 'underline' : 'none',
+                                }}
+                                title={t('กรองดูเฉพาะมิเตอร์ที่ค่าเป็นศูนย์', 'Filter by Zero Reading')}
+                            >
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+                                {t('ค่าเป็นศูนย์', 'ZERO')} {zeroMeters.length}
+                            </button>
+                        )}
+                        {noSignalMeters.length > 0 && (
+                            <button
+                                onClick={() => setTableStatusFilter(tableStatusFilter === 'offline' ? 'all' : 'offline')}
+                                style={{
+                                    background: 'transparent', border: 'none', padding: '2px 4px',
+                                    color: '#EF4444', display: 'flex', alignItems: 'center', gap: 4,
+                                    cursor: 'pointer', fontFamily: MONO, fontSize: 11, fontWeight: 600,
+                                    opacity: tableStatusFilter === 'all' || tableStatusFilter === 'offline' ? 1 : 0.4,
+                                    textDecoration: tableStatusFilter === 'offline' ? 'underline' : 'none',
+                                }}
+                                title={t('กรองดูเฉพาะมิเตอร์ที่ไม่มีสัญญาณ', 'Filter by No Signal')}
+                            >
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
+                                {t('ไม่มีสัญญาณ', 'NO SIGNAL')} {noSignalMeters.length}
+                            </button>
                         )}
                         {inactiveMeters.length > 0 && (
-                            <span style={{ color: '#6B7280', display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <button
+                                onClick={() => setTableStatusFilter(tableStatusFilter === 'inactive' ? 'all' : 'inactive')}
+                                style={{
+                                    background: 'transparent', border: 'none', padding: '2px 4px',
+                                    color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4,
+                                    cursor: 'pointer', fontFamily: MONO, fontSize: 11, fontWeight: 600,
+                                    opacity: tableStatusFilter === 'all' || tableStatusFilter === 'inactive' ? 1 : 0.4,
+                                    textDecoration: tableStatusFilter === 'inactive' ? 'underline' : 'none',
+                                }}
+                                title={t('กรองดูเฉพาะมิเตอร์ที่ไม่ใช้งาน', 'Filter by Inactive')}
+                            >
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6B7280', display: 'inline-block' }} />
                                 {t('ไม่ใช้งาน', 'INACTIVE')} {inactiveMeters.length}
-                            </span>
+                            </button>
                         )}
                     </div>
                 </div>
@@ -1216,11 +1435,111 @@ const RealtimePage: React.FC = () => {
                 padding: '20px',
                 overflow: 'hidden'
             }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
-                        <Cpu size={16} style={{ color: C.accent }} />
-                        {t('การตรวจวิเคราะห์มิเตอร์แบบเรียลไทม์', 'METER CHANNELS REALTIME DIAGNOSTICS')}
-                    </h4>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '16px',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, fontFamily: MONO, color: C.ink, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
+                            <Cpu size={16} style={{ color: C.accent }} />
+                            {t('การตรวจวิเคราะห์มิเตอร์แบบเรียลไทม์', 'METER CHANNELS REALTIME DIAGNOSTICS')}
+                        </h4>
+                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub, background: C.panel2, padding: '2px 8px', border: `1px solid ${C.line}` }}>
+                            {tableStatusFilter !== 'all' || tableSearchQuery.trim() ? (
+                                <>{t('พบ', 'Found')} <strong style={{ color: C.accent }}>{displayedTableMeters.length}</strong> / {meters.length} {t('มิเตอร์', 'meters')}</>
+                            ) : (
+                                <>{meters.length} {t('มิเตอร์ทั้งหมด', 'total meters')}</>
+                            )}
+                        </span>
+                    </div>
+
+                    {/* Status Tabs & Search Box */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {/* Status Filter Buttons */}
+                        <div style={{ display: 'inline-flex', background: C.panel2, border: `1px solid ${C.line}`, padding: 2, gap: 2 }}>
+                            {([
+                                { key: 'all', labelTh: 'ทั้งหมด', labelEn: 'ALL', count: totalMeters, color: C.ink, dot: false },
+                                { key: 'online', labelTh: 'ออนไลน์', labelEn: 'ONLINE', count: onlineMeters.length, color: '#10B981', dot: true },
+                                { key: 'zero', labelTh: 'ค่าเป็นศูนย์', labelEn: 'ZERO', count: zeroMeters.length, color: '#F59E0B', dot: true },
+                                { key: 'offline', labelTh: 'ไม่มีสัญญาณ', labelEn: 'NO SIGNAL', count: noSignalMeters.length, color: '#EF4444', dot: true },
+                                { key: 'inactive', labelTh: 'ไม่ใช้งาน', labelEn: 'INACTIVE', count: inactiveMeters.length, color: '#6B7280', dot: true },
+                            ] as const).map(tab => {
+                                const isSelected = tableStatusFilter === tab.key;
+                                return (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => setTableStatusFilter(tab.key)}
+                                        style={{
+                                            fontFamily: MONO,
+                                            fontSize: 10.5,
+                                            fontWeight: isSelected ? 700 : 500,
+                                            padding: '4px 9px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 5,
+                                            background: isSelected ? (theme === 'light' ? '#fff' : C.bar) : 'transparent',
+                                            color: isSelected ? (tab.color === C.ink ? C.accent : tab.color) : C.sub,
+                                            boxShadow: isSelected ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                            transition: 'all 0.12s ease',
+                                        }}
+                                    >
+                                        {tab.dot && (
+                                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: tab.color }} />
+                                        )}
+                                        <span>{t(tab.labelTh, tab.labelEn)}</span>
+                                        <span style={{
+                                            fontSize: 9.5,
+                                            padding: '1px 5px',
+                                            background: isSelected ? `${tab.color}20` : `${C.sub}15`,
+                                            color: isSelected ? tab.color : C.sub,
+                                            borderRadius: 2,
+                                            fontWeight: 700,
+                                        }}>
+                                            {tab.count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Search Input Box */}
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <Search size={13} style={{ position: 'absolute', left: 8, color: C.sub, pointerEvents: 'none' }} />
+                            <input
+                                type="text"
+                                value={tableSearchQuery}
+                                onChange={e => setTableSearchQuery(e.target.value)}
+                                placeholder={t('ค้นหารหัส, ชื่อ, สถานที่...', 'Search code, name, location...')}
+                                style={{
+                                    fontFamily: MONO,
+                                    fontSize: 11,
+                                    padding: '5px 24px 5px 26px',
+                                    background: C.panel2,
+                                    color: C.ink,
+                                    border: `1px solid ${C.line}`,
+                                    outline: 'none',
+                                    width: 180,
+                                }}
+                            />
+                            {tableSearchQuery && (
+                                <button
+                                    onClick={() => setTableSearchQuery('')}
+                                    style={{
+                                        position: 'absolute', right: 4, background: 'transparent', border: 'none',
+                                        color: C.sub, cursor: 'pointer', padding: 2, display: 'grid', placeItems: 'center',
+                                    }}
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
@@ -1243,12 +1562,13 @@ const RealtimePage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {meters.length > 0 ? (
-                                meters.map(m => {
+                            {displayedTableMeters.length > 0 ? (
+                                displayedTableMeters.map(m => {
                                     const avgPf = (m.pf1 + m.pf2 + m.pf3) / 3;
                                     const isFlashing = flashingRows[m.meter_code];
                                     const locationParts = [m.building_name, m.zone_name].filter(Boolean);
-                                    const offline = isMeterOffline(m);
+                                    const status = getMeterRealtimeStatus(m, now);
+                                    const st = getRealtimeStatusInfo(status);
 
                                     return (
                                         <tr key={m.meter_code}
@@ -1257,17 +1577,19 @@ const RealtimePage: React.FC = () => {
                                                 borderBottom: `1px solid ${C.line}`,
                                                 backgroundColor: isFlashing
                                                     ? (theme === 'light' ? 'rgba(43,76,126,0.12)' : 'rgba(54,194,206,0.12)')
-                                                    : offline
+                                                    : status === 'offline'
                                                         ? (theme === 'light' ? 'rgba(239,68,68,0.04)' : 'rgba(248,81,73,0.06)')
-                                                        : 'transparent',
+                                                        : status === 'zero'
+                                                            ? (theme === 'light' ? 'rgba(245,158,11,0.04)' : 'rgba(245,158,11,0.06)')
+                                                            : 'transparent',
                                                 transition: isFlashing ? 'none' : 'background-color 0.8s ease',
-                                                color: offline ? C.sub : C.ink,
+                                                color: (status === 'offline' || status === 'inactive') ? C.sub : C.ink,
                                                 fontWeight: 500,
                                                 cursor: 'pointer',
-                                                opacity: offline ? 0.7 : 1,
+                                                opacity: (status === 'offline' || status === 'inactive') ? 0.7 : 1,
                                             }}
                                             onMouseEnter={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = theme === 'light' ? '#f0efe5' : '#1f2937'; }}
-                                            onMouseLeave={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = offline ? (theme === 'light' ? 'rgba(239,68,68,0.04)' : 'rgba(248,81,73,0.06)') : 'transparent'; }}
+                                            onMouseLeave={e => { if (!isFlashing) e.currentTarget.style.backgroundColor = status === 'offline' ? (theme === 'light' ? 'rgba(239,68,68,0.04)' : 'rgba(248,81,73,0.06)') : status === 'zero' ? (theme === 'light' ? 'rgba(245,158,11,0.04)' : 'rgba(245,158,11,0.06)') : 'transparent'; }}
                                         >
                                             <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                                                 <button
@@ -1300,66 +1622,143 @@ const RealtimePage: React.FC = () => {
                                                 </button>
                                             </td>
                                             <td style={{ padding: '14px 8px', textAlign: 'center' }}>
-                                                {m.is_active === false ? (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                    padding: '2px 8px', fontSize: 10, fontWeight: 700, fontFamily: MONO,
+                                                    background: st.badgeBg,
+                                                    color: st.color,
+                                                    border: `1px solid ${st.badgeBorder}`,
+                                                }}>
                                                     <span style={{
-                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                                                        padding: '2px 8px', fontSize: 10, fontWeight: 700, fontFamily: MONO,
-                                                        background: 'rgba(107, 114, 128, 0.15)',
-                                                        color: '#6B7280',
-                                                        border: '1px solid rgba(107, 114, 128, 0.3)',
-                                                    }}>
-                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6B7280', display: 'inline-block' }} />
-                                                        {t('ไม่ใช้งาน', 'INACTIVE')}
-                                                    </span>
-                                                ) : (
-                                                    <span style={{
-                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                                                        padding: '2px 8px', fontSize: 10, fontWeight: 700, fontFamily: MONO,
-                                                        background: offline ? C.red + '18' : C.green + '18',
-                                                        color: offline ? C.red : C.green,
-                                                        border: `1px solid ${offline ? C.red : C.green}30`,
-                                                    }}>
-                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: offline ? C.red : C.green, display: 'inline-block', boxShadow: offline ? 'none' : `0 0 6px ${C.green}` }} />
-                                                        {offline ? t('ออฟไลน์', 'OFFLINE') : t('ออนไลน์', 'ONLINE')}
-                                                    </span>
+                                                        width: 6, height: 6, borderRadius: '50%', background: st.color, display: 'inline-block',
+                                                        boxShadow: status === 'online' ? `0 0 6px ${st.color}` : 'none'
+                                                    }} />
+                                                    {t(st.labelTh, st.labelEn)}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '14px 8px', fontWeight: 700, color: C.accent }}>
+                                                {m.meter_code}
+                                            </td>
+                                            <td style={{ padding: '14px 8px' }}>
+                                                <div style={{ fontWeight: 600 }}>{m.meter_name || '—'}</div>
+                                                {m.room_code && (
+                                                    <div style={{ fontSize: '10.5px', color: C.sub }}>
+                                                        {m.room_name ? `${m.room_code} - ${m.room_name}` : m.room_code}
+                                                    </div>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '14px 8px', fontWeight: 700 }}>{m.meter_code}</td>
-                                            <td style={{ padding: '14px 8px', color: offline ? C.sub : C.accent, fontWeight: 700 }}>{m.meter_name || m.room_code || `M${m.meter_id}`}</td>
-                                            <td style={{ padding: '14px 8px', fontSize: '11px', color: C.sub }}>
-                                                {locationParts.length > 0 ? locationParts.join(' › ') : '—'}
+                                            <td style={{ padding: '14px 8px', color: C.sub }}>
+                                                {locationParts.length > 0 ? locationParts.join(' > ') : '—'}
                                             </td>
                                             <td style={{ padding: '14px 8px' }}>
-                                                <span style={{ fontWeight: 700 }}>
-                                                    {m.vl1.toFixed(1)} / {m.vl2.toFixed(1)} / {m.vl3.toFixed(1)}
-                                                </span>
+                                                {m.vl1 > 0 || m.vl2 > 0 || m.vl3 > 0 ? (
+                                                    <div style={{ display: 'flex', gap: '4px', fontSize: '11px' }}>
+                                                        <span>{m.vl1.toFixed(1)}</span>/
+                                                        <span>{m.vl2.toFixed(1)}</span>/
+                                                        <span>{m.vl3.toFixed(1)}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ color: C.sub }}>0.0</span>
+                                                )}
                                             </td>
                                             <td style={{ padding: '14px 8px' }}>
-                                                <span style={{ fontWeight: 700 }}>
-                                                    {m.il1.toFixed(2)} / {m.il2.toFixed(2)} / {m.il3.toFixed(2)}
-                                                </span>
+                                                {m.il1 > 0 || m.il2 > 0 || m.il3 > 0 ? (
+                                                    <div style={{ display: 'flex', gap: '4px', fontSize: '11px' }}>
+                                                        <span>{m.il1.toFixed(2)}</span>/
+                                                        <span>{m.il2.toFixed(2)}</span>/
+                                                        <span>{m.il3.toFixed(2)}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ color: C.sub }}>0.00</span>
+                                                )}
                                             </td>
-                                            <td style={{ padding: '14px 8px', fontWeight: 700, color: C.yellow }}>
-                                                {m.kw_3ph.toFixed(2)} kW
+                                            <td style={{ padding: '14px 8px', fontWeight: 700, color: m.kw_3ph > 0 ? C.yellow : C.sub }}>
+                                                {m.kw_3ph.toFixed(2)}
                                             </td>
-                                            <td style={{ padding: '14px 8px', fontWeight: 600 }}>{m.kva_3ph.toFixed(2)} kVA</td>
-                                            <td style={{ padding: '14px 8px', color: avgPf > 0.85 ? C.green : C.red, fontWeight: 700 }}>
-                                                {avgPf.toFixed(3)}
+                                            <td style={{ padding: '14px 8px', color: m.kva_3ph > 0 ? C.ink : C.sub }}>
+                                                {m.kva_3ph.toFixed(2)}
                                             </td>
-                                            <td style={{ padding: '14px 8px', fontWeight: 600 }}>{m.hz.toFixed(2)} Hz</td>
-                                            <td style={{ padding: '14px 8px', fontWeight: 700, color: C.green }}>
-                                                {m.import_kwhr.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                            <td style={{ padding: '14px 8px', color: avgPf >= 0.85 ? C.green : avgPf > 0 ? C.red : C.sub }}>
+                                                {avgPf > 0 ? avgPf.toFixed(2) : '0.00'}
                                             </td>
-                                            <td style={{ padding: '14px 8px', color: C.sub, fontSize: '12px', fontWeight: 600 }}>
-                                                {formatDeviceTime(m.device_datetime)}
+                                            <td style={{ padding: '14px 8px', color: m.hz > 0 ? C.ink : C.sub }}>
+                                                {m.hz > 0 ? m.hz.toFixed(1) : '0.0'}
+                                            </td>
+                                            <td style={{ padding: '14px 8px', fontWeight: 600 }}>
+                                                {m.import_kwhr > 0 ? m.import_kwhr.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0.0'}
+                                            </td>
+                                            <td style={{ padding: '14px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                                                {(() => {
+                                                    const timeStr = formatDeviceTime(m.device_datetime || m.received_at, 'auto');
+                                                    const fullTimeStr = formatDeviceTime(m.device_datetime || m.received_at, 'full');
+                                                    if (timeStr === '—') {
+                                                        return <span style={{ color: C.sub, opacity: 0.6 }}>—</span>;
+                                                    }
+                                                    if (status === 'offline') {
+                                                        return (
+                                                            <span
+                                                                title={`${t('เวลาล่าสุดที่ได้รับข้อมูลก่อนขาดการติดต่อ', 'Last received reading timestamp before disconnection')}: ${fullTimeStr}`}
+                                                                style={{ color: '#EF4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                                            >
+                                                                <Clock size={11} />
+                                                                {timeStr}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (status === 'zero') {
+                                                        return (
+                                                            <span
+                                                                title={`${t('เวลาที่ได้รับข้อมูลล่าสุด (ค่าเป็นศูนย์)', 'Last received reading timestamp (Zero Reading)')}: ${fullTimeStr}`}
+                                                                style={{ color: '#F59E0B', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                                            >
+                                                                <Clock size={11} />
+                                                                {timeStr}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (status === 'inactive') {
+                                                        return (
+                                                            <span style={{ color: '#6B7280' }} title={fullTimeStr}>
+                                                                {timeStr}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <span style={{ color: C.ink, fontWeight: 500 }} title={fullTimeStr}>
+                                                            {timeStr}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </td>
                                         </tr>
                                     );
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={12} style={{ textAlign: 'center', padding: '30px', color: C.sub }}>
-                                        {t('ไม่พบข้อมูลการลงทะเบียนมิเตอร์', 'NO METER REGISTRIES FOUND')}
+                                    <td colSpan={13} style={{ textAlign: 'center', padding: '36px 20px', color: C.sub }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                                            <Filter size={24} style={{ opacity: 0.4 }} />
+                                            <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                                {tableStatusFilter !== 'all' || tableSearchQuery.trim()
+                                                    ? t('ไม่พบมิเตอร์ที่ตรงกับเงื่อนไขการกรองสถานะหรือคำค้นหา', 'No meters matching current status filter or search')
+                                                    : t('ไม่พบข้อมูลการลงทะเบียนมิเตอร์', 'NO METER REGISTRIES FOUND')}
+                                            </div>
+                                            {(tableStatusFilter !== 'all' || tableSearchQuery.trim()) && (
+                                                <button
+                                                    onClick={() => {
+                                                        setTableStatusFilter('all');
+                                                        setTableSearchQuery('');
+                                                    }}
+                                                    style={{
+                                                        fontFamily: MONO, fontSize: 11, padding: '4px 10px',
+                                                        background: C.accent, color: '#fff', border: 'none',
+                                                        cursor: 'pointer', borderRadius: 3, marginTop: 4,
+                                                    }}
+                                                >
+                                                    {t('ล้างตัวกรองสถานะและการค้นหา', 'Clear Status Filter & Search')}
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -1395,8 +1794,23 @@ const RealtimePage: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <Zap size={20} style={{ color: C.accent }} />
                                 <div>
-                                    <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: '0.5px' }}>
-                                        {selectedMeter.meter_name || selectedMeter.meter_code}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: '0.5px' }}>
+                                            {selectedMeter.meter_name || selectedMeter.meter_code}
+                                        </div>
+                                        {(() => {
+                                            const selSt = getRealtimeStatusInfo(getMeterRealtimeStatus(selectedMeter, now));
+                                            return (
+                                                <span style={{
+                                                    fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
+                                                    background: selSt.badgeBg, color: selSt.color, border: `1px solid ${selSt.badgeBorder}`,
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                }}>
+                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: selSt.color, display: 'inline-block' }} />
+                                                    {t(selSt.labelTh, selSt.labelEn).toUpperCase()}
+                                                </span>
+                                            );
+                                        })()}
                                     </div>
                                     <div style={{ fontFamily: MONO, fontSize: 10, color: C.barSub }}>
                                         [{selectedMeter.meter_code}] {selectedMeter.room_code || ''}
@@ -1481,7 +1895,7 @@ const RealtimePage: React.FC = () => {
                     theme={theme}
                     language={language}
                     C={C}
-                    isOffline={isMeterOffline(graphMeter)}
+                    status={getMeterRealtimeStatus(graphMeter, now)}
                 />
             )}
 

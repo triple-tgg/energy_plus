@@ -58,7 +58,7 @@ const getStatusInfo = (s: string, C: Theme) => {
             return { color: '#EF4444', labelTh: 'ไม่มีสัญญาณ', labelEn: 'No Signal' };
         case 'zero':
             // Meter is reporting on schedule but every reading is 0 — a wiring/CT issue, not a comms one
-            return { color: '#F59E0B', labelTh: 'ไม่มีค่าวัด', labelEn: 'No Reading' };
+            return { color: '#F59E0B', labelTh: 'ค่าเป็นศูนย์', labelEn: 'Zero Reading' };
         case 'inactive':
             return { color: '#6B7280', labelTh: 'ไม่ใช้งาน', labelEn: 'Inactive' };
         case 'online':
@@ -1350,7 +1350,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                     )}
                                     {counts.zero > 0 && (
                                         <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.ink, letterSpacing: 0.3 }}>
-                                            <b style={{ color: '#F59E0B' }}>{counts.zero}</b> {t('มิเตอร์ไม่มีค่าวัด (ติดต่อได้ แต่ไม่มีค่าวัด)', 'Meters With No Reading (Reachable, No Measurement)')}
+                                            <b style={{ color: '#F59E0B' }}>{counts.zero}</b> {t('มิเตอร์ส่งค่าเป็นศูนย์ (ติดต่อได้ แต่ไม่มีค่าวัด)', 'Meters Reading Zero (Reachable, No Measurement)')}
                                         </span>
                                     )}
                                 </div>

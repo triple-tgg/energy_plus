@@ -81,7 +81,7 @@ export const getActiveChannels = async (): Promise<string[]> => {
 };
 
 /** Latest unacknowledged alarms for the realtime monitoring panel. */
-export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?: number }): Promise<any[]> => {
+export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?: number; floor?: string; zoneId?: number }): Promise<any[]> => {
     await pool.query(`CREATE TABLE IF NOT EXISTS alarm_log (
         id BIGSERIAL PRIMARY KEY,
         alarm_config_id INTEGER REFERENCES alarm_config(alarm_config_id),
@@ -101,6 +101,8 @@ export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?
     const filtersSql = ['al.acknowledged = false', 'm.is_active = true'];
     if (filters?.siteId) { params.push(filters.siteId); filtersSql.push(`m.site_id = $${params.length}`); }
     if (filters?.buildingId) { params.push(filters.buildingId); filtersSql.push(`m.building_id = $${params.length}`); }
+    if (filters?.floor !== undefined && filters?.floor !== '') { params.push(filters.floor); filtersSql.push(`m.floor::text = $${params.length}::text`); }
+    if (filters?.zoneId) { params.push(filters.zoneId); filtersSql.push(`m.zone_id = $${params.length}`); }
 
     const result = await pool.query(
         `SELECT al.id, al.message, al.alarm_type, al.occurred_at, al.meter_id,
@@ -240,7 +242,7 @@ export const autoSubscribeFromMeterTable = syncMeterSubscriptions;
  * enriched with meter metadata (name, location, site, building, zone)
  * via realtime_meter_map + meter table.
  */
-export const getLatestRealtimeData = async (filters?: { siteId?: number; buildingId?: number }): Promise<any[]> => {
+export const getLatestRealtimeData = async (filters?: { siteId?: number; buildingId?: number; floor?: string; zoneId?: number }): Promise<any[]> => {
     const params: any[] = [];
     let whereClause = '';
 
@@ -251,6 +253,14 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
     if (filters?.buildingId) {
         params.push(filters.buildingId);
         whereClause += ` AND m.building_id = $${params.length}`;
+    }
+    if (filters?.floor !== undefined && filters?.floor !== '') {
+        params.push(filters.floor);
+        whereClause += ` AND m.floor::text = $${params.length}::text`;
+    }
+    if (filters?.zoneId) {
+        params.push(filters.zoneId);
+        whereClause += ` AND m.zone_id = $${params.length}`;
     }
 
     const result = await pool.query(
@@ -267,11 +277,9 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
                 r.hz, r.import_kwhr,
                 r.device_datetime, r.received_at
             FROM meter_data_realtime r
-            WHERE r.received_at >= NOW() - INTERVAL '24 hours'
             ORDER BY r.site_id, r.address_id, r.device_datetime DESC
         )
         SELECT
-            lr.*,
             m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name,
             m.site_id, m.building_id, m.zone_id, m.floor, m.loop_id,
             m.status AS meter_status, m.is_active,
@@ -279,28 +287,33 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
             s.site_name,
             b.building_name,
             z.zone_name,
+            lr.id, lr.channel, lr.device, lr.code, lr.type,
+            lr.vl1, lr.vl2, lr.vl3, lr.vl12, lr.vl23, lr.vl31,
+            lr.il1, lr.il2, lr.il3,
+            lr.kw1, lr.kw2, lr.kw3, lr.kw_3ph,
+            lr.kvar1, lr.kvar2, lr.kvar3, lr.kvar_3ph,
+            lr.kva1, lr.kva2, lr.kva3, lr.kva_3ph,
+            lr.pf1, lr.pf2, lr.pf3,
+            lr.hz, lr.import_kwhr,
+            lr.device_datetime, lr.received_at,
             CASE WHEN COALESCE(lr.vl1,0)=0 AND COALESCE(lr.vl2,0)=0 AND COALESCE(lr.vl3,0)=0
                   AND COALESCE(lr.il1,0)=0 AND COALESCE(lr.il2,0)=0 AND COALESCE(lr.il3,0)=0
                   AND COALESCE(lr.kw_3ph,0)=0 AND COALESCE(lr.kva_3ph,0)=0
                   AND COALESCE(lr.hz,0)=0 AND COALESCE(lr.import_kwhr,0)=0
                  THEN true ELSE false
             END AS is_all_zero
-        FROM latest_readings lr
+        FROM meter m
         LEFT JOIN realtime_meter_map rmm
-            ON rmm.realtime_site_id = lr.realtime_site_id
-           AND rmm.realtime_address_id = lr.realtime_address_id
+            ON rmm.meter_id = m.meter_id
            AND rmm.is_active = true
-        LEFT JOIN meter m_fallback
-            ON m_fallback.site_el = lr.realtime_site_id
-           AND m_fallback.address::text = lr.realtime_address_id::text
-           AND rmm.id IS NULL
-        JOIN meter m
-            ON m.meter_id = COALESCE(rmm.meter_id, m_fallback.meter_id)
+        LEFT JOIN latest_readings lr
+            ON (rmm.id IS NOT NULL AND lr.realtime_site_id = rmm.realtime_site_id AND lr.realtime_address_id = rmm.realtime_address_id)
+            OR (rmm.id IS NULL AND lr.realtime_site_id = m.site_el AND lr.realtime_address_id::text = m.address::text)
         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
         LEFT JOIN sites s ON m.site_id = s.site_id
         LEFT JOIN buildings b ON m.building_id = b.building_id
         LEFT JOIN zones z ON m.zone_id = z.zone_id
-        WHERE 1=1
+        WHERE m.is_active IS DISTINCT FROM false
             ${whereClause}
         ORDER BY s.site_name, b.building_name, COALESCE(m.floor, '0'), m.meter_code`,
         params
@@ -311,15 +324,14 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
 /**
  * Get realtime history data for chart display.
  * Returns time-bucketed aggregated data from meter_data_realtime
- * for the last N minutes (d/**
- * Get 15-minute summary history data for chart display.
- * Returns 15-minute time-bucketed aggregated data from actual_meter_data / meter_data_realtime
- * for the specified time window (default 1440 minutes / 24h).
+ * for the last N minutes (default 1440 minutes / 24h).
  */
 export const getRealtimeHistory = async (filters?: {
     minutes?: number;
     siteId?: number;
     buildingId?: number;
+    floor?: string;
+    zoneId?: number;
 }): Promise<any[]> => {
     const minutes = filters?.minutes || 1440;
     const params: any[] = [minutes];
@@ -333,12 +345,20 @@ export const getRealtimeHistory = async (filters?: {
         params.push(filters.buildingId);
         whereClause += ` AND m.building_id = $${params.length}`;
     }
+    if (filters?.floor !== undefined && filters?.floor !== '') {
+        params.push(filters.floor);
+        whereClause += ` AND m.floor::text = $${params.length}::text`;
+    }
+    if (filters?.zoneId) {
+        params.push(filters.zoneId);
+        whereClause += ` AND m.zone_id = $${params.length}`;
+    }
 
     // Try actual_meter_data first (15-min summary logs)
     const actualResult = await pool.query(
         `SELECT
-            to_char(d.date_keep, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
-            to_char(d.date_keep, 'HH24:MI') AS time,
+            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
             m.meter_id, m.meter_code, m.meter_name, m.room_code,
             ROUND(COALESCE(d.energy_kw, 0)::numeric, 2)::float AS kw_3ph,
             ROUND(COALESCE(d.energy_kva, 0)::numeric, 2)::float AS kva_3ph,
@@ -385,8 +405,8 @@ export const getRealtimeHistory = async (filters?: {
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) IS NOT NULL
         )
         SELECT
-            to_char(mr.bucket, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
-            to_char(mr.bucket, 'HH24:MI') AS time,
+            to_char(mr.bucket AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char(mr.bucket AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
             m.meter_id, m.meter_code, m.meter_name, m.room_code,
             ROUND(AVG(mr.kw_3ph)::numeric, 2)::float AS kw_3ph,
             ROUND(AVG(mr.kva_3ph)::numeric, 2)::float AS kva_3ph,
@@ -420,9 +440,9 @@ export const getMeterRealtimeHistory = async (filters: {
     // 1. Check actual_meter_data for official 15-minute summary intervals
     const actualResult = await pool.query(
         `SELECT
-            to_char(d.date_keep, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
-            to_char(d.date_keep, 'HH24:MI') AS time,
-            to_char(d.date_keep, 'DD/MM HH24:MI') AS full_time,
+            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
+            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'DD/MM HH24:MI') AS full_time,
             ROUND(COALESCE(d.energy_kw, 0)::numeric, 2)::float AS kw_3ph,
             ROUND(COALESCE(d.energy_kva, 0)::numeric, 2)::float AS kva_3ph,
             ROUND(COALESCE(d.energy_kvar, 0)::numeric, 2)::float AS kvar_3ph,
@@ -482,9 +502,9 @@ export const getMeterRealtimeHistory = async (filters: {
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) = $2
         )
         SELECT
-            to_char(to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900), 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
-            to_char(to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900), 'HH24:MI') AS time,
-            to_char(to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900), 'DD/MM HH24:MI') AS full_time,
+            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)) AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)) AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
+            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)) AT TIME ZONE 'Asia/Bangkok', 'DD/MM HH24:MI') AS full_time,
             ROUND(AVG(mr.kw_3ph)::numeric, 2)::float AS kw_3ph,
             ROUND(AVG(mr.kw1)::numeric, 2)::float AS kw1,
             ROUND(AVG(mr.kw2)::numeric, 2)::float AS kw2,
