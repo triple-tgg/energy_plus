@@ -157,13 +157,16 @@ const EnergyMonthlyReportPage: React.FC = () => {
     return (
         <div>
             {/* Command bar */}
-            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
+            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.accent}`, marginBottom: 16, flexWrap: 'wrap', gap: 10, paddingRight: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><CalendarDays size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>REPORTS // ENERGY MONTHLY BILLING</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('รายงาน // ค่าไฟฟ้ารายเดือนทั่วไป', 'REPORTS // ENERGY MONTHLY BILLING')}</div>
                         <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('รายงานการใช้พลังงานและการคิดค่าไฟฟ้ารายเดือน (ตัดรอบต้นเดือน-ปลายเดือน พร้อมออกบิลสำหรับผู้เช่า)', 'Monthly summary report of energy consumption and billing with automated start-of-month and end-of-month meter readings')}</div>
                     </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+                    <ExportButtons onExport={handleExport} loading={exporting} />
                 </div>
             </div>
 
@@ -174,9 +177,6 @@ const EnergyMonthlyReportPage: React.FC = () => {
                 showMonthYear={true}
                 showSearchMeter
                 meterOptions={meterOptions}
-                actions={
-                    <ExportButtons onExport={handleExport} loading={exporting} />
-                }
             />
 
             <DataTable

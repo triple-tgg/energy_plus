@@ -156,13 +156,16 @@ const EnergyReportPage: React.FC = () => {
     return (
         <div>
             {/* Command bar */}
-            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16 }}>
+            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.accent}`, marginBottom: 16, flexWrap: 'wrap', gap: 10, paddingRight: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
                     <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><LayoutGrid size={16} /></div>
                     <div>
-                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>REPORTS // GENERAL ENERGY BILLING</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{t('รายงาน // การคิดค่าไฟฟ้าทั่วไป', 'REPORTS // GENERAL ENERGY BILLING')}</div>
                         <div style={{ fontSize: 10, color: C.barSub, letterSpacing: 0.5 }}>{t('รายงานการใช้พลังงานและการคิดค่าไฟฟ้าประเภท 1.2 (อัตราก้าวหน้า/Flat Rate สำหรับผู้เช่าและมิเตอร์ลูก)', 'Summary report of energy consumption and billing based on Type 1.2 tariff (Stepped/Flat Rate for tenants and sub-meters)')}</div>
                     </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+                    <ExportButtons onExport={handleExport} loading={exporting} />
                 </div>
             </div>
 
@@ -171,9 +174,6 @@ const EnergyReportPage: React.FC = () => {
                 loading={loading}
                 showSearchMeter
                 meterOptions={meterOptions}
-                actions={
-                    <ExportButtons onExport={handleExport} loading={exporting} />
-                }
             />
 
             <DataTable

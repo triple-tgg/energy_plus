@@ -182,33 +182,35 @@ export class ReportsService {
         const dataParams = [...params, limit, offset];
         const result = await query(
             `SELECT
-                d.date_keep AS timestamp,
+                to_char((d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, 'YYYY-MM-DD') AS timestamp,
+                to_char((d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, 'YYYY-MM-DD') AS date,
                 m.meter_id, m.meter_code, m.meter_name,
-                COALESCE(d.energy_kwh, 0) AS kwh,
-                COALESCE(d.energy_kva, 0) AS kva,
-                COALESCE(d.energy_kw, 0) AS kw,
-                COALESCE(d.energy_kvar, 0) AS kvar,
-                COALESCE(d.energy_frequency, 0) AS frequency,
-                COALESCE(d.energy_pf1, 0) AS pwl1,
-                COALESCE(d.energy_pf2, 0) AS pwl2,
-                COALESCE(d.energy_pf3, 0) AS pwl3,
-                NULL::numeric AS kw1, NULL::numeric AS kw2, NULL::numeric AS kw3,
-                NULL::numeric AS kvah, NULL::numeric AS kvarh,
-                COALESCE(d.energy_volt_p1, 0) AS volt_p1,
-                COALESCE(d.energy_volt_p2, 0) AS volt_p2,
-                COALESCE(d.energy_volt_p3, 0) AS volt_p3,
-                COALESCE(d.energy_volt_l1, 0) AS volt_l1,
-                COALESCE(d.energy_volt_l2, 0) AS volt_l2,
-                COALESCE(d.energy_volt_l3, 0) AS volt_l3,
-                COALESCE(d.energy_amp1, 0) AS amp1,
-                COALESCE(d.energy_amp2, 0) AS amp2,
-                COALESCE(d.energy_amp3, 0) AS amp3,
-                d.water_value, d.gas_value, d.status,
+                ROUND(GREATEST(COALESCE(MAX(d.energy_kwh) - MIN(d.energy_kwh), 0), 0)::numeric, 2) AS kwh_used,
+                ROUND(COALESCE(MAX(d.energy_kwh), 0)::numeric, 2) AS kwh,
+                ROUND(COALESCE(MAX(d.energy_kw), 0)::numeric, 2) AS max_kw,
+                ROUND(COALESCE(AVG(d.energy_kw), 0)::numeric, 2) AS kw,
+                ROUND(COALESCE(AVG(d.energy_kva), 0)::numeric, 2) AS kva,
+                ROUND(COALESCE(AVG(d.energy_kvar), 0)::numeric, 2) AS kvar,
+                ROUND(COALESCE(AVG(d.energy_frequency), 0)::numeric, 2) AS frequency,
+                ROUND(COALESCE(AVG(d.energy_pf1), 0)::numeric, 3) AS pwl1,
+                ROUND(COALESCE(AVG(d.energy_pf2), 0)::numeric, 3) AS pwl2,
+                ROUND(COALESCE(AVG(d.energy_pf3), 0)::numeric, 3) AS pwl3,
+                ROUND(COALESCE(AVG(d.energy_volt_p1), 0)::numeric, 1) AS volt_p1,
+                ROUND(COALESCE(AVG(d.energy_volt_p2), 0)::numeric, 1) AS volt_p2,
+                ROUND(COALESCE(AVG(d.energy_volt_p3), 0)::numeric, 1) AS volt_p3,
+                ROUND(COALESCE(AVG(d.energy_volt_l1), 0)::numeric, 1) AS volt_l1,
+                ROUND(COALESCE(AVG(d.energy_volt_l2), 0)::numeric, 1) AS volt_l2,
+                ROUND(COALESCE(AVG(d.energy_volt_l3), 0)::numeric, 1) AS volt_l3,
+                ROUND(COALESCE(AVG(d.energy_amp1), 0)::numeric, 2) AS amp1,
+                ROUND(COALESCE(AVG(d.energy_amp2), 0)::numeric, 2) AS amp2,
+                ROUND(COALESCE(AVG(d.energy_amp3), 0)::numeric, 2) AS amp3,
+                COUNT(*)::int AS readings_count,
                 COUNT(*) OVER()::int AS full_count
             FROM actual_meter_data d
             JOIN meter m ON m.meter_id = d.meter_id
             WHERE ${filters.join(' AND ')}
-            ORDER BY d.date_keep DESC, d.id DESC
+            GROUP BY (d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, m.meter_id, m.meter_code, m.meter_name
+            ORDER BY (d.date_keep AT TIME ZONE 'Asia/Bangkok')::date DESC, m.meter_code ASC
             LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
             dataParams
         );
