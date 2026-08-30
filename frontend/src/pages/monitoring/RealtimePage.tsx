@@ -169,7 +169,7 @@ const parseNum = (v: any, fallback = 0): number => {
 export type RealtimeStatus = 'online' | 'zero' | 'offline' | 'inactive';
 const REALTIME_STALE_MS = 120000;
 
-/** Calculate 4 standardized statuses: Online, Zero Reading, No Signal (offline), Inactive */
+/** Calculate 4 standardized statuses: Online, No Reading, No Signal (offline), Inactive */
 export const getMeterRealtimeStatus = (m: RealtimeMeterData, now = Date.now()): RealtimeStatus => {
     if (m.is_active === false || m.meter_status === 'disabled') return 'inactive';
 
@@ -188,7 +188,7 @@ export const getMeterRealtimeStatus = (m: RealtimeMeterData, now = Date.now()): 
         && m.hz === 0 && m.import_kwhr === 0
     );
 
-    if (isZero) return 'zero'; // Zero Reading
+    if (isZero) return 'zero'; // No Reading
 
     return 'online'; // Online
 };
@@ -198,7 +198,7 @@ export const getRealtimeStatusInfo = (status: RealtimeStatus | string) => {
         case 'offline':
             return { color: '#EF4444', labelTh: 'ไม่มีสัญญาณ', labelEn: 'No Signal', badgeBg: 'rgba(239, 68, 68, 0.12)', badgeBorder: 'rgba(239, 68, 68, 0.3)' };
         case 'zero':
-            return { color: '#F59E0B', labelTh: 'ค่าเป็นศูนย์', labelEn: 'Zero Reading', badgeBg: 'rgba(245, 158, 11, 0.12)', badgeBorder: 'rgba(245, 158, 11, 0.3)' };
+            return { color: '#F59E0B', labelTh: 'ไม่มีค่าอ่าน', labelEn: 'No Reading', badgeBg: 'rgba(245, 158, 11, 0.12)', badgeBorder: 'rgba(245, 158, 11, 0.3)' };
         case 'inactive':
             return { color: '#6B7280', labelTh: 'ไม่ใช้งาน', labelEn: 'Inactive', badgeBg: 'rgba(107, 114, 128, 0.15)', badgeBorder: 'rgba(107, 114, 128, 0.3)' };
         case 'online':
@@ -1201,10 +1201,10 @@ const RealtimePage: React.FC = () => {
                                     opacity: tableStatusFilter === 'all' || tableStatusFilter === 'zero' ? 1 : 0.4,
                                     textDecoration: tableStatusFilter === 'zero' ? 'underline' : 'none',
                                 }}
-                                title={t('กรองดูเฉพาะมิเตอร์ที่ค่าเป็นศูนย์', 'Filter by Zero Reading')}
+                                title={t('กรองดูเฉพาะมิเตอร์ที่ไม่มีค่าอ่าน', 'Filter by No Reading')}
                             >
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-                                {t('ค่าเป็นศูนย์', 'ZERO')} {zeroMeters.length}
+                                {t('ไม่มีค่าอ่าน', 'NO READING')} {zeroMeters.length}
                             </button>
                         )}
                         {noSignalMeters.length > 0 && (
@@ -1464,7 +1464,7 @@ const RealtimePage: React.FC = () => {
                             {([
                                 { key: 'all', labelTh: 'ทั้งหมด', labelEn: 'ALL', count: totalMeters, color: C.ink, dot: false },
                                 { key: 'online', labelTh: 'ออนไลน์', labelEn: 'ONLINE', count: onlineMeters.length, color: '#10B981', dot: true },
-                                { key: 'zero', labelTh: 'ค่าเป็นศูนย์', labelEn: 'ZERO', count: zeroMeters.length, color: '#F59E0B', dot: true },
+                                { key: 'zero', labelTh: 'ไม่มีค่าอ่าน', labelEn: 'NO READING', count: zeroMeters.length, color: '#F59E0B', dot: true },
                                 { key: 'offline', labelTh: 'ไม่มีสัญญาณ', labelEn: 'NO SIGNAL', count: noSignalMeters.length, color: '#EF4444', dot: true },
                                 { key: 'inactive', labelTh: 'ไม่ใช้งาน', labelEn: 'INACTIVE', count: inactiveMeters.length, color: '#6B7280', dot: true },
                             ] as const).map(tab => {
@@ -1708,7 +1708,7 @@ const RealtimePage: React.FC = () => {
                                                     if (status === 'zero') {
                                                         return (
                                                             <span
-                                                                title={`${t('เวลาที่ได้รับข้อมูลล่าสุด (ค่าเป็นศูนย์)', 'Last received reading timestamp (Zero Reading)')}: ${fullTimeStr}`}
+                                                                title={`${t('เวลาที่ได้รับข้อมูลล่าสุด (ไม่มีค่าอ่าน)', 'Last received reading timestamp (No Reading)')}: ${fullTimeStr}`}
                                                                 style={{ color: '#F59E0B', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                                                             >
                                                                 <Clock size={11} />

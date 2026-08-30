@@ -58,7 +58,7 @@ const getStatusInfo = (s: string, C: Theme) => {
             return { color: '#EF4444', labelTh: 'ไม่มีสัญญาณ', labelEn: 'No Signal' };
         case 'zero':
             // Meter is reporting on schedule but every reading is 0 — a wiring/CT issue, not a comms one
-            return { color: '#F59E0B', labelTh: 'ค่าเป็นศูนย์', labelEn: 'Zero Reading' };
+            return { color: '#F59E0B', labelTh: 'ไม่มีค่าอ่าน', labelEn: 'No Reading' };
         case 'inactive':
             return { color: '#6B7280', labelTh: 'ไม่ใช้งาน', labelEn: 'Inactive' };
         case 'online':

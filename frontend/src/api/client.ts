@@ -168,7 +168,9 @@ export const dashboardApi = {
 // Reports
 export const reportsApi = {
     getEnergyConsumption: (params?: any) => api.get('/reports/energy-consumption', { params }),
+    getEnergyMonthly: (params?: any) => api.get('/reports/energy-monthly', { params }),
     getTouReport: (params?: any) => api.get('/reports/tou', { params }),
+    getTouMonthly: (params?: any) => api.get('/reports/tou-monthly', { params }),
     getHistory: (params?: any) => api.get('/reports/history', { params }),
     getComparison: (params?: any) => api.get('/reports/comparison', { params }),
     getAlarms: (params?: any) => api.get('/reports/alarms', { params }),

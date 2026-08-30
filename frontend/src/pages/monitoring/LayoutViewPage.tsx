@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { alarmsApi, layoutsApi, meterDataApi, metersApi, realtimeApi, sitesApi } from '../../api/client';
-import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, X, Search, ChevronRight, ChevronLeft, Play, Pause, Repeat, Timer } from 'lucide-react';
+import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, X, Search, ChevronRight, ChevronLeft, Play, Pause, Repeat, Timer, Filter } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 
@@ -233,7 +233,12 @@ const LayoutViewPage: React.FC = () => {
 
     const [layouts, setLayouts] = useState<any[]>([]);
     const [allSites, setAllSites] = useState<any[]>([]);
+    const [allBuildings, setAllBuildings] = useState<any[]>([]);
+    const [allZones, setAllZones] = useState<any[]>([]);
     const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>('all');
+    const [selectedBuildingFilter, setSelectedBuildingFilter] = useState<string>('all');
+    const [selectedFloorFilter, setSelectedFloorFilter] = useState<string>('all');
+    const [selectedZoneFilter, setSelectedZoneFilter] = useState<string>('all');
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [selectedLayout, setSelectedLayout] = useState<any>(null);
     const [points, setPoints] = useState<LayoutPoint[]>([]);
@@ -308,19 +313,23 @@ const LayoutViewPage: React.FC = () => {
         return () => { active = false; clearInterval(timer); };
     }, []);
 
-    // Load all layouts + all meters + sites
+    // Load all layouts + all meters + sites + buildings + zones
     useEffect(() => {
         (async () => {
             try {
-                const [layoutRes, meterRes, sitesRes] = await Promise.all([
+                const [layoutRes, meterRes, sitesRes, buildingsRes, zonesRes] = await Promise.all([
                     layoutsApi.getAll({ limit: 100 }),
                     metersApi.getAll({ limit: 500 }),
                     sitesApi.getAll({ limit: 100, activeOnly: true }),
+                    sitesApi.getAllBuildings({ limit: 200, activeOnly: true }),
+                    sitesApi.getZones({ limit: 500 }),
                 ]);
                 const items = layoutRes.data.data || [];
                 setLayouts(items);
                 setAllMeters(meterRes.data?.data || []);
                 setAllSites(sitesRes.data?.data || []);
+                setAllBuildings(buildingsRes.data?.data || []);
+                setAllZones(zonesRes.data?.data || []);
             } catch (err) { console.error(err); }
             setLoading(false);
         })();
@@ -338,6 +347,55 @@ const LayoutViewPage: React.FC = () => {
         return allSites.filter((s: any) => allowedIds.has(Number(s.site_id)));
     }, [allSites, user]);
 
+    // Building options filtered by selected site
+    const buildingOptions = useMemo(() => {
+        let list = allBuildings;
+        if (selectedSiteFilter !== 'all') {
+            const siteId = Number(selectedSiteFilter);
+            list = list.filter((b: any) => Number(b.site_id) === siteId);
+        }
+        return list.map((b: any) => ({
+            id: b.id || b.building_id,
+            name: language === 'en' ? (b.building_name_en || b.building_name || b.name) : (b.building_name_th || b.building_name || b.name),
+            site_id: b.site_id,
+        }));
+    }, [allBuildings, selectedSiteFilter, language]);
+
+    // Floor options extracted from meters & filtered by site and building
+    const floorOptions = useMemo(() => {
+        const floors = new Set<string>();
+        allMeters.forEach((m: any) => {
+            if (m.floor !== null && m.floor !== undefined && String(m.floor).trim() !== '') {
+                if (selectedSiteFilter !== 'all' && Number(m.site_id) !== Number(selectedSiteFilter)) return;
+                if (selectedBuildingFilter !== 'all' && Number(m.building_id) !== Number(selectedBuildingFilter)) return;
+                floors.add(String(m.floor));
+            }
+        });
+        return Array.from(floors).sort((a, b) => {
+            const na = parseFloat(a);
+            const nb = parseFloat(b);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            return a.localeCompare(b);
+        });
+    }, [allMeters, selectedSiteFilter, selectedBuildingFilter]);
+
+    // Zone options filtered by selected site / building
+    const zoneOptions = useMemo(() => {
+        let list = allZones;
+        if (selectedBuildingFilter !== 'all') {
+            const bId = Number(selectedBuildingFilter);
+            list = list.filter((z: any) => Number(z.building_id) === bId);
+        } else if (selectedSiteFilter !== 'all') {
+            const siteBuildingIds = new Set(buildingOptions.map((b: any) => Number(b.id)));
+            list = list.filter((z: any) => siteBuildingIds.has(Number(z.building_id)));
+        }
+        return list.map((z: any) => ({
+            id: z.id || z.zone_id,
+            name: language === 'en' ? (z.zone_name_en || z.zone_name || z.name) : (z.zone_name_th || z.zone_name || z.name),
+            building_id: z.building_id,
+        }));
+    }, [allZones, selectedBuildingFilter, selectedSiteFilter, buildingOptions, language]);
+
     // Layouts filtered by user site access permissions
     const userAccessibleLayouts = useMemo(() => {
         if (user?.role === 'admin' || user?.siteAccessMode === 'all') {
@@ -350,12 +408,27 @@ const LayoutViewPage: React.FC = () => {
         return layouts.filter((l: any) => !l.site_id || allowedIds.has(Number(l.site_id)));
     }, [layouts, user]);
 
-    // Layouts filtered by user-selected Site dropdown (All Sites vs specific Site)
+    // Layouts filtered by user-selected Site & Building dropdowns
     const displayedLayouts = useMemo(() => {
-        if (selectedSiteFilter === 'all') return userAccessibleLayouts;
-        const targetSiteId = Number(selectedSiteFilter);
-        return userAccessibleLayouts.filter((l: any) => Number(l.site_id) === targetSiteId);
-    }, [userAccessibleLayouts, selectedSiteFilter]);
+        return userAccessibleLayouts.filter((l: any) => {
+            if (selectedSiteFilter !== 'all' && Number(l.site_id) !== Number(selectedSiteFilter)) {
+                return false;
+            }
+            if (selectedBuildingFilter !== 'all' && Number(l.building_id) !== Number(selectedBuildingFilter)) {
+                return false;
+            }
+            return true;
+        });
+    }, [userAccessibleLayouts, selectedSiteFilter, selectedBuildingFilter]);
+
+    const hasActiveHierarchyFilters = selectedSiteFilter !== 'all' || selectedBuildingFilter !== 'all' || selectedFloorFilter !== 'all' || selectedZoneFilter !== 'all';
+
+    const handleResetFilters = () => {
+        setSelectedSiteFilter('all');
+        setSelectedBuildingFilter('all');
+        setSelectedFloorFilter('all');
+        setSelectedZoneFilter('all');
+    };
 
     // Auto-loop slideshow state
     const [isLooping, setIsLooping] = useState(false);
@@ -460,11 +533,25 @@ const LayoutViewPage: React.FC = () => {
         return ids;
     }, [points]);
 
-    // Filtered meters for sidebar search + type filter + status filter
+    // Filtered meters for sidebar search + type filter + status filter + hierarchy filter
     const filteredMeters = useMemo(() => {
         // Only show meters that are linked to the current layout
         let result = allMeters.filter((m: any) => m.meter_id && linkedMeterIds.has(m.meter_id));
         
+        // Filter by Site / Building / Floor / Zone if selected
+        if (selectedSiteFilter !== 'all') {
+            result = result.filter((m: any) => Number(m.site_id) === Number(selectedSiteFilter));
+        }
+        if (selectedBuildingFilter !== 'all') {
+            result = result.filter((m: any) => Number(m.building_id) === Number(selectedBuildingFilter));
+        }
+        if (selectedFloorFilter !== 'all') {
+            result = result.filter((m: any) => String(m.floor) === String(selectedFloorFilter));
+        }
+        if (selectedZoneFilter !== 'all') {
+            result = result.filter((m: any) => Number(m.zone_id) === Number(selectedZoneFilter));
+        }
+
         // Filter by activeLegendFilter (Device Type) if selected
         if (activeLegendFilter !== null) {
             result = result.filter((m: any) => {
@@ -507,7 +594,7 @@ const LayoutViewPage: React.FC = () => {
             const bPointIndex = points.findIndex(point => Number(point.meter_id) === Number(b.meter_id));
             return aPointIndex - bPointIndex;
         });
-    }, [allMeters, linkedMeterIds, activeLegendFilter, activeStatusFilter, points, meterSearch, meterTypeFilter, latestMeterData, activeAlerts]);
+    }, [allMeters, linkedMeterIds, selectedSiteFilter, selectedBuildingFilter, selectedFloorFilter, selectedZoneFilter, activeLegendFilter, activeStatusFilter, points, meterSearch, meterTypeFilter, latestMeterData, activeAlerts]);
 
     // Load points when layout changes
     useEffect(() => {
@@ -591,7 +678,7 @@ const LayoutViewPage: React.FC = () => {
         return counts;
     }, [points]);
 
-    // Points filtered by Legend Type / Status filters
+    // Points filtered by Legend Type / Status / Floor / Zone filters
     const visiblePoints = useMemo(() => {
         return points.filter(pt => {
             const ptMappedType = pt.point_type === 'meter' ? 'power' : pt.point_type === 'sensor' ? 'water' : pt.point_type === 'gen' ? 'gas' : pt.point_type === 'ups' ? 'mdb' : pt.point_type;
@@ -602,9 +689,17 @@ const LayoutViewPage: React.FC = () => {
                 const st = getPointStatusKey(pt, allMeters, latestMeterData, activeAlerts);
                 if (st !== activeStatusFilter) return false;
             }
+            if (selectedFloorFilter !== 'all') {
+                const meter = allMeters.find(m => Number(m.meter_id) === Number(pt.meter_id));
+                if (meter && String(meter.floor) !== String(selectedFloorFilter)) return false;
+            }
+            if (selectedZoneFilter !== 'all') {
+                const meter = allMeters.find(m => Number(m.meter_id) === Number(pt.meter_id));
+                if (meter && Number(meter.zone_id) !== Number(selectedZoneFilter)) return false;
+            }
             return true;
         });
-    }, [points, activeLegendFilter, activeStatusFilter, allMeters, latestMeterData, activeAlerts]);
+    }, [points, activeLegendFilter, activeStatusFilter, selectedFloorFilter, selectedZoneFilter, allMeters, latestMeterData, activeAlerts]);
 
     const zoomPercent = Math.round(zoom * 100);
 
@@ -625,7 +720,7 @@ const LayoutViewPage: React.FC = () => {
                 overflow: 'hidden',
             }}
         >
-            {/* Command Bar */}
+            {/* 1. Main Command Header */}
             <div style={{
                 background: C.bar,
                 color: C.ink,
@@ -634,52 +729,28 @@ const LayoutViewPage: React.FC = () => {
                 justifyContent: 'space-between',
                 borderBottom: `2px solid ${C.accent}`,
                 flexShrink: 0,
-                flexWrap: 'nowrap',
-                padding: '0 16px',
-                minHeight: 52,
-                gap: 12,
+                flexWrap: 'wrap',
+                padding: '6px 16px',
+                minHeight: 48,
+                gap: 10,
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent, flexShrink: 0 }}><LayoutGrid size={16} /></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent, flexShrink: 0 }}>
+                        <LayoutGrid size={16} />
+                    </div>
                     <div>
                         <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 12.5, letterSpacing: 1.5, lineHeight: 1.2 }}>{t('การติดตาม // แผนผัง', 'MONITORING // LAYOUT')}</div>
                         <div style={{ fontSize: 9.5, color: C.barSub, letterSpacing: 0.3, lineHeight: 1.2 }}>{t('แผนผังตำแหน่งมิเตอร์และจุดวัดพลังงาน', 'Meter placement layout and energy measurement points')}</div>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', flexShrink: 0 }}>
-                    {/* Site Filter */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                        <label style={{ fontFamily: MONO, fontSize: 11, color: C.barSub, whiteSpace: 'nowrap' }}>{t('ไซต์:', 'Site:')}</label>
-                        <select
-                            value={selectedSiteFilter}
-                            onChange={e => setSelectedSiteFilter(e.target.value)}
-                            style={{
-                                padding: '4px 8px',
-                                fontFamily: MONO,
-                                fontSize: 11.5,
-                                background: C.panel2,
-                                color: C.ink,
-                                border: `1px solid ${C.line}`,
-                                borderRadius: 4,
-                                outline: 'none',
-                                minWidth: 120,
-                                maxWidth: 160,
-                                height: 30,
-                            }}
-                        >
-                            <option value="all">{t('— ดูทุก Site —', '— All Sites —')}</option>
-                            {accessibleSites.map((s: any) => (
-                                <option key={s.site_id} value={s.site_id}>
-                                    {language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
+                {/* Right: Layout Select + Carousel Loop Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
                     {/* Layout Select */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                        <label style={{ fontFamily: MONO, fontSize: 11, color: C.barSub, whiteSpace: 'nowrap' }}>{t('แผนผัง:', 'Layout:')}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <label style={{ fontFamily: MONO, fontSize: 11, color: C.accent, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {t('แผนผัง:', 'Layout:')}
+                        </label>
                         <select
                             value={selectedId || ''}
                             onChange={e => {
@@ -691,18 +762,19 @@ const LayoutViewPage: React.FC = () => {
                                 padding: '4px 8px',
                                 fontFamily: MONO,
                                 fontSize: 11.5,
-                                background: C.panel2,
+                                background: C.panel,
                                 color: C.ink,
-                                border: `1px solid ${C.line}`,
+                                border: `1px solid ${C.accent}60`,
                                 borderRadius: 4,
                                 outline: 'none',
                                 minWidth: 160,
-                                maxWidth: 220,
+                                maxWidth: 260,
                                 height: 30,
+                                fontWeight: 500,
                             }}
                         >
                             {displayedLayouts.length === 0 ? (
-                                <option value="">{t('— ไม่มีแผนผังในไซต์นี้ —', '— No layout —')}</option>
+                                <option value="">{t('— ไม่มีแผนผังในเงื่อนไขนี้ —', '— No layout —')}</option>
                             ) : (
                                 displayedLayouts.map((l: any) => {
                                     const bName = language === 'en' ? (l.building_name_en || l.building_name) : (l.building_name_th || l.building_name);
@@ -717,8 +789,8 @@ const LayoutViewPage: React.FC = () => {
                     {/* Carousel / Loop Controls */}
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 3,
-                        background: isLooping ? 'rgba(16, 185, 129, 0.12)' : C.panel2,
-                        padding: '2px 5px', borderRadius: 4,
+                        background: isLooping ? 'rgba(16, 185, 129, 0.12)' : C.panel,
+                        padding: '2px 6px', borderRadius: 4,
                         border: `1px solid ${isLooping ? '#10B981' : C.line}`,
                         transition: 'all 0.2s ease',
                         flexShrink: 0,
@@ -835,6 +907,198 @@ const LayoutViewPage: React.FC = () => {
                             </span>
                         )}
                     </div>
+                </div>
+            </div>
+
+            {/* 2. Dedicated Hierarchy Filter Bar (Site > Building > Floor > Zone) */}
+            <div style={{
+                background: C.panel2,
+                borderBottom: `1px solid ${C.line}`,
+                padding: '6px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+                flexShrink: 0,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: C.accent, fontFamily: MONO, fontSize: 10.5, fontWeight: 700, marginRight: 2 }}>
+                        <Filter size={13} />
+                        <span>{t('ตัวกรอง:', 'FILTERS:')}</span>
+                    </div>
+
+                    {/* Site Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <label style={{ fontFamily: MONO, fontSize: 10.5, color: C.barSub, whiteSpace: 'nowrap' }}>{t('ไซต์:', 'Site:')}</label>
+                        <select
+                            value={selectedSiteFilter}
+                            onChange={e => {
+                                setSelectedSiteFilter(e.target.value);
+                                setSelectedBuildingFilter('all');
+                                setSelectedFloorFilter('all');
+                                setSelectedZoneFilter('all');
+                            }}
+                            style={{
+                                padding: '3px 8px',
+                                fontFamily: MONO,
+                                fontSize: 11,
+                                background: C.panel,
+                                color: C.ink,
+                                border: `1px solid ${selectedSiteFilter !== 'all' ? C.accent : C.line}`,
+                                borderRadius: 4,
+                                outline: 'none',
+                                minWidth: 120,
+                                maxWidth: 170,
+                                height: 28,
+                                fontWeight: selectedSiteFilter !== 'all' ? 600 : 400,
+                            }}
+                        >
+                            <option value="all">{t('— ทุก Site —', '— All Sites —')}</option>
+                            {accessibleSites.map((s: any) => (
+                                <option key={s.site_id} value={s.site_id}>
+                                    {language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Building Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <label style={{ fontFamily: MONO, fontSize: 10.5, color: C.barSub, whiteSpace: 'nowrap' }}>{t('อาคาร:', 'Bldg:')}</label>
+                        <select
+                            value={selectedBuildingFilter}
+                            onChange={e => {
+                                setSelectedBuildingFilter(e.target.value);
+                                setSelectedFloorFilter('all');
+                                setSelectedZoneFilter('all');
+                            }}
+                            style={{
+                                padding: '3px 8px',
+                                fontFamily: MONO,
+                                fontSize: 11,
+                                background: C.panel,
+                                color: C.ink,
+                                border: `1px solid ${selectedBuildingFilter !== 'all' ? C.accent : C.line}`,
+                                borderRadius: 4,
+                                outline: 'none',
+                                minWidth: 120,
+                                maxWidth: 170,
+                                height: 28,
+                                fontWeight: selectedBuildingFilter !== 'all' ? 600 : 400,
+                            }}
+                        >
+                            <option value="all">{t('— ทุกอาคาร —', '— All Bldgs —')}</option>
+                            {buildingOptions.map((b: any) => (
+                                <option key={b.id} value={b.id}>
+                                    {b.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Floor Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <label style={{ fontFamily: MONO, fontSize: 10.5, color: C.barSub, whiteSpace: 'nowrap' }}>{t('ชั้น:', 'Floor:')}</label>
+                        <select
+                            value={selectedFloorFilter}
+                            onChange={e => {
+                                setSelectedFloorFilter(e.target.value);
+                                setSelectedZoneFilter('all');
+                            }}
+                            style={{
+                                padding: '3px 8px',
+                                fontFamily: MONO,
+                                fontSize: 11,
+                                background: C.panel,
+                                color: C.ink,
+                                border: `1px solid ${selectedFloorFilter !== 'all' ? C.accent : C.line}`,
+                                borderRadius: 4,
+                                outline: 'none',
+                                minWidth: 90,
+                                maxWidth: 130,
+                                height: 28,
+                                fontWeight: selectedFloorFilter !== 'all' ? 600 : 400,
+                            }}
+                        >
+                            <option value="all">{t('— ทุกชั้น —', '— All Floors —')}</option>
+                            {floorOptions.map(f => (
+                                <option key={f} value={f}>
+                                    {t(`ชั้น ${f}`, `Floor ${f}`)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Zone Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <label style={{ fontFamily: MONO, fontSize: 10.5, color: C.barSub, whiteSpace: 'nowrap' }}>{t('โซน:', 'Zone:')}</label>
+                        <select
+                            value={selectedZoneFilter}
+                            onChange={e => setSelectedZoneFilter(e.target.value)}
+                            style={{
+                                padding: '3px 8px',
+                                fontFamily: MONO,
+                                fontSize: 11,
+                                background: C.panel,
+                                color: C.ink,
+                                border: `1px solid ${selectedZoneFilter !== 'all' ? C.accent : C.line}`,
+                                borderRadius: 4,
+                                outline: 'none',
+                                minWidth: 100,
+                                maxWidth: 150,
+                                height: 28,
+                                fontWeight: selectedZoneFilter !== 'all' ? 600 : 400,
+                            }}
+                        >
+                            <option value="all">{t('— ทุกโซน —', '— All Zones —')}</option>
+                            {zoneOptions.map((z: any) => (
+                                <option key={z.id} value={z.id}>
+                                    {z.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Reset Hierarchy Filter Button */}
+                    {hasActiveHierarchyFilters && (
+                        <button
+                            onClick={handleResetFilters}
+                            title={t('ล้างตัวกรองทั้งหมด', 'Reset All Filters')}
+                            style={{
+                                background: 'transparent',
+                                border: `1px solid #EF444460`,
+                                borderRadius: 4,
+                                padding: '2px 8px',
+                                color: '#EF4444',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontFamily: MONO,
+                                fontSize: 10.5,
+                                fontWeight: 600,
+                                height: 28,
+                                transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                                e.currentTarget.style.borderColor = '#EF4444';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.borderColor = '#EF444460';
+                            }}
+                        >
+                            <X size={12} />
+                            <span>{t('ล้างตัวกรอง', 'Clear Filters')}</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Filter Summary info */}
+                <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>{t('พบแผนผัง', 'Layouts found')}: <strong style={{ color: C.accent }}>{displayedLayouts.length}</strong></span>
                 </div>
             </div>
 

@@ -15,6 +15,47 @@ interface AlertItem {
     acknowledged: boolean;
 }
 
+const ThaiFlag: React.FC = () => (
+    <svg width="18" height="12" viewBox="0 0 900 600" style={{ borderRadius: '2px', flexShrink: 0, boxShadow: '0 0 1px rgba(0,0,0,0.4)', display: 'block' }}>
+        <rect fill="#A51931" width="900" height="600"/>
+        <rect fill="#F4F5F8" y="100" width="900" height="400"/>
+        <rect fill="#2D2A4A" y="200" width="900" height="200"/>
+    </svg>
+);
+
+const UsFlag: React.FC = () => (
+    <svg width="18" height="12" viewBox="0 0 7410 3900" style={{ borderRadius: '2px', flexShrink: 0, boxShadow: '0 0 1px rgba(0,0,0,0.4)', display: 'block' }}>
+        <rect width="7410" height="3900" fill="#b22234"/>
+        <path d="M0,450H7410M0,1050H7410M0,1650H7410M0,2250H7410M0,2850H7410M0,3450H7410" stroke="#fff" strokeWidth="300"/>
+        <rect width="2964" height="2100" fill="#3c3b6e"/>
+        <g fill="#fff">
+            <circle cx="500" cy="350" r="120" />
+            <circle cx="1000" cy="350" r="120" />
+            <circle cx="1500" cy="350" r="120" />
+            <circle cx="2000" cy="350" r="120" />
+            <circle cx="2500" cy="350" r="120" />
+            <circle cx="750" cy="700" r="120" />
+            <circle cx="1250" cy="700" r="120" />
+            <circle cx="1750" cy="700" r="120" />
+            <circle cx="2250" cy="700" r="120" />
+            <circle cx="500" cy="1050" r="120" />
+            <circle cx="1000" cy="1050" r="120" />
+            <circle cx="1500" cy="1050" r="120" />
+            <circle cx="2000" cy="1050" r="120" />
+            <circle cx="2500" cy="1050" r="120" />
+            <circle cx="750" cy="1400" r="120" />
+            <circle cx="1250" cy="1400" r="120" />
+            <circle cx="1750" cy="1400" r="120" />
+            <circle cx="2250" cy="1400" r="120" />
+            <circle cx="500" cy="1750" r="120" />
+            <circle cx="1000" cy="1750" r="120" />
+            <circle cx="1500" cy="1750" r="120" />
+            <circle cx="2000" cy="1750" r="120" />
+            <circle cx="2500" cy="1750" r="120" />
+        </g>
+    </svg>
+);
+
 const Header: React.FC = () => {
     const { user, logout, selectedSiteId, setSelectedSiteId } = useAuth();
     const { theme, toggleTheme } = useTheme();
@@ -220,9 +261,22 @@ const Header: React.FC = () => {
                     className="topbar__icon-btn" 
                     onClick={toggleLanguage} 
                     title={language === 'en' ? 'เปลี่ยนเป็นภาษาไทย (Switch to Thai)' : 'Switch to English (เปลี่ยนเป็นภาษาอังกฤษ)'}
-                    style={{ fontSize: '11px', fontFamily: 'ui-monospace, "SFMono-Regular", Menlo, monospace', fontWeight: 'bold', minWidth: '54px', padding: '0 6px', border: '1px solid var(--line)', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                    style={{ 
+                        fontSize: '11px', 
+                        fontFamily: 'ui-monospace, "SFMono-Regular", Menlo, monospace', 
+                        fontWeight: 'bold', 
+                        minWidth: '58px', 
+                        padding: '0 8px', 
+                        border: '1px solid var(--line)', 
+                        borderRadius: '4px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                    }}
                 >
-                    <span>{language === 'th' ? '🇹🇭' : '🇺🇸'}</span>
+                    {language === 'th' ? <ThaiFlag /> : <UsFlag />}
                     <span>{language.toUpperCase()}</span>
                 </button>
 
