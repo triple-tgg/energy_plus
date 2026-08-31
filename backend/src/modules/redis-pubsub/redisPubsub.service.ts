@@ -278,6 +278,29 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
                 r.device_datetime, r.received_at
             FROM meter_data_realtime r
             ORDER BY r.site_id, r.address_id, r.device_datetime DESC
+        ),
+        latest_nonzero_realtime AS (
+            SELECT DISTINCT ON (r.site_id, r.address_id)
+                r.site_id AS realtime_site_id, r.address_id AS realtime_address_id,
+                r.device_datetime AS last_nonzero_datetime,
+                r.received_at AS last_nonzero_received_at
+            FROM meter_data_realtime r
+            WHERE COALESCE(r.vl1,0) > 0 OR COALESCE(r.vl2,0) > 0 OR COALESCE(r.vl3,0) > 0
+               OR COALESCE(r.il1,0) > 0 OR COALESCE(r.il2,0) > 0 OR COALESCE(r.il3,0) > 0
+               OR COALESCE(r.kw_3ph,0) > 0 OR COALESCE(r.kva_3ph,0) > 0
+               OR COALESCE(r.hz,0) > 0 OR COALESCE(r.import_kwhr,0) > 0
+            ORDER BY r.site_id, r.address_id, r.device_datetime DESC
+        ),
+        latest_nonzero_actual AS (
+            SELECT DISTINCT ON (d.meter_id)
+                d.meter_id,
+                d.date_keep AS last_actual_nonzero_datetime
+            FROM actual_meter_data d
+            WHERE COALESCE(d.energy_kwh, 0) > 0
+               OR COALESCE(d.energy_kw, 0) > 0
+               OR COALESCE(d.energy_volt_p1, 0) > 0
+               OR COALESCE(d.energy_amp1, 0) > 0
+            ORDER BY d.meter_id, d.date_keep DESC
         )
         SELECT
             m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name,
@@ -296,6 +319,28 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
             lr.pf1, lr.pf2, lr.pf3,
             lr.hz, lr.import_kwhr,
             lr.device_datetime, lr.received_at,
+            COALESCE(
+                CASE WHEN (
+                    COALESCE(lr.vl1,0) > 0 OR COALESCE(lr.vl2,0) > 0 OR COALESCE(lr.vl3,0) > 0
+                    OR COALESCE(lr.il1,0) > 0 OR COALESCE(lr.il2,0) > 0 OR COALESCE(lr.il3,0) > 0
+                    OR COALESCE(lr.kw_3ph,0) > 0 OR COALESCE(lr.kva_3ph,0) > 0
+                    OR COALESCE(lr.hz,0) > 0 OR COALESCE(lr.import_kwhr,0) > 0
+                ) THEN lr.device_datetime
+                ELSE lnr.last_nonzero_datetime
+                END,
+                lna.last_actual_nonzero_datetime
+            ) AS last_nonzero_datetime,
+            COALESCE(
+                CASE WHEN (
+                    COALESCE(lr.vl1,0) > 0 OR COALESCE(lr.vl2,0) > 0 OR COALESCE(lr.vl3,0) > 0
+                    OR COALESCE(lr.il1,0) > 0 OR COALESCE(lr.il2,0) > 0 OR COALESCE(lr.il3,0) > 0
+                    OR COALESCE(lr.kw_3ph,0) > 0 OR COALESCE(lr.kva_3ph,0) > 0
+                    OR COALESCE(lr.hz,0) > 0 OR COALESCE(lr.import_kwhr,0) > 0
+                ) THEN lr.received_at
+                ELSE lnr.last_nonzero_received_at
+                END,
+                lna.last_actual_nonzero_datetime
+            ) AS last_nonzero_received_at,
             CASE WHEN COALESCE(lr.vl1,0)=0 AND COALESCE(lr.vl2,0)=0 AND COALESCE(lr.vl3,0)=0
                   AND COALESCE(lr.il1,0)=0 AND COALESCE(lr.il2,0)=0 AND COALESCE(lr.il3,0)=0
                   AND COALESCE(lr.kw_3ph,0)=0 AND COALESCE(lr.kva_3ph,0)=0
@@ -309,6 +354,11 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
         LEFT JOIN latest_readings lr
             ON (rmm.id IS NOT NULL AND lr.realtime_site_id = rmm.realtime_site_id AND lr.realtime_address_id = rmm.realtime_address_id)
             OR (rmm.id IS NULL AND lr.realtime_site_id = m.site_el AND lr.realtime_address_id::text = m.address::text)
+        LEFT JOIN latest_nonzero_realtime lnr
+            ON (rmm.id IS NOT NULL AND lnr.realtime_site_id = rmm.realtime_site_id AND lnr.realtime_address_id = rmm.realtime_address_id)
+            OR (rmm.id IS NULL AND lnr.realtime_site_id = m.site_el AND lnr.realtime_address_id::text = m.address::text)
+        LEFT JOIN latest_nonzero_actual lna
+            ON lna.meter_id = m.meter_id
         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
         LEFT JOIN sites s ON m.site_id = s.site_id
         LEFT JOIN buildings b ON m.building_id = b.building_id

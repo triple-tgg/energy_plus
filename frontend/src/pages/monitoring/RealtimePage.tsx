@@ -63,6 +63,8 @@ interface RealtimeMeterData {
     import_kwhr: number;
     device_datetime: string;
     received_at: string;
+    last_nonzero_datetime?: string;
+    last_nonzero_received_at?: string;
 }
 
 interface ChartDataPoint {
@@ -1778,6 +1780,29 @@ const RealtimePage: React.FC = () => {
                                                 {(() => {
                                                     const timeStr = formatDeviceTime(m.device_datetime || m.received_at, 'auto');
                                                     const fullTimeStr = formatDeviceTime(m.device_datetime || m.received_at, 'full');
+                                                    const nonZeroTimeStr = formatDeviceTime(m.last_nonzero_datetime || m.last_nonzero_received_at, 'auto');
+                                                    const fullNonZeroTimeStr = formatDeviceTime(m.last_nonzero_datetime || m.last_nonzero_received_at, 'full');
+
+                                                    if (status === 'zero') {
+                                                        const hasNonZero = nonZeroTimeStr !== '—';
+                                                        return (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span
+                                                                    title={`${t('เวลาล่าสุดที่ได้รับข้อมูลที่ไม่ใช่ค่าศูนย์', 'Last non-zero reading timestamp')}: ${hasNonZero ? fullNonZeroTimeStr : t('ไม่มีข้อมูลที่ไม่ใช่ศูนย์ก่อนหน้า', 'No prior non-zero reading')}`}
+                                                                    style={{ color: '#F59E0B', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                                                >
+                                                                    <Clock size={11} />
+                                                                    {hasNonZero ? nonZeroTimeStr : '—'}
+                                                                </span>
+                                                                {hasNonZero && timeStr !== '—' && timeStr !== nonZeroTimeStr && (
+                                                                    <span style={{ fontSize: '9.5px', color: C.sub, opacity: 0.8 }} title={`${t('เวลาที่ได้รับข้อมูลล่าสุด (ค่า 0)', 'Latest 0 packet timestamp')}: ${fullTimeStr}`}>
+                                                                        ({t('ล่าสุด', 'Latest')}: {timeStr})
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    }
+
                                                     if (timeStr === '—') {
                                                         return <span style={{ color: C.sub, opacity: 0.6 }}>—</span>;
                                                     }
@@ -1786,17 +1811,6 @@ const RealtimePage: React.FC = () => {
                                                             <span
                                                                 title={`${t('เวลาล่าสุดที่ได้รับข้อมูลก่อนขาดการติดต่อ', 'Last received reading timestamp before disconnection')}: ${fullTimeStr}`}
                                                                 style={{ color: '#EF4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                                            >
-                                                                <Clock size={11} />
-                                                                {timeStr}
-                                                            </span>
-                                                        );
-                                                    }
-                                                    if (status === 'zero') {
-                                                        return (
-                                                            <span
-                                                                title={`${t('เวลาที่ได้รับข้อมูลล่าสุด (ไม่มีค่าอ่าน)', 'Last received reading timestamp (No Reading)')}: ${fullTimeStr}`}
-                                                                style={{ color: '#F59E0B', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                                                             >
                                                                 <Clock size={11} />
                                                                 {timeStr}
@@ -1936,9 +1950,30 @@ const RealtimePage: React.FC = () => {
                                     🏢 {t('ชั้น', 'Floor')} {selectedMeter.floor}
                                 </div>
                             )}
-                            <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
-                                🕐 {formatDeviceTime(selectedMeter.device_datetime, 'full')}
-                            </div>
+                            {(() => {
+                                const selStatus = getMeterRealtimeStatus(selectedMeter, now);
+                                if (selStatus === 'zero') {
+                                    const nonZeroTime = formatDeviceTime(selectedMeter.last_nonzero_datetime || selectedMeter.last_nonzero_received_at, 'full');
+                                    const latestTime = formatDeviceTime(selectedMeter.device_datetime || selectedMeter.received_at, 'full');
+                                    return (
+                                        <div style={{ fontFamily: MONO, fontSize: 10, color: '#F59E0B', marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                                            <span title={t('เวลาล่าสุดที่ได้รับข้อมูลที่ไม่ใช่ค่าศูนย์', 'Last non-zero reading timestamp')}>
+                                                🕐 {t('ค่าก่อนหน้า', 'Last reading')}: {nonZeroTime !== '—' ? nonZeroTime : t('ไม่มีประวัติข้อมูล', 'No history')}
+                                            </span>
+                                            {latestTime !== '—' && (
+                                                <span style={{ fontSize: '9px', color: C.sub }}>
+                                                    ({t('ข้อมูล 0 ล่าสุด', 'Latest 0 packet')}: {latestTime})
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
+                                        🕐 {formatDeviceTime(selectedMeter.device_datetime || selectedMeter.received_at, 'full')}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         {/* Data Table */}
