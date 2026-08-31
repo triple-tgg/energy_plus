@@ -269,25 +269,106 @@ export class ReportsService {
             LEFT JOIN zones z ON z.zone_id = m.zone_id
             LEFT JOIN sites s ON s.site_id = m.site_id
             WHERE ${meterFilters.join(' AND ')}
-        ), start_points AS (
+        ), daily_stats AS (
+            SELECT
+                d.meter_id,
+                MIN(d.total_kwh) AS daily_first_reading,
+                MAX(d.total_kwh) AS daily_last_reading,
+                MIN(d.date_keep) AS daily_first_date,
+                MAX(d.date_keep) AS daily_last_date,
+                SUM(COALESCE(d.total_kwh, 0)) AS daily_sum_kwh
+            FROM actual_meter_data_daily d
+            JOIN meter_scope ms ON ms.meter_id = d.meter_id
+            WHERE d.date_keep >= $${startParam}::date
+              AND d.date_keep <= $${endParam}::date
+            GROUP BY d.meter_id
+        ), daily_prev AS (
+            SELECT DISTINCT ON (d.meter_id)
+                d.meter_id,
+                d.date_keep::timestamp AS prev_date,
+                d.total_kwh AS prev_reading
+            FROM actual_meter_data_daily d
+            JOIN meter_scope ms ON ms.meter_id = d.meter_id
+            WHERE d.date_keep < $${startParam}::date
+            ORDER BY d.meter_id, d.date_keep DESC
+        ), actual_prev AS (
+            SELECT DISTINCT ON (d.meter_id)
+                d.meter_id,
+                d.date_keep AS prev_date,
+                d.energy_kwh AS prev_reading
+            FROM actual_meter_data d
+            JOIN meter_scope ms ON ms.meter_id = d.meter_id
+            WHERE d.date_keep < ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY d.meter_id, d.date_keep DESC
+        ), start_points_prior AS (
             SELECT DISTINCT ON (m.meter_id)
                 m.meter_id, r.received_at AS start_date, r.import_kwhr AS start_reading
             FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
             WHERE r.received_at < ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
             ORDER BY m.meter_id, r.received_at DESC, r.id DESC
-        ), end_points AS (
+        ), start_points_earliest AS (
+            SELECT DISTINCT ON (m.meter_id)
+                m.meter_id, r.received_at AS start_date, r.import_kwhr AS start_reading
+            FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
+            WHERE r.received_at >= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+              AND r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY m.meter_id, r.received_at ASC, r.id ASC
+        ), start_points AS (
+            SELECT
+                m.meter_id,
+                COALESCE(
+                    sp_prior.start_date,
+                    ap.prev_date,
+                    dp.prev_date,
+                    sp_earliest.start_date,
+                    ds.daily_first_date::timestamp
+                ) AS start_date,
+                COALESCE(
+                    sp_prior.start_reading,
+                    ap.prev_reading,
+                    dp.prev_reading,
+                    sp_earliest.start_reading,
+                    ds.daily_first_reading
+                ) AS start_reading
+            FROM meter_scope m
+            LEFT JOIN start_points_prior sp_prior ON sp_prior.meter_id = m.meter_id
+            LEFT JOIN actual_prev ap ON ap.meter_id = m.meter_id
+            LEFT JOIN daily_prev dp ON dp.meter_id = m.meter_id
+            LEFT JOIN start_points_earliest sp_earliest ON sp_earliest.meter_id = m.meter_id
+            LEFT JOIN daily_stats ds ON ds.meter_id = m.meter_id
+        ), end_points_realtime AS (
             SELECT DISTINCT ON (m.meter_id)
                 m.meter_id, r.received_at AS end_date, r.import_kwhr AS end_reading
             FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
             WHERE r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
             ORDER BY m.meter_id, r.received_at DESC, r.id DESC
+        ), end_points AS (
+            SELECT
+                m.meter_id,
+                COALESCE(
+                    ep_rt.end_date,
+                    ds.daily_last_date::timestamp
+                ) AS end_date,
+                COALESCE(
+                    ep_rt.end_reading,
+                    ds.daily_last_reading
+                ) AS end_reading
+            FROM meter_scope m
+            LEFT JOIN end_points_realtime ep_rt ON ep_rt.meter_id = m.meter_id
+            LEFT JOIN daily_stats ds ON ds.meter_id = m.meter_id
         ), report_rows AS (
             SELECT
                 m.meter_id, m.meter_code, m.meter_name AS customer_name,
                 m.building_name, m.floor, m.room_code AS site_code,
                 COALESCE(m.room_name, m.zone_name, m.project_name) AS site_name,
                 sp.start_date, sp.start_reading, ep.end_date, ep.end_reading,
-                GREATEST(COALESCE(ep.end_reading, 0) - COALESCE(sp.start_reading, ep.end_reading, 0), 0) AS units_used,
+                CASE
+                    WHEN ep.end_reading IS NOT NULL AND sp.start_reading IS NOT NULL AND ep.end_reading > sp.start_reading
+                        THEN (ep.end_reading - sp.start_reading)
+                    WHEN COALESCE(ds.daily_sum_kwh, 0) > 0
+                        THEN ds.daily_sum_kwh
+                    ELSE GREATEST(COALESCE(ep.end_reading, 0) - COALESCE(sp.start_reading, ep.end_reading, 0), 0)
+                END AS units_used,
                 COALESCE(rate.unit_price, 4.15) AS unit_price,
                 COALESCE(rate.rate_mode, 'tiered') AS rate_mode,
                 COALESCE(rate.tier1_limit, 200.00) AS tier1_limit,
@@ -300,6 +381,7 @@ export class ReportsService {
             FROM meter_scope m
             JOIN end_points ep ON ep.meter_id = m.meter_id
             LEFT JOIN start_points sp ON sp.meter_id = m.meter_id
+            LEFT JOIN daily_stats ds ON ds.meter_id = m.meter_id
             LEFT JOIN LATERAL (
                 SELECT * FROM billing_config
                 WHERE is_active = true AND effective_date <= $${endParam}::date
