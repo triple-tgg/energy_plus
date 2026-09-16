@@ -54,6 +54,20 @@ export class MetersController {
         try { await svc.deleteType(parseInt(req.params.id)); res.json(successResponse(null, 'Type deleted')); } catch (e) { next(e); }
     }
 
+    // Sub Types
+    async getSubTypes(req: Request, res: Response, next: NextFunction) {
+        try { const r = await svc.getSubTypes(req.query); res.json(successResponse(r.data, undefined, paginationHelper(r.page, r.limit, r.total))); } catch (e) { next(e); }
+    }
+    async createSubType(req: Request, res: Response, next: NextFunction) {
+        try { res.status(201).json(successResponse(await svc.createSubType(req.body), 'Sub type created')); } catch (e) { next(e); }
+    }
+    async updateSubType(req: Request, res: Response, next: NextFunction) {
+        try { res.json(successResponse(await svc.updateSubType(parseInt(req.params.id), req.body), 'Sub type updated')); } catch (e) { next(e); }
+    }
+    async deleteSubType(req: Request, res: Response, next: NextFunction) {
+        try { await svc.deleteSubType(parseInt(req.params.id)); res.json(successResponse(null, 'Sub type deleted')); } catch (e) { next(e); }
+    }
+
     // Loops
     async getLoops(req: Request, res: Response, next: NextFunction) {
         try { const r = await svc.getLoops(req.query); res.json(successResponse(r.data, undefined, paginationHelper(r.page, r.limit, r.total))); } catch (e) { next(e); }

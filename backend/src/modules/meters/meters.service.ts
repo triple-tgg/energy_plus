@@ -43,11 +43,14 @@ export class MetersService {
 
         params.push(limit, offset);
         const result = await query(
-            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name, s.site_name_th, s.site_name_en,
+            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name,
+              mst.sub_type_name, mst.meter_sub_type_id AS sub_type_id,
+              s.site_name, s.site_name_th, s.site_name_en,
               b.building_name, b.building_name_th, b.building_name_en, z.zone_name
        FROM meter m
        LEFT JOIN meter_brand mb ON m.meter_brand_id = mb.meter_brand_id
        LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
+       LEFT JOIN meter_sub_type mst ON m.meter_sub_type_id = mst.meter_sub_type_id
        LEFT JOIN sites s ON m.site_id = s.site_id
        LEFT JOIN buildings b ON m.building_id = b.building_id
        LEFT JOIN zones z ON m.zone_id = z.zone_id
@@ -61,11 +64,14 @@ export class MetersService {
 
     async getMeterById(meterId: number) {
         const result = await query(
-            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name, s.site_name, s.site_name_th, s.site_name_en,
+            `SELECT m.*, mb.meter_brand_name, mt.meter_type_name, mt.icon_name,
+              mst.sub_type_name, mst.meter_sub_type_id AS sub_type_id,
+              s.site_name, s.site_name_th, s.site_name_en,
               b.building_name, b.building_name_th, b.building_name_en, z.zone_name
        FROM meter m
        LEFT JOIN meter_brand mb ON m.meter_brand_id = mb.meter_brand_id
        LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
+       LEFT JOIN meter_sub_type mst ON m.meter_sub_type_id = mst.meter_sub_type_id
        LEFT JOIN sites s ON m.site_id = s.site_id
        LEFT JOIN buildings b ON m.building_id = b.building_id
        LEFT JOIN zones z ON m.zone_id = z.zone_id
@@ -87,11 +93,11 @@ export class MetersService {
         }
 
         const result = await query(
-            `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
+            `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, meter_sub_type_id, loop_id,
        site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
        phase, circuit, floor, status, parent_meter_id, site_el, created_by, created_on)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW()) RETURNING *`,
-            [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId, data.loopId,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW()) RETURNING *`,
+            [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId, data.meterSubTypeId || null, data.loopId,
             data.siteId, data.buildingId, data.zoneId, data.isActive ?? true, data.ipAddress, data.portNumber,
             data.roomCode, data.roomName, data.phase, data.circuit, data.floor,
             data.status || 'Manual', data.parentMeterId || null, data.siteEl ?? null, data.createdBy]
@@ -105,12 +111,13 @@ export class MetersService {
 
         const result = await query(
             `UPDATE meter SET meter_code=$1, meter_name=$2, address=$3, meter_brand_id=$4, meter_type_id=$5,
-       loop_id=$6, site_id=$7, building_id=$8, zone_id=$9, is_active=$10, ip_address=$11,
-       port_number=$12, room_code=$13, room_name=$14, phase=$15, circuit=$16,
-       floor=$17, status=$18, parent_meter_id=$19, last_modified_by=$20,
-       site_el=COALESCE($21, site_el), last_modified_on=NOW()
-       WHERE meter_id=$22 RETURNING *`,
-            [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId, data.loopId,
+       meter_sub_type_id=$6, loop_id=$7, site_id=$8, building_id=$9, zone_id=$10, is_active=$11, ip_address=$12,
+       port_number=$13, room_code=$14, room_name=$15, phase=$16, circuit=$17,
+       floor=$18, status=$19, parent_meter_id=$20, last_modified_by=$21,
+       site_el=COALESCE($22, site_el), last_modified_on=NOW()
+       WHERE meter_id=$23 RETURNING *`,
+            [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId,
+            data.meterSubTypeId || null, data.loopId,
             data.siteId, data.buildingId, data.zoneId, data.isActive, data.ipAddress, data.portNumber,
             data.roomCode, data.roomName, data.phase, data.circuit,
             data.floor, data.status || 'Manual', data.parentMeterId || null, data.modifiedBy,
@@ -159,66 +166,95 @@ export class MetersService {
         return result.rows[0];
     }
 
-    // Types
+    // Types — returns types with nested sub types
     async getTypes(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
         const activeOnly = queryParams.activeOnly === true || queryParams.activeOnly === 'true';
-        const whereClause = activeOnly ? 'WHERE is_active = true' : '';
-        const countResult = await query(`SELECT COUNT(*) FROM meter_type ${whereClause}`);
+        const whereClause = activeOnly ? 'WHERE mt.is_active = true' : '';
+        const countResult = await query(`SELECT COUNT(*) FROM meter_type mt ${whereClause}`);
         const total = parseInt(countResult.rows[0].count);
-        const result = await query(
-            `SELECT * FROM meter_type ${whereClause} ORDER BY meter_type_id LIMIT $1 OFFSET $2`,
+        const typesResult = await query(
+            `SELECT * FROM meter_type mt ${whereClause} ORDER BY mt.meter_type_id LIMIT $1 OFFSET $2`,
             [limit, offset]
         );
-        return { data: result.rows, total, page, limit };
+        // Fetch sub types for each type
+        const subTypesResult = await query(
+            `SELECT * FROM meter_sub_type WHERE is_active = true ORDER BY meter_sub_type_id`
+        );
+        const subTypesByType: Record<number, any[]> = {};
+        subTypesResult.rows.forEach((st: any) => {
+            if (!subTypesByType[st.meter_type_id]) subTypesByType[st.meter_type_id] = [];
+            subTypesByType[st.meter_type_id].push(st);
+        });
+        const data = typesResult.rows.map((t: any) => ({
+            ...t,
+            sub_types: subTypesByType[t.meter_type_id] || [],
+        }));
+        return { data, total, page, limit };
     }
     async createType(data: any) {
-        try {
-            const result = await query(
-                `INSERT INTO meter_type (meter_type_name, icon_name, is_active, created_by, created_on)
+        const result = await query(
+            `INSERT INTO meter_type (meter_type_name, icon_name, is_active, created_by, created_on)
        VALUES ($1,$2,$3,$4,NOW()) RETURNING *`,
-                [data.meterTypeName, data.iconName || null, data.isActive !== false, data.createdBy || null]
-            );
-            return result.rows[0];
-        } catch (err: any) {
-            // Fallback: table might not have created_by/created_on columns
-            if (err.message?.includes('column') && (err.message?.includes('created_by') || err.message?.includes('created_on'))) {
-                const result = await query(
-                    `INSERT INTO meter_type (meter_type_name, icon_name, is_active)
-           VALUES ($1,$2,$3) RETURNING *`,
-                    [data.meterTypeName, data.iconName || null, data.isActive !== false]
-                );
-                return result.rows[0];
-            }
-            throw err;
-        }
+            [data.meterTypeName, data.iconName || null, data.isActive !== false, data.createdBy || null]
+        );
+        return result.rows[0];
     }
     async updateType(id: number, data: any) {
-        try {
-            const result = await query(
-                `UPDATE meter_type SET meter_type_name=$1, icon_name=$2, is_active=$3,
+        const result = await query(
+            `UPDATE meter_type SET meter_type_name=$1, icon_name=$2, is_active=$3,
        last_modified_by=$4, last_modified_on=NOW() WHERE meter_type_id=$5 RETURNING *`,
-                [data.meterTypeName, data.iconName || null, data.isActive, data.modifiedBy || null, id]
-            );
-            if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Type not found');
-            return result.rows[0];
-        } catch (err: any) {
-            // Fallback: table might not have last_modified_by/last_modified_on columns
-            if (err.message?.includes('column') && (err.message?.includes('last_modified') || err.message?.includes('modified'))) {
-                const result = await query(
-                    `UPDATE meter_type SET meter_type_name=$1, icon_name=$2, is_active=$3
-           WHERE meter_type_id=$4 RETURNING *`,
-                    [data.meterTypeName, data.iconName || null, data.isActive, id]
-                );
-                if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Type not found');
-                return result.rows[0];
-            }
-            throw err;
-        }
+            [data.meterTypeName, data.iconName || null, data.isActive, data.modifiedBy || null, id]
+        );
+        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Type not found');
+        return result.rows[0];
     }
     async deleteType(id: number) {
         const result = await query(`DELETE FROM meter_type WHERE meter_type_id=$1 RETURNING meter_type_id`, [id]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Type not found');
+        return result.rows[0];
+    }
+
+    // Sub Types
+    async getSubTypes(queryParams: any) {
+        const { page, limit, offset } = parsePagination(queryParams);
+        const { meterTypeId } = queryParams;
+        const params: any[] = [];
+        let whereClause = 'WHERE 1=1';
+        if (meterTypeId) { params.push(parseInt(meterTypeId)); whereClause += ` AND mst.meter_type_id = $${params.length}`; }
+        const countResult = await query(`SELECT COUNT(*) FROM meter_sub_type mst ${whereClause}`, params);
+        const total = parseInt(countResult.rows[0].count);
+        params.push(limit, offset);
+        const result = await query(
+            `SELECT mst.*, mt.meter_type_name FROM meter_sub_type mst
+       LEFT JOIN meter_type mt ON mst.meter_type_id = mt.meter_type_id
+       ${whereClause}
+       ORDER BY mst.meter_type_id, mst.meter_sub_type_id
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
+        );
+        return { data: result.rows, total, page, limit };
+    }
+    async createSubType(data: any) {
+        const result = await query(
+            `INSERT INTO meter_sub_type (meter_type_id, sub_type_name, is_active, created_on)
+       VALUES ($1,$2,$3,NOW()) RETURNING *`,
+            [data.meterTypeId, data.subTypeName, data.isActive !== false]
+        );
+        return result.rows[0];
+    }
+    async updateSubType(id: number, data: any) {
+        const result = await query(
+            `UPDATE meter_sub_type SET meter_type_id=$1, sub_type_name=$2, is_active=$3
+       WHERE meter_sub_type_id=$4 RETURNING *`,
+            [data.meterTypeId, data.subTypeName, data.isActive, id]
+        );
+        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Sub type not found');
+        return result.rows[0];
+    }
+    async deleteSubType(id: number) {
+        const result = await query(`DELETE FROM meter_sub_type WHERE meter_sub_type_id=$1 RETURNING meter_sub_type_id`, [id]);
+        if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Sub type not found');
         return result.rows[0];
     }
 

@@ -20,6 +20,11 @@ router.post('/types', authenticate, requireRole('admin'), c.createType);
 router.put('/types/:id', authenticate, requireRole('admin'), c.updateType);
 router.delete('/types/:id', authenticate, requireRole('admin'), c.deleteType);
 
+router.get('/sub-types/list', authenticate, c.getSubTypes);
+router.post('/sub-types', authenticate, requireRole('admin'), c.createSubType);
+router.put('/sub-types/:id', authenticate, requireRole('admin'), c.updateSubType);
+router.delete('/sub-types/:id', authenticate, requireRole('admin'), c.deleteSubType);
+
 router.get('/loops/list', authenticate, c.getLoops);
 router.post('/loops', authenticate, requireRole('admin'), c.createLoop);
 router.put('/loops/:id', authenticate, requireRole('admin'), c.updateLoop);

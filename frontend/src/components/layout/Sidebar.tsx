@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
     Settings, Building2, Users, User, MapPin, Construction,
-    Package, Plug, Tag, RefreshCw, Zap,
+    Package, Plug, Tag, RefreshCw, Zap, Layers,
     Wrench, Bell, AlertTriangle, Coins, TrendingDown, Map, Upload, Trash2, ShieldCheck,
     Radio, BarChart3, Network, Activity,
     FileText, BarChartBig, History, GitCompare, Clock,
@@ -86,6 +86,7 @@ const navGroups: NavGroup[] = [
         icon: Package,
         items: [
             { labelEn: 'Meter Types', labelTh: 'ประเภทมิเตอร์', path: '/master/types', icon: Plug, permissionKey: 'meters' },
+            { labelEn: 'Sub Types', labelTh: 'ประเภทย่อย', path: '/master/subtypes', icon: Layers, permissionKey: 'meters' },
             { labelEn: 'Models', labelTh: 'รุ่นมิเตอร์', path: '/master/brands', icon: Tag, permissionKey: 'meters' },
             { labelEn: 'Loops', labelTh: 'วงจรการจ่ายไฟ', path: '/master/loops', icon: RefreshCw, permissionKey: 'meters' },
             { labelEn: 'Meters', labelTh: 'มิเตอร์', path: '/master/meters', icon: Zap, permissionKey: 'meters' },
