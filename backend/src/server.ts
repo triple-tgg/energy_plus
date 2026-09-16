@@ -157,15 +157,16 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NOW()`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`);
 
-        // Ensure standard 7 meter types exist
+        // Ensure standard 8 meter types exist
         const standardTypes = [
-            { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
-            { id: 2, name: 'WAT', icon: 'fa fa-tint' },
-            { id: 3, name: 'GAS', icon: 'fa fa-fire' },
-            { id: 4, name: 'MDB', icon: 'fa fa-plug' },
-            { id: 5, name: 'SOL', icon: 'fa fa-solar-panel' },
-            { id: 6, name: 'Humidity', icon: 'fa fa-smog' },
-            { id: 7, name: 'Temperature', icon: 'fa fa-thermometer-half' },
+            { id: 1, name: 'Power',          icon: 'fa fa-bolt' },
+            { id: 2, name: 'Water',          icon: 'fa fa-tint' },
+            { id: 3, name: 'Water Quality',  icon: 'fa fa-flask' },
+            { id: 4, name: 'Air Quality',    icon: 'fa fa-wind' },
+            { id: 5, name: 'Soil Quality',   icon: 'fa fa-seedling' },
+            { id: 6, name: 'Power Security', icon: 'fa fa-shield-alt' },
+            { id: 7, name: 'Fire Security',  icon: 'fa fa-fire-extinguisher' },
+            { id: 8, name: 'Room Service',   icon: 'fa fa-home' },
         ];
         for (const t of standardTypes) {
             await pool.query(

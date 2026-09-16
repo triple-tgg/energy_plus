@@ -1248,20 +1248,24 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', borderLeft: `1px solid ${C.line}` }}>
                     <select value={filterTypeId} onChange={e => { setFilterTypeId(e.target.value); setFilterSubTypeId(''); }} style={{
                         fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`,
-                        background: C.panel, color: C.ink, borderRadius: 0, cursor: 'pointer', minWidth: 120,
+                        background: C.panel, color: C.ink, borderRadius: 0, cursor: 'pointer', minWidth: 140,
                     }}>
                         <option value="">{t('ทุกประเภท', 'All Types')}</option>
                         {meterTypes.map((t: any) => <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>)}
                     </select>
-                    <select value={filterSubTypeId} onChange={e => setFilterSubTypeId(e.target.value)} style={{
-                        fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`,
-                        background: C.panel, color: C.ink, borderRadius: 0, cursor: 'pointer', minWidth: 120,
-                    }}>
-                        <option value="">{t('ทุก Sub Type', 'All Sub Types')}</option>
-                        {(filterTypeId
-                            ? (meterTypes.find((t: any) => t.meter_type_id === parseInt(filterTypeId))?.sub_types || [])
-                            : meterTypes.flatMap((t: any) => t.sub_types || [])
-                        ).map((st: any) => (
+                    <select
+                        value={filterSubTypeId}
+                        onChange={e => setFilterSubTypeId(e.target.value)}
+                        disabled={!filterTypeId}
+                        style={{
+                            fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`,
+                            background: C.panel, color: !filterTypeId ? C.sub : C.ink, borderRadius: 0,
+                            cursor: filterTypeId ? 'pointer' : 'not-allowed', minWidth: 140,
+                            opacity: filterTypeId ? 1 : 0.5,
+                        }}
+                    >
+                        <option value="">{filterTypeId ? t('ทุก Sub Type', 'All Sub Types') : t('เลือก Type ก่อน', 'Select Type first')}</option>
+                        {filterTypeId && (meterTypes.find((t: any) => t.meter_type_id === parseInt(filterTypeId))?.sub_types || []).map((st: any) => (
                             <option key={st.meter_sub_type_id} value={st.meter_sub_type_id}>{st.sub_type_name}</option>
                         ))}
                     </select>
