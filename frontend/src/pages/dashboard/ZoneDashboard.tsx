@@ -9,7 +9,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, LineChart, Line, ComposedChart,
 } from 'recharts';
-import { dashboardApi } from '../../api/client';
+import { dashboardApi, metersApi } from '../../api/client';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 
 /* ===========================================================================
@@ -92,6 +92,9 @@ interface MeterData {
     device: string;
     type: string;
     meter_type_id: number;
+    meter_type_name: string;
+    meter_sub_type_id: number | null;
+    sub_type_name: string;
     loop: number;
     pathIds: string[];
     pathNames: string[];
@@ -153,14 +156,14 @@ interface ZoneDashboardPayload {
 type TrendPoint = ZoneDashboardPayload['trend'][number];
 
 const METER_TYPE_INFO: Record<number, { icon: string; color: string }> = {
-    1: { icon: '⚡', color: '#F59E0B' },  // Electricity
+    1: { icon: '⚡', color: '#F59E0B' },  // Power
     2: { icon: '💧', color: '#3B82F6' },  // Water
-    3: { icon: '🔥', color: '#EF4444' },  // Gas
-    4: { icon: '☀️', color: '#10B981' },  // Solar
-    8: { icon: '🔌', color: '#8B5CF6' },  // MDB
-    10: { icon: '☀️', color: '#F97316' }, // Solar
-    11: { icon: '🌫️', color: '#14B8A6' }, // Humidity
-    12: { icon: '🌡️', color: '#F43F5E' }, // Temperature
+    3: { icon: '🧪', color: '#06B6D4' },  // Water Quality
+    4: { icon: '🌬️', color: '#8B5CF6' }, // Air Quality
+    5: { icon: '🌱', color: '#10B981' },  // Soil Quality
+    6: { icon: '🔒', color: '#EF4444' },  // Power Security
+    7: { icon: '🔥', color: '#F97316' },  // Fire Security
+    8: { icon: '🏠', color: '#EC4899' },  // Room Service
 };
 const getMeterTypeInfo = (id: number) => METER_TYPE_INFO[id] || METER_TYPE_INFO[1];
 
@@ -1049,6 +1052,11 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     const { theme } = useTheme(); // light = Engineering Paper, dark = Control Room
     const C = THEMES[theme];
 
+    // ── Meter Type / Sub Type filters ──
+    const [meterTypes, setMeterTypes] = useState<any[]>([]);
+    const [filterTypeId, setFilterTypeId] = useState('');
+    const [filterSubTypeId, setFilterSubTypeId] = useState('');
+
     const crumb = (active: boolean): React.CSSProperties => ({
         display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', border: 'none', cursor: 'pointer',
         fontFamily: MONO, fontSize: 12, fontWeight: active ? 700 : 400,
@@ -1058,6 +1066,16 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
 
     const histRef = useRef<TrendPoint[]>([]); // บัฟเฟอร์กราฟ Realtime history
     const [, setHistVer] = useState(0);
+
+    // Load meter types for filter dropdowns
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await metersApi.getTypes({ limit: 100 });
+                setMeterTypes(res.data.data || []);
+            } catch (err) { console.error('Failed to load meter types:', err); }
+        })();
+    }, []);
 
     // Extract siteId, buildingId, floor, zoneId from path to filter trend/comparison data
     const currentSiteId = path[0] ? path[0].replace(/^\D+/, '') : undefined;
@@ -1108,7 +1126,12 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     }, [language, currentSiteId, currentBuildingId, currentFloor, currentZoneId, variant]);
 
     const now = clock;
-    const metersUnder = (p: string[]) => meters.filter((m) => p.every((id, i) => m.pathIds[i] === id));
+    const metersUnder = (p: string[]) => {
+        let list = meters.filter((m) => p.every((id, i) => m.pathIds[i] === id));
+        if (filterTypeId) list = list.filter(m => m.meter_type_id === parseInt(filterTypeId));
+        if (filterSubTypeId) list = list.filter(m => m.meter_sub_type_id === parseInt(filterSubTypeId));
+        return list;
+    };
     const scopeKw = () => metersUnder(path).reduce((s, m) => s + (m.disabled ? 0 : m.kw_3ph), 0);
 
     // กราฟ Realtime: รีเซ็ตเมื่อเปลี่ยนขอบเขต, เก็บตัวอย่างทุก 1 นาที (สูงสุด ~1 ชั่วโมง)
@@ -1222,24 +1245,26 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                     ))}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 1, padding: '0 8px', borderLeft: `1px solid ${C.line}` }}>
-                    {[
-                        { k: 'e', icon: Zap, label: t('ไฟฟ้า', 'Electricity'), on: true },
-                        { k: 'w', icon: Droplet, label: t('น้ำ', 'Water') },
-                        { k: 'g', icon: Flame, label: t('แก๊ส', 'Gas') },
-                        { k: 's', icon: Sun, label: 'Solar' },
-                    ].map((item) => {
-                        const Ico = item.icon;
-                        return (
-                            <div key={item.k} title={item.on ? '' : t('เร็วๆ นี้', 'Coming Soon')} style={{
-                                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', fontFamily: MONO, fontSize: 11,
-                                cursor: item.on ? 'default' : 'not-allowed', color: item.on ? C.ink : C.sub,
-                                borderBottom: item.on ? `2px solid ${C.accent}` : '2px solid transparent'
-                            }}>
-                                <Ico size={13} /> {item.label}
-                            </div>
-                        );
-                    })}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', borderLeft: `1px solid ${C.line}` }}>
+                    <select value={filterTypeId} onChange={e => { setFilterTypeId(e.target.value); setFilterSubTypeId(''); }} style={{
+                        fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`,
+                        background: C.panel, color: C.ink, borderRadius: 0, cursor: 'pointer', minWidth: 120,
+                    }}>
+                        <option value="">{t('ทุกประเภท', 'All Types')}</option>
+                        {meterTypes.map((t: any) => <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>)}
+                    </select>
+                    <select value={filterSubTypeId} onChange={e => setFilterSubTypeId(e.target.value)} style={{
+                        fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`,
+                        background: C.panel, color: C.ink, borderRadius: 0, cursor: 'pointer', minWidth: 120,
+                    }}>
+                        <option value="">{t('ทุก Sub Type', 'All Sub Types')}</option>
+                        {(filterTypeId
+                            ? (meterTypes.find((t: any) => t.meter_type_id === parseInt(filterTypeId))?.sub_types || [])
+                            : meterTypes.flatMap((t: any) => t.sub_types || [])
+                        ).map((st: any) => (
+                            <option key={st.meter_sub_type_id} value={st.meter_sub_type_id}>{st.sub_type_name}</option>
+                        ))}
+                    </select>
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', fontFamily: MONO, fontSize: 11.5 }}>

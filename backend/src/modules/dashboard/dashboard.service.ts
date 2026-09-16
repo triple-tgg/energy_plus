@@ -100,7 +100,8 @@ export class DashboardService {
             )
             SELECT
                 m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name, m.address,
-                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status, m.is_active, m.meter_type_id,
+                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status, m.is_active, m.meter_type_id, m.meter_sub_type_id,
+                mt.meter_type_name, mst.sub_type_name,
                 s.site_name, b.building_name, z.zone_name,
                 COALESCE(latest_realtime.received_at, latest.date_keep) AS date_keep,
                 COALESCE(latest_realtime.device_datetime, latest_realtime.received_at, latest.date_keep) AS device_datetime,
@@ -141,6 +142,8 @@ export class DashboardService {
             LEFT JOIN sites s ON m.site_id = s.site_id
             LEFT JOIN buildings b ON m.building_id = b.building_id
             LEFT JOIN zones z ON m.zone_id = z.zone_id
+            LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
+            LEFT JOIN meter_sub_type mst ON m.meter_sub_type_id = mst.meter_sub_type_id
             LEFT JOIN latest ON latest.meter_id = m.meter_id
             LEFT JOIN latest_realtime ON latest_realtime.meter_id = m.meter_id
             LEFT JOIN day_start ON day_start.meter_id = m.meter_id
@@ -409,6 +412,9 @@ export class DashboardService {
             device: row.meter_name || row.meter_code || `Meter ${row.meter_id}`,
             type: '3P4W',
             meter_type_id: row.meter_type_id ? parseInt(row.meter_type_id, 10) : 1,
+            meter_type_name: row.meter_type_name || '',
+            meter_sub_type_id: row.meter_sub_type_id ? parseInt(row.meter_sub_type_id, 10) : null,
+            sub_type_name: row.sub_type_name || '',
             loop: row.loop_id || 1,
             pathIds: [
                 `site-${row.site_id || 'unknown'}`,
