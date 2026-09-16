@@ -179,7 +179,7 @@ export class MetersService {
         );
         // Fetch sub types for each type
         const subTypesResult = await query(
-            `SELECT * FROM meter_sub_type WHERE is_active = true ORDER BY meter_sub_type_id`
+            `SELECT * FROM meter_sub_type WHERE is_active = true ORDER BY sort_order, meter_sub_type_id`
         );
         const subTypesByType: Record<number, any[]> = {};
         subTypesResult.rows.forEach((st: any) => {
@@ -229,7 +229,7 @@ export class MetersService {
             `SELECT mst.*, mt.meter_type_name FROM meter_sub_type mst
        LEFT JOIN meter_type mt ON mst.meter_type_id = mt.meter_type_id
        ${whereClause}
-       ORDER BY mst.meter_type_id, mst.meter_sub_type_id
+       ORDER BY mst.meter_type_id, mst.sort_order, mst.meter_sub_type_id
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
             params
         );
