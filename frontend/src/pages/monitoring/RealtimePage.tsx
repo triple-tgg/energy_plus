@@ -1804,7 +1804,7 @@ const RealtimePage: React.FC = () => {
                                                     }
 
                                                     if (timeStr === '—') {
-                                                        return <span style={{ color: C.sub, opacity: 0.6 }}>—</span>;
+                                                        return <span style={{ color: C.sub, opacity: 0.6 }}>--:--:--</span>;
                                                     }
                                                     if (status === 'offline') {
                                                         return (
