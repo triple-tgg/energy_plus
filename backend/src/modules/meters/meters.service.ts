@@ -327,7 +327,9 @@ export class MetersService {
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site VARCHAR(200)`);
-            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site_el INTEGER`);
+            await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS site_el VARCHAR(50)`);
+            // Migrate existing INTEGER site_el to VARCHAR if needed
+            await client.query(`ALTER TABLE meter ALTER COLUMN site_el TYPE VARCHAR(50) USING site_el::VARCHAR`);
             await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(100)`);
 
             // Cache for lookups — keyed by name, value is DB id
@@ -475,19 +477,15 @@ export class MetersService {
                     const siteName = String(row.siteName || '').trim() || deriveSiteName(row.building || '') || 'Main Site';
                     const meterSite = siteName;
 
-                    // Parse siteEl (e.g. "1000_1" -> site_el: 1000, or numeric 1000)
-                    let meterSiteEl: number | null = null;
+                    // Store full siteEl string as unique key (e.g. "1021_1")
+                    let meterSiteEl: string | null = null;
                     let derivedAddressFromEl: string | null = null;
                     if (row.siteEl !== null && row.siteEl !== undefined && row.siteEl !== '') {
                         const strEl = String(row.siteEl).trim();
+                        meterSiteEl = strEl;  // store full value as unique key
                         if (strEl.includes('_')) {
-                            const [sPart, aPart] = strEl.split('_');
-                            const sNum = parseInt(sPart, 10);
-                            if (Number.isFinite(sNum)) meterSiteEl = sNum;
+                            const [, aPart] = strEl.split('_');
                             if (aPart) derivedAddressFromEl = aPart;
-                        } else {
-                            const sNum = parseInt(strEl, 10);
-                            if (Number.isFinite(sNum)) meterSiteEl = sNum;
                         }
                     }
 
@@ -546,7 +544,7 @@ export class MetersService {
                         ? Number(row.floor)
                         : null;
 
-                    // Check for existing meter by meter_code first, then (site_id, address) or (ip_address, address)
+                    // Check for existing meter by meter_code first, then by site_el (unique key)
                     let existingId: number | null = null;
                     if (meterCode) {
                         const existing = await client.query(
@@ -558,15 +556,14 @@ export class MetersService {
                         }
                     }
 
-                    if (!existingId && modbusAddr !== null) {
-                        if (siteId) {
-                            const existing = await client.query(
-                                `SELECT meter_id FROM meter WHERE site_id = $1 AND address = $2`,
-                                [siteId, modbusAddr]
-                            );
-                            if (existing.rows.length > 0) {
-                                existingId = existing.rows[0].meter_id;
-                            }
+                    // Fallback: check by site_el as unique key (e.g. "1021_1")
+                    if (!existingId && meterSiteEl) {
+                        const existing = await client.query(
+                            `SELECT meter_id FROM meter WHERE site_el = $1`,
+                            [meterSiteEl]
+                        );
+                        if (existing.rows.length > 0) {
+                            existingId = existing.rows[0].meter_id;
                         }
                     }
 
@@ -658,7 +655,8 @@ export class MetersService {
                     }
 
                     if (savedMeterId && row.siteEl && modbusAddr !== null) {
-                        const realtimeSiteId = Number(row.siteEl);
+                        const strEl = String(row.siteEl).trim();
+                        const realtimeSiteId = parseInt(strEl.includes('_') ? strEl.split('_')[0] : strEl, 10);
                         const realtimeAddressId = Number(modbusAddr);
                         const realtimeChannel = buildRealtimeChannel(siteName, realtimeSiteId, row.loop);
                         if (Number.isFinite(realtimeSiteId) && Number.isFinite(realtimeAddressId)) {
