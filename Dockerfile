@@ -9,6 +9,7 @@ ARG GIT_SHA=unknown
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci --ignore-scripts 2>/dev/null || npm install
 COPY frontend/ ./
+COPY version.json /app/version.json
 
 # Inject version into Vite build via env vars
 ENV VITE_APP_VERSION=${APP_VERSION}
@@ -21,6 +22,7 @@ WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm ci --ignore-scripts 2>/dev/null || npm install
 COPY backend/ ./
+COPY version.json /app/version.json
 RUN npx tsc
 
 # ── Stage 3: Production ──
@@ -39,6 +41,7 @@ ENV GIT_SHA=${GIT_SHA}
 # Copy backend production deps
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev
+COPY version.json ./version.json
 
 # Copy compiled backend
 COPY --from=backend-build /app/backend/dist ./dist
