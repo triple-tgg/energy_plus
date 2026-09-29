@@ -53,7 +53,7 @@ export const subscribeChannel = async (channel: string, res: Response): Promise<
         if (clients.size === 0 && !meterChannels.has(channel)) {
             subClient.unsubscribe(channel).then(() => {
                 subscribedChannels.delete(channel);
-            }).catch(() => {});
+            }).catch(() => { });
             sseClientsMap.delete(channel);
             console.log(`🔕 Unsubscribed from channel: ${channel} (no more clients)`);
         }
@@ -188,17 +188,19 @@ export const syncMeterSubscriptions = async (): Promise<void> => {
 
     syncPromise = (async () => {
         const result = await pool.query(
-            `SELECT DISTINCT m.site_el, m.address
+            `SELECT DISTINCT m.site_el
              FROM meter m
              JOIN sites s ON s.site_id = m.site_id
              WHERE m.site_el IS NOT NULL
-               AND m.address IS NOT NULL
+               AND TRIM(m.site_el) != ''
                AND m.is_active = true
                AND s.site_status = true
-             ORDER BY m.site_el, m.address`
+             ORDER BY m.site_el`
         );
         const desired = new Set<string>(
-            result.rows.map((row: any) => `${row.site_el}_${row.address}`)
+            result.rows
+                .map((row: any) => String(row.site_el).trim())
+                .filter((channel: string) => channel.length > 0)
         );
 
         const added = [...desired].filter((channel) => !meterChannels.has(channel));
@@ -281,7 +283,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
         ),
         latest_nonzero_realtime AS (
             SELECT DISTINCT ON (r.site_id, r.address_id)
-                r.site_id AS realtime_site_id, r.address_id AS realtime_address_id,
+                r.channel, r.site_id AS realtime_site_id, r.address_id AS realtime_address_id,
                 r.device_datetime AS last_nonzero_datetime,
                 r.received_at AS last_nonzero_received_at
             FROM meter_data_realtime r
@@ -354,10 +356,10 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
            AND rmm.is_active = true
         LEFT JOIN latest_readings lr
             ON (rmm.id IS NOT NULL AND lr.realtime_site_id = rmm.realtime_site_id AND lr.realtime_address_id = rmm.realtime_address_id)
-            OR (rmm.id IS NULL AND lr.realtime_site_id = m.site_el AND lr.realtime_address_id::text = m.address::text)
+            OR (rmm.id IS NULL AND (lr.channel = m.site_el OR (lr.realtime_site_id::text = m.site_el::text AND lr.realtime_address_id::text = m.address::text)))
         LEFT JOIN latest_nonzero_realtime lnr
             ON (rmm.id IS NOT NULL AND lnr.realtime_site_id = rmm.realtime_site_id AND lnr.realtime_address_id = rmm.realtime_address_id)
-            OR (rmm.id IS NULL AND lnr.realtime_site_id = m.site_el AND lnr.realtime_address_id::text = m.address::text)
+            OR (rmm.id IS NULL AND (lnr.channel = m.site_el OR (lnr.realtime_site_id::text = m.site_el::text AND lnr.realtime_address_id::text = m.address::text)))
         LEFT JOIN latest_nonzero_actual lna
             ON lna.meter_id = m.meter_id
         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
@@ -468,8 +470,7 @@ export const getRealtimeHistory = async (filters?: {
                AND rmm.is_active = true
                AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter m_fallback
-                ON m_fallback.site_el::text = r.site_id::text
-               AND m_fallback.address::text = r.address_id::text
+                ON (m_fallback.site_el = r.channel OR (m_fallback.site_el::text = r.site_id::text AND m_fallback.address::text = r.address_id::text))
                AND rmm.id IS NULL
             WHERE r.received_at >= NOW() - ($1 || ' minutes')::interval
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) IS NOT NULL
@@ -583,8 +584,7 @@ export const getMeterRealtimeHistory = async (filters: {
                AND rmm.is_active = true
                AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter m_fallback
-                ON m_fallback.site_el::text = r.site_id::text
-               AND m_fallback.address::text = r.address_id::text
+                ON (m_fallback.site_el = r.channel OR (m_fallback.site_el::text = r.site_id::text AND m_fallback.address::text = r.address_id::text))
                AND rmm.id IS NULL
             WHERE r.received_at >= NOW() - ($1 || ' minutes')::interval
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) = $2
