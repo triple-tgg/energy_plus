@@ -25,6 +25,7 @@ import exportsRoutes from './modules/exports/exports.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 import { ensureAccessControlSchema } from './config/accessControl';
+import { ensureMeterMasterData } from './config/meterMasterData';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerDocument } from './config/swagger';
 import { alertEngine } from './modules/alarms/alert-engine.service';
@@ -157,30 +158,11 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NOW()`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`);
 
-        // Ensure standard 8 meter types exist
-        const standardTypes = [
-            { id: 1, name: 'Power',          icon: 'fa fa-bolt' },
-            { id: 2, name: 'Water',          icon: 'fa fa-tint' },
-            { id: 3, name: 'Water Quality',  icon: 'fa fa-flask' },
-            { id: 4, name: 'Air Quality',    icon: 'fa fa-wind' },
-            { id: 5, name: 'Soil Quality',   icon: 'fa fa-seedling' },
-            { id: 6, name: 'Power Security', icon: 'fa fa-shield-alt' },
-            { id: 7, name: 'Fire Security',  icon: 'fa fa-fire-extinguisher' },
-            { id: 8, name: 'Room Service',   icon: 'fa fa-home' },
-        ];
-        for (const t of standardTypes) {
-            await pool.query(
-                `INSERT INTO meter_type (meter_type_id, meter_type_name, icon_name, is_active) VALUES ($1, $2, $3, true)
-                 ON CONFLICT (meter_type_id) DO UPDATE SET meter_type_name = $2, icon_name = $3, is_active = true`,
-                [t.id, t.name, t.icon]
-            );
-        }
-        // Reset sequence so auto-generated IDs don't conflict with seeded IDs
-        await pool.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 8) FROM meter_type))`);
     } catch (e: any) {
-        console.warn('⚠️  Schema patch (meter columns / types) skipped:', e.message);
+        console.warn('⚠️  Schema patch (meter columns) skipped:', e.message);
     }
 
+    await ensureMeterMasterData();
     await ensureAccessControlSchema();
     let meterSubscriptionSyncTimer: NodeJS.Timeout | null = null;
 

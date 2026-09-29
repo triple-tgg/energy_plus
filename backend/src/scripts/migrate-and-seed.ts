@@ -151,10 +151,30 @@ export async function migrateAndSeed(closePool: boolean = true) {
         meter_type_id SERIAL PRIMARY KEY,
         meter_type_name VARCHAR(100) NOT NULL,
         icon_name VARCHAR(50),
-        is_active BOOLEAN DEFAULT true
+        is_active BOOLEAN DEFAULT true,
+        created_by VARCHAR(100),
+        created_on TIMESTAMPTZ DEFAULT NOW(),
+        last_modified_by VARCHAR(100),
+        last_modified_on TIMESTAMPTZ
       )
     `);
         console.log('  ✅ meter_type');
+
+        // Meter Sub Type
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS meter_sub_type (
+        meter_sub_type_id SERIAL PRIMARY KEY,
+        meter_type_id INTEGER NOT NULL REFERENCES meter_type(meter_type_id) ON DELETE CASCADE,
+        sub_type_name VARCHAR(100) NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_by VARCHAR(100),
+        created_on TIMESTAMPTZ DEFAULT NOW(),
+        last_modified_by VARCHAR(100),
+        last_modified_on TIMESTAMPTZ
+      )
+    `);
+        console.log('  ✅ meter_sub_type');
 
         // Loop
         await client.query(`
@@ -201,6 +221,7 @@ export async function migrateAndSeed(closePool: boolean = true) {
         address INTEGER,
         meter_brand_id INTEGER REFERENCES meter_brand(meter_brand_id),
         meter_type_id INTEGER REFERENCES meter_type(meter_type_id),
+        meter_sub_type_id INTEGER REFERENCES meter_sub_type(meter_sub_type_id),
         loop_id INTEGER REFERENCES loop(loop_id),
         site_id INTEGER REFERENCES sites(site_id),
         building_id INTEGER REFERENCES buildings(building_id),
@@ -237,6 +258,7 @@ export async function migrateAndSeed(closePool: boolean = true) {
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS meter_sub_type_id INTEGER REFERENCES meter_sub_type(meter_sub_type_id)`);
 
         // Actual Meter Data (15-min snapshot history)
         await client.query(`
@@ -697,6 +719,68 @@ export async function migrateAndSeed(closePool: boolean = true) {
         }
         await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 8) FROM meter_type))`);
         console.log('  ✅ meter_type (8 types: Power, Water, Water Quality, Air Quality, Soil Quality, Power Security, Fire Security, Room Service)');
+
+        // --- Meter Sub Types (reference data) ---
+        const subTypes = [
+            // Power (1)
+            { typeId: 1, name: 'MDB', sortOrder: 1 },
+            { typeId: 1, name: 'DB', sortOrder: 2 },
+            { typeId: 1, name: 'ELE', sortOrder: 3 },
+            { typeId: 1, name: 'CHILLER', sortOrder: 4 },
+            { typeId: 1, name: 'AIR', sortOrder: 5 },
+            { typeId: 1, name: 'SOLAR', sortOrder: 6 },
+            { typeId: 1, name: 'LIGHTING', sortOrder: 7 },
+            { typeId: 1, name: 'PLUG', sortOrder: 8 },
+            { typeId: 1, name: 'LIFT', sortOrder: 9 },
+            { typeId: 1, name: 'OTHER', sortOrder: 10 },
+            // Water (2)
+            { typeId: 2, name: 'MAIN', sortOrder: 1 },
+            { typeId: 2, name: 'COOLING TOWER', sortOrder: 2 },
+            { typeId: 2, name: 'WATER PUMP', sortOrder: 3 },
+            { typeId: 2, name: 'DOMESTIC', sortOrder: 4 },
+            { typeId: 2, name: 'RECYCLE', sortOrder: 5 },
+            { typeId: 2, name: 'OTHER', sortOrder: 6 },
+            // Water Quality (3)
+            { typeId: 3, name: 'PH', sortOrder: 1 },
+            { typeId: 3, name: 'TDS', sortOrder: 2 },
+            { typeId: 3, name: 'CONDUCTIVITY', sortOrder: 3 },
+            { typeId: 3, name: 'TURBIDITY', sortOrder: 4 },
+            // Air Quality (4)
+            { typeId: 4, name: 'PM2.5', sortOrder: 1 },
+            { typeId: 4, name: 'PM10', sortOrder: 2 },
+            { typeId: 4, name: 'CO2', sortOrder: 3 },
+            { typeId: 4, name: 'TEMP/HUMIDITY', sortOrder: 4 },
+            // Soil Quality (5)
+            { typeId: 5, name: 'SOIL MOISTURE', sortOrder: 1 },
+            { typeId: 5, name: 'SOIL NPK', sortOrder: 2 },
+            // Power Security (6)
+            { typeId: 6, name: 'UPS', sortOrder: 1 },
+            { typeId: 6, name: 'GENERATOR', sortOrder: 2 },
+            // Fire Security (7)
+            { typeId: 7, name: 'FIRE PUMP', sortOrder: 1 },
+            { typeId: 7, name: 'SMOKE ALARM', sortOrder: 2 },
+            // Room Service (8)
+            { typeId: 8, name: 'ROOM ENERGY', sortOrder: 1 },
+            { typeId: 8, name: 'KEYCARD', sortOrder: 2 },
+        ];
+        for (const st of subTypes) {
+            await client.query(
+                `INSERT INTO meter_sub_type (meter_type_id, sub_type_name, sort_order, is_active)
+                 SELECT $1, $2, $3, true
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM meter_sub_type
+                     WHERE meter_type_id = $1 AND LOWER(sub_type_name) = LOWER($2)
+                 )`,
+                [st.typeId, st.name, st.sortOrder]
+            );
+        }
+        await client.query(`
+            SELECT setval(
+                'meter_sub_type_meter_sub_type_id_seq',
+                COALESCE((SELECT MAX(meter_sub_type_id) FROM meter_sub_type), 1)
+            )
+        `);
+        console.log('  ✅ meter_sub_type (Standard sub types for all 8 meter types)');
 
         // --- Protocols (reference data) ---
         const protocols = [
