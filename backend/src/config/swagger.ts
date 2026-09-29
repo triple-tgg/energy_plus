@@ -1,15 +1,10 @@
-import fs from 'fs';
-import path from 'path';
-
-const { version } = JSON.parse(
-    fs.readFileSync(path.resolve(__dirname, '..', '..', 'version.json'), 'utf-8')
-);
+import pkg from '../../package.json';
 
 export const swaggerDocument = {
     openapi: '3.0.3',
     info: {
         title: 'MSoft Monitoring API',
-        version: process.env.APP_VERSION || version,
+        version: process.env.APP_VERSION || pkg.version,
         description: 'Comprehensive REST API documentation for MSoft - Energy Monitoring & Management System',
         contact: {
             name: 'MSoft Support',
