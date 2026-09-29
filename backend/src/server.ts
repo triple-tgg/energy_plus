@@ -175,6 +175,8 @@ const startServer = async () => {
                 [t.id, t.name, t.icon]
             );
         }
+        // Reset sequence so auto-generated IDs don't conflict with seeded IDs
+        await pool.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 8) FROM meter_type))`);
     } catch (e: any) {
         console.warn('⚠️  Schema patch (meter columns / types) skipped:', e.message);
     }

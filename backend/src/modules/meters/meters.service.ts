@@ -414,6 +414,16 @@ export class MetersService {
                 if (!typeName) return null;
                 const trimmed = typeName.trim();
                 if (meterTypeCache.has(trimmed)) return meterTypeCache.get(trimmed)!;
+                // Try to find existing first (case-insensitive)
+                const existing = await client.query(
+                    `SELECT meter_type_id FROM meter_type WHERE LOWER(meter_type_name) = LOWER($1) LIMIT 1`,
+                    [trimmed]
+                );
+                if (existing.rows.length > 0) {
+                    const id = existing.rows[0].meter_type_id;
+                    meterTypeCache.set(trimmed, id);
+                    return id;
+                }
                 const res = await client.query(
                     `INSERT INTO meter_type (meter_type_name, is_active) VALUES ($1, true) RETURNING meter_type_id`,
                     [trimmed]
@@ -472,7 +482,9 @@ export class MetersService {
             // Process each meter row
             for (let i = 0; i < meters.length; i++) {
                 const row = meters[i];
+                const savepointName = `sp_row_${i}`;
                 try {
+                    await client.query(`SAVEPOINT ${savepointName}`);
                     // Resolve lookups — auto-create if not found
                     const siteName = String(row.siteName || '').trim() || deriveSiteName(row.building || '') || 'Main Site';
                     const meterSite = siteName;
@@ -720,7 +732,9 @@ export class MetersService {
                             [savedMeterId, readingValue]
                         );
                     }
+                    await client.query(`RELEASE SAVEPOINT ${savepointName}`);
                 } catch (err: any) {
+                    await client.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
                     results.errors.push({ row: i + 1, message: err.message });
                 }
             }
