@@ -42,7 +42,7 @@ export class DashboardService {
             meterFilter += ` AND m.building_id = $${params.length}`;
         }
         if (floor !== null) {
-            params.push(floor);
+            params.push(String(floor));
             meterFilter += ` AND m.floor = $${params.length}`;
         }
         if (zoneId) {
@@ -162,7 +162,7 @@ export class DashboardService {
             trendFilters.push(`m.building_id = $${trendParams.length}`);
         }
         if (floor !== null) {
-            trendParams.push(floor);
+            trendParams.push(String(floor));
             trendFilters.push(`m.floor = $${trendParams.length}`);
         }
         if (zoneId) {
@@ -636,7 +636,7 @@ export class DashboardService {
             filters.push(`m.building_id = $${params.length}`);
         }
         if (floor !== undefined && floor !== null && floor !== '') {
-            params.push(parseInt(floor));
+            params.push(String(floor));
             filters.push(`m.floor = $${params.length}`);
         }
 
