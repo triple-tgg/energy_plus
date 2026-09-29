@@ -30,10 +30,12 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            # Use git tag as version (e.g. v1.0.1)
             VERSION="${GITHUB_REF_NAME}"
           else
-            SAFE_REF="${GITHUB_REF_NAME//\//-}"
-            VERSION="${SAFE_REF}-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+            # Read version from frontend/package.json
+            PKG_VERSION=$(node -p "require('./frontend/package.json').version")
+            VERSION="v${PKG_VERSION}"
           fi
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
