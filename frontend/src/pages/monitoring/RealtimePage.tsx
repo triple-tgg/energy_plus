@@ -42,6 +42,8 @@ interface RealtimeMeterData {
     meter_type_id?: number;
     meter_type_name?: string;
     icon_name?: string;
+    meter_sub_type_id?: number;
+    sub_type_name?: string;
     is_all_zero: boolean;
     site_name: string;
     building_name: string;
@@ -1804,7 +1806,7 @@ const RealtimePage: React.FC = () => {
                                                     }
 
                                                     if (timeStr === '—') {
-                                                        return <span style={{ color: C.sub, opacity: 0.6 }}>—</span>;
+                                                        return <span style={{ color: C.sub, opacity: 0.6 }}>--:--:--</span>;
                                                     }
                                                     if (status === 'offline') {
                                                         return (

@@ -16,6 +16,7 @@ import BuildingsPage from './pages/admin/BuildingsPage';
 
 // Master pages
 import MeterTypesPage from './pages/master/MeterTypesPage';
+import MeterSubTypesPage from './pages/master/MeterSubTypesPage';
 import BrandsPage from './pages/master/BrandsPage';
 import LoopsPage from './pages/master/LoopsPage';
 import MetersPage from './pages/master/MetersPage';
@@ -75,6 +76,7 @@ const App: React.FC = () => {
 
                                 {/* Master Data */}
                                 <Route path="/master/types" element={<ProtectedRoute permissionKey="meters"><MeterTypesPage /></ProtectedRoute>} />
+                                <Route path="/master/subtypes" element={<ProtectedRoute permissionKey="meters"><MeterSubTypesPage /></ProtectedRoute>} />
                                 <Route path="/master/brands" element={<ProtectedRoute permissionKey="meters"><BrandsPage /></ProtectedRoute>} />
                                 <Route path="/master/loops" element={<ProtectedRoute permissionKey="meters"><LoopsPage /></ProtectedRoute>} />
                                 <Route path="/master/meters" element={<ProtectedRoute permissionKey="meters"><MetersPage /></ProtectedRoute>} />

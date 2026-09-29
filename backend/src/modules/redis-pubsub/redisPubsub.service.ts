@@ -307,6 +307,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
             m.site_id, m.building_id, m.zone_id, m.floor, m.loop_id,
             m.status AS meter_status, m.is_active,
             m.meter_type_id, mt.meter_type_name, mt.icon_name,
+            m.meter_sub_type_id, mst.sub_type_name,
             s.site_name,
             b.building_name,
             z.zone_name,
@@ -360,6 +361,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
         LEFT JOIN latest_nonzero_actual lna
             ON lna.meter_id = m.meter_id
         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
+        LEFT JOIN meter_sub_type mst ON m.meter_sub_type_id = mst.meter_sub_type_id
         LEFT JOIN sites s ON m.site_id = s.site_id
         LEFT JOIN buildings b ON m.building_id = b.building_id
         LEFT JOIN zones z ON m.zone_id = z.zone_id

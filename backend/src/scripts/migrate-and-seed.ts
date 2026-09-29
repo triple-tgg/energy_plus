@@ -679,13 +679,14 @@ export async function migrateAndSeed(closePool: boolean = true) {
 
         // --- Meter Types (reference data) ---
         const types = [
-            { id: 1, name: 'ELE', icon: 'fa fa-bolt' },
-            { id: 2, name: 'WAT', icon: 'fa fa-tint' },
-            { id: 3, name: 'GAS', icon: 'fa fa-fire' },
-            { id: 4, name: 'MDB', icon: 'fa fa-plug' },
-            { id: 5, name: 'SOL', icon: 'fa fa-solar-panel' },
-            { id: 6, name: 'Humidity', icon: 'fa fa-smog' },
-            { id: 7, name: 'Temperature', icon: 'fa fa-thermometer-half' },
+            { id: 1, name: 'Power',          icon: 'fa fa-bolt' },
+            { id: 2, name: 'Water',          icon: 'fa fa-tint' },
+            { id: 3, name: 'Water Quality',  icon: 'fa fa-flask' },
+            { id: 4, name: 'Air Quality',    icon: 'fa fa-wind' },
+            { id: 5, name: 'Soil Quality',   icon: 'fa fa-seedling' },
+            { id: 6, name: 'Power Security', icon: 'fa fa-shield-alt' },
+            { id: 7, name: 'Fire Security',  icon: 'fa fa-fire-extinguisher' },
+            { id: 8, name: 'Room Service',   icon: 'fa fa-home' },
         ];
         for (const t of types) {
             await client.query(
@@ -694,8 +695,8 @@ export async function migrateAndSeed(closePool: boolean = true) {
                 [t.id, t.name, t.icon]
             );
         }
-        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 7) FROM meter_type))`);
-        console.log('  ✅ meter_type (7 types: ELE, WAT, GAS, MDB, SOL, Humidity, Temperature)');
+        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(MAX(meter_type_id), 8) FROM meter_type))`);
+        console.log('  ✅ meter_type (8 types: Power, Water, Water Quality, Air Quality, Soil Quality, Power Security, Fire Security, Room Service)');
 
         // --- Protocols (reference data) ---
         const protocols = [
