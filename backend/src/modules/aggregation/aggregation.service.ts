@@ -174,7 +174,7 @@ export class AggregationService {
                          AND rmm.is_active = true
                          AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                         LEFT JOIN meter m
-                          ON m.site_el = r.site_id
+                          ON m.site_el::text = r.site_id::text
                          AND m.address::text = r.address_id::text
                          AND rmm.id IS NULL
                         WHERE r.received_at >= $1
@@ -260,7 +260,7 @@ export class AggregationService {
                          AND rmm.is_active = true
                          AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                         LEFT JOIN meter m
-                          ON m.site_el = r.site_id
+                          ON m.site_el::text = r.site_id::text
                          AND m.address::text = r.address_id::text
                          AND rmm.id IS NULL
                         WHERE r.received_at >= $1

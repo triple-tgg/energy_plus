@@ -257,7 +257,7 @@ export class ReportsService {
              AND rmm.is_active = true
              AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter fallback_meter
-             ON fallback_meter.site_el = r.site_id
+             ON fallback_meter.site_el::text = r.site_id::text
              AND fallback_meter.address::text = r.address_id::text
              AND rmm.id IS NULL
             WHERE r.received_at >= (($${startParam}::date - 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
@@ -572,7 +572,7 @@ export class ReportsService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter fallback_meter
-                  ON fallback_meter.site_el = r.site_id
+                  ON fallback_meter.site_el::text = r.site_id::text
                  AND fallback_meter.address::text = r.address_id::text
                  AND rmm.id IS NULL
                 WHERE r.received_at >= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
@@ -765,7 +765,7 @@ export class ReportsService {
              AND rmm.is_active = true
              AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter fallback_meter
-             ON fallback_meter.site_el = r.site_id
+             ON fallback_meter.site_el::text = r.site_id::text
              AND fallback_meter.address::text = r.address_id::text
              AND rmm.id IS NULL
             WHERE r.received_at >= (($${startParam}::date - 60)::timestamp AT TIME ZONE 'Asia/Bangkok')
