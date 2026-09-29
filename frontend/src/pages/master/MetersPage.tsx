@@ -29,6 +29,7 @@ interface MeterForm {
     address: string;
     meterBrandId: string;
     meterTypeId: string;
+    meterSubTypeId: string;
     loopId: string;
     siteId: string;
     buildingId: string;
@@ -46,7 +47,7 @@ interface MeterForm {
 }
 
 const emptyForm: MeterForm = {
-    meterCode: '', meterName: '', address: '', meterBrandId: '', meterTypeId: '',
+    meterCode: '', meterName: '', address: '', meterBrandId: '', meterTypeId: '', meterSubTypeId: '',
     loopId: '', siteId: '', buildingId: '', zoneId: '', ipAddress: '', portNumber: '',
     roomCode: '', roomName: '', phase: '', circuit: '', floor: '', status: 'Manual',
     parentMeterId: '', isActive: true,
@@ -266,6 +267,7 @@ const MetersPage: React.FC = () => {
             address: row.address?.toString() || '',
             meterBrandId: row.meter_brand_id?.toString() || '',
             meterTypeId: row.meter_type_id?.toString() || '',
+            meterSubTypeId: row.meter_sub_type_id?.toString() || '',
             loopId: row.loop_id?.toString() || '',
             siteId: row.site_id?.toString() || '',
             buildingId: row.building_id?.toString() || '',
@@ -295,6 +297,7 @@ const MetersPage: React.FC = () => {
                 address: form.address || null,
                 meterBrandId: form.meterBrandId ? parseInt(form.meterBrandId) : null,
                 meterTypeId: form.meterTypeId ? parseInt(form.meterTypeId) : null,
+                meterSubTypeId: form.meterSubTypeId ? parseInt(form.meterSubTypeId) : null,
                 loopId: form.loopId ? parseInt(form.loopId) : null,
                 siteId: form.siteId ? parseInt(form.siteId) : null,
                 buildingId: form.buildingId ? parseInt(form.buildingId) : null,
@@ -754,7 +757,7 @@ const MetersPage: React.FC = () => {
             render: (_: any, row: any) => (language === 'en' ? (row.building_name_en || row.building_name) : (row.building_name_th || row.building_name)) || '—',
         },
         { key: 'zone_name', title: t('โซน', 'Zone') },
-        { key: 'meter_type_name', title: t('ประเภท', 'Type') },
+        { key: 'meter_type_name', title: t('ประเภท', 'Type'), render: (_: any, row: any) => row.sub_type_name ? `${row.meter_type_name} / ${row.sub_type_name}` : (row.meter_type_name || '—') },
         {
             key: 'meter_brand_name', title: t('รุ่น', 'Model'),
             render: (v: string) => v ? <span className="badge badge-info">{v}</span> : '—',
@@ -1124,11 +1127,23 @@ const MetersPage: React.FC = () => {
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('ประเภทมิเตอร์', 'Meter Type')}</label>
-                        <select className="form-control" value={form.meterTypeId} onChange={e => setForm({ ...form, meterTypeId: e.target.value })}>
+                        <select className="form-control" value={form.meterTypeId} onChange={e => { setForm({ ...form, meterTypeId: e.target.value, meterSubTypeId: '' }); }}>
                             <option value="">— {t('เลือก', 'Select')} —</option>
                             {types.map(t => <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>)}
                         </select>
                     </div>
+                    <div className="form-group">
+                        <label className="form-label">{t('ประเภทย่อย', 'Sub Type')}</label>
+                        <select className="form-control" value={form.meterSubTypeId} onChange={e => setForm({ ...form, meterSubTypeId: e.target.value })}>
+                            <option value="">— {t('เลือก', 'Select')} —</option>
+                            {(types.find((t: any) => t.meter_type_id === parseInt(form.meterTypeId))?.sub_types || []).map((st: any) => (
+                                <option key={st.meter_sub_type_id} value={st.meter_sub_type_id}>{st.sub_type_name}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">{t('รุ่น', 'Model')}</label>
                         <select className="form-control" value={form.meterBrandId} onChange={e => setForm({ ...form, meterBrandId: e.target.value })}>

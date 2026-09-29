@@ -20,11 +20,11 @@ export class DashboardService {
         const floor = numberOrNull(queryParams.floor);
         const zoneId = numberOrNull(queryParams.zoneId);
 
-        // MDB scope: มิเตอร์ที่เป็นชนิด "MDB" ระบุจาก meter_type ชื่อ MDB (case-insensitive)
+        // MDB scope: มิเตอร์ที่เป็นชนิด "MDB" ระบุจาก meter_sub_type ชื่อ MDB (case-insensitive)
         //   mdb=only    → เอาเฉพาะมิเตอร์ MDB (หน้า /dashboard/mdb)
         //   mdb=exclude → ตัดมิเตอร์ MDB ออก (หน้า /dashboard/zone)
         const mdbScope = String(queryParams.mdb || '').toLowerCase();
-        const MDB_MATCH = `EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%')`;
+        const MDB_MATCH = `EXISTS (SELECT 1 FROM meter_sub_type mst2 WHERE mst2.meter_sub_type_id = m.meter_sub_type_id AND mst2.sub_type_name ILIKE '%MDB%')`;
         const mdbSql = mdbScope === 'only'
             ? ` AND ${MDB_MATCH}`
             : mdbScope === 'exclude'
@@ -100,7 +100,8 @@ export class DashboardService {
             )
             SELECT
                 m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name, m.address,
-                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status, m.is_active, m.meter_type_id,
+                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status, m.is_active, m.meter_type_id, m.meter_sub_type_id,
+                mt.meter_type_name, mst.sub_type_name,
                 s.site_name, b.building_name, z.zone_name,
                 COALESCE(latest_realtime.received_at, latest.date_keep) AS date_keep,
                 COALESCE(latest_realtime.device_datetime, latest_realtime.received_at, latest.date_keep) AS device_datetime,
@@ -141,6 +142,8 @@ export class DashboardService {
             LEFT JOIN sites s ON m.site_id = s.site_id
             LEFT JOIN buildings b ON m.building_id = b.building_id
             LEFT JOIN zones z ON m.zone_id = z.zone_id
+            LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
+            LEFT JOIN meter_sub_type mst ON m.meter_sub_type_id = mst.meter_sub_type_id
             LEFT JOIN latest ON latest.meter_id = m.meter_id
             LEFT JOIN latest_realtime ON latest_realtime.meter_id = m.meter_id
             LEFT JOIN day_start ON day_start.meter_id = m.meter_id
@@ -409,6 +412,9 @@ export class DashboardService {
             device: row.meter_name || row.meter_code || `Meter ${row.meter_id}`,
             type: '3P4W',
             meter_type_id: row.meter_type_id ? parseInt(row.meter_type_id, 10) : 1,
+            meter_type_name: row.meter_type_name || '',
+            meter_sub_type_id: row.meter_sub_type_id ? parseInt(row.meter_sub_type_id, 10) : null,
+            sub_type_name: row.sub_type_name || '',
             loop: row.loop_id || 1,
             pathIds: [
                 `site-${row.site_id || 'unknown'}`,
@@ -498,7 +504,7 @@ export class DashboardService {
             ? `AND d.date_keep >= NOW() - INTERVAL '30 days'`
             : `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
 
-        let whereClause = `WHERE m.meter_name ILIKE '%MDB%' ${dateFilter}`;
+        let whereClause = `WHERE EXISTS (SELECT 1 FROM meter_sub_type mst2 WHERE mst2.meter_sub_type_id = m.meter_sub_type_id AND mst2.sub_type_name ILIKE '%MDB%') ${dateFilter}`;
         if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
 
         const result = await query(
@@ -624,7 +630,7 @@ export class DashboardService {
         const filters: string[] = [
             `d.date_keep >= ($1::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
             `d.date_keep < ($2::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
-            `mt.meter_type_name ILIKE '%MDB%'`,
+            `mst.sub_type_name ILIKE '%MDB%'`,
             `m.is_active = true`,
         ];
         if (siteId) {
@@ -647,7 +653,7 @@ export class DashboardService {
                 SUM(COALESCE(d.energy_kw, 0)) AS kw
             FROM actual_meter_data d
             JOIN meter m ON m.meter_id = d.meter_id
-            JOIN meter_type mt ON mt.meter_type_id = m.meter_type_id
+            LEFT JOIN meter_sub_type mst ON mst.meter_sub_type_id = m.meter_sub_type_id
             WHERE ${filters.join(' AND ')}
             GROUP BY d.date_keep
             ORDER BY d.date_keep`,
@@ -774,7 +780,7 @@ export class DashboardService {
         const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
         const mdbScope = String(mdb || '').toLowerCase();
-        const MDB_MATCH = `(mt.meter_type_name ILIKE '%MDB%' OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        const MDB_MATCH = `EXISTS (SELECT 1 FROM meter_sub_type mst2 WHERE mst2.meter_sub_type_id = m.meter_sub_type_id AND mst2.sub_type_name ILIKE '%MDB%')`;
         if (mdbScope === 'only') {
             filters.push(MDB_MATCH);
         } else if (mdbScope === 'exclude') {
