@@ -9,8 +9,9 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, LineChart, Line, ComposedChart,
 } from 'recharts';
-import { dashboardApi, metersApi } from '../../api/client';
+import { dashboardApi, metersApi, sitesApi } from '../../api/client';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
+import { useAuth } from '../../contexts/AuthContext';
 
 /* ===========================================================================
    Energy Console — Dashboard พลังงาน
@@ -208,6 +209,25 @@ function latestAge(list: MeterData[], now: number): number | null {
 const fmt = (v: number, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const LEVEL_TH = ['สาขา', 'อาคาร', 'ชั้น', 'โซน', 'ห้อง'];
 const LEVEL_EN = ['BRANCH', 'BUILDING', 'FLOOR', 'ZONE', 'ROOM'];
+
+interface WaterTankMock {
+    id: string;
+    name: string;
+    level: number;
+    capacity: number;
+    status: 'normal' | 'low' | 'high';
+}
+const WATER_LEVELS = [74, 68, 91, 52, 17, 83, 64, 43];
+const makeWaterTanks = (siteId: number): WaterTankMock[] => WATER_LEVELS.map((base, index) => {
+    const level = Math.max(5, Math.min(96, base + ((siteId * 7 + index * 3) % 9) - 4));
+    return {
+        id: `${siteId}-${index + 1}`,
+        name: `TANK ${String(index + 1).padStart(2, '0')}`,
+        level,
+        capacity: 50,
+        status: level < 20 ? 'low' : level > 90 ? 'high' : 'normal',
+    };
+});
 
 const formatNodeName = (name: string, t: (th: string, en: string) => string) => {
     return name
@@ -1032,6 +1052,7 @@ interface ZoneDashboardProps {
 }
 const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     const { t, language } = useLanguage();
+    const { user } = useAuth();
     const [dashboardData, setDashboardData] = useState<ZoneDashboardPayload>({
         tree: [],
         meters: [],
@@ -1056,6 +1077,29 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     const [meterTypes, setMeterTypes] = useState<any[]>([]);
     const [filterTypeId, setFilterTypeId] = useState('');
     const [filterSubTypeId, setFilterSubTypeId] = useState('');
+    const isWater = variant === 'zone' && filterTypeId === '2';
+    const [waterSites, setWaterSites] = useState<{ id: number; name: string }[]>([]);
+    const [waterSitesError, setWaterSitesError] = useState(false);
+    const [waterSitesLoading, setWaterSitesLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isWater) return;
+        let active = true;
+        setWaterSitesLoading(true);
+        sitesApi.getAll({ limit: 200, activeOnly: true }).then((res) => {
+            if (!active) return;
+            const allowed = new Set(user?.sites?.map((site) => site.siteId) || []);
+            setWaterSites((res.data.data || [])
+                .filter((site: any) => user?.siteAccessMode === 'all' || allowed.has(site.site_id))
+                .map((site: any) => ({
+                    id: Number(site.site_id),
+                    name: language === 'en' ? site.site_name_en || site.site_name : site.site_name_th || site.site_name,
+                })));
+            setWaterSitesError(false);
+        }).catch(() => { if (active) setWaterSitesError(true); })
+            .finally(() => { if (active) setWaterSitesLoading(false); });
+        return () => { active = false; };
+    }, [isWater, language, user?.siteAccessMode, user?.sites]);
 
     const crumb = (active: boolean): React.CSSProperties => ({
         display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', border: 'none', cursor: 'pointer',
@@ -1092,6 +1136,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     })() : undefined;
 
     useEffect(() => {
+        if (isWater) { setLoading(false); return; }
         let mounted = true;
         const load = async () => {
             try {
@@ -1123,7 +1168,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
         const a = setInterval(load, 10000);
         const b = setInterval(() => setClock(Date.now()), 1000);
         return () => { mounted = false; clearInterval(a); clearInterval(b); };
-    }, [language, currentSiteId, currentBuildingId, currentFloor, currentZoneId, variant]);
+    }, [language, currentSiteId, currentBuildingId, currentFloor, currentZoneId, variant, isWater]);
 
     const now = clock;
     const metersUnder = (p: string[]) => {
@@ -1211,6 +1256,108 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     const th = (): React.CSSProperties => ({ padding: '8px 11px', fontWeight: 700, fontSize: 10.5, letterSpacing: 1 });
     const td = (): React.CSSProperties => ({ padding: '8px 11px' });
 
+    if (isWater) {
+        const waterSiteId = path[0] ? Number(path[0].replace('site-', '')) : null;
+        const selectedWaterSite = waterSites.find((site) => site.id === waterSiteId);
+        const visibleSites = selectedWaterSite ? [selectedWaterSite] : waterSites;
+        const siteRows = visibleSites.map((site) => {
+            const tanks = makeWaterTanks(site.id);
+            return {
+                ...site,
+                tanks,
+                volume: tanks.reduce((sum, tank) => sum + tank.capacity * tank.level / 100, 0),
+                alarms: tanks.filter((tank) => tank.status !== 'normal').length,
+            };
+        });
+        const allTanks = siteRows.flatMap((site) => site.tanks);
+        const waterVolume = siteRows.reduce((sum, site) => sum + site.volume, 0);
+        const waterAlarms = siteRows.reduce((sum, site) => sum + site.alarms, 0);
+        const averageLevel = allTanks.length ? Math.round(allTanks.reduce((sum, tank) => sum + tank.level, 0) / allTanks.length) : 0;
+        const trend = Array.from({ length: 24 }, (_, index) => ({
+            hour: `${String(index).padStart(2, '0')}:00`,
+            volume: Math.max(0, waterVolume - (23 - index) * 0.18 + Math.sin(index / 3) * 0.4),
+        }));
+        const waterStatus = (tank: WaterTankMock) => tank.status === 'normal' ? t('ปกติ', 'Normal') : tank.status === 'low' ? t('ระดับต่ำ', 'Low level') : t('ระดับสูง', 'High level');
+        const waterStatusColor = (tank: WaterTankMock) => tank.status === 'normal' ? C.green : tank.status === 'low' ? C.red : C.yellow;
+        const waterPanel: React.CSSProperties = { background: C.panel, border: `1px solid ${C.line}` };
+
+        return <div className="ec-grid" style={{ fontFamily: "'Noto Sans Thai', system-ui, sans-serif", background: C.bg, minHeight: 660, color: C.ink, paddingBottom: 24 }}>
+            <div style={{ background: C.bar, color: C.ink, display: 'flex', alignItems: 'stretch', borderBottom: `2px solid ${C.accent}`, marginBottom: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderRight: `1px solid ${C.line}` }}>
+                    <div style={{ width: 28, height: 28, border: `1px solid ${C.accent}`, display: 'grid', placeItems: 'center', color: C.accent }}><Droplet size={16} /></div>
+                    <div><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>DASHBOARD // METER</div>
+                        <div style={{ fontSize: 10, color: C.barSub }}>{t('ระบบติดตามระดับน้ำ · ข้อมูลตัวอย่าง', 'Water Tank Monitoring · Mock Data')}</div></div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontFamily: MONO, fontSize: 11.5, borderRight: `1px solid ${C.line}` }}><Activity size={14} style={{ marginRight: 6 }} />{t('สถานะปัจจุบัน', 'CURRENT STATUS')}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', borderLeft: `1px solid ${C.line}` }}>
+                    <select aria-label="Type List" value={filterTypeId} onChange={(event) => { setFilterTypeId(event.target.value); setFilterSubTypeId(''); setPath([]); }} style={{ fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`, background: C.panel, color: C.ink, minWidth: 140 }}>
+                        <option value="">{t('ทุกประเภท', 'All Types')}</option>
+                        {meterTypes.map((type: any) => <option key={type.meter_type_id} value={type.meter_type_id}>{type.meter_type_name}</option>)}
+                        {!meterTypes.some((type: any) => Number(type.meter_type_id) === 2) && <option value="2">Water</option>}
+                    </select>
+                    <select aria-label="Sub Type" disabled style={{ fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`, background: C.panel, color: C.sub, minWidth: 140 }}><option>{t('ทุก Sub Type', 'All Sub Types')}</option></select>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: '0 16px', color: C.barSub, fontFamily: MONO, fontSize: 11 }}>MOCK DATA</div>
+            </div>
+
+            <div style={{ ...waterPanel, margin: '0 16px 12px', padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 12 }}>
+                <button onClick={() => setPath([])} style={crumb(!selectedWaterSite)}><Home size={12} />{t('ทุกสาขา', 'All Sites')}</button>
+                {selectedWaterSite && <><span style={{ color: C.sub }}>/</span><button style={crumb(true)}>{selectedWaterSite.name}</button></>}
+                <span style={{ marginLeft: 'auto', color: C.sub }}>{t('ระดับ', 'LEVEL')}: <b style={{ color: C.accent }}>{selectedWaterSite ? 'WATER TANK METER' : t('สาขา', 'BRANCH')}</b></span>
+            </div>
+
+            {waterSitesError && <div style={{ ...waterPanel, margin: '0 16px 12px', padding: 12, color: C.red }}>{t('โหลดรายชื่อไซต์ไม่สำเร็จ', 'Could not load sites')}</div>}
+            {waterSitesLoading && <LoadingScreen inline theme={theme} />}
+            {!waterSitesLoading && !waterSitesError && waterSites.length === 0 && <div style={{ ...waterPanel, margin: '0 16px 12px', padding: 12 }}>{t('ไม่พบไซต์ที่เข้าถึงได้', 'No accessible sites found')}</div>}
+            {!waterSitesLoading && !waterSitesError && waterSites.length > 0 && <>
+                <div style={{ ...waterPanel, margin: '0 16px 16px', display: 'flex', flexWrap: 'wrap' }}>
+                    {[
+                        [t('ปริมาตรรวม · ตัวอย่าง', 'Total Volume · Mock'), `${fmt(waterVolume)} m³`],
+                        [t('ถังน้ำ', 'Tanks'), String(allTanks.length)],
+                        [t('ปกติ', 'Normal'), String(allTanks.length - waterAlarms)],
+                        [t('แจ้งเตือน', 'Alerts'), String(waterAlarms)],
+                        [t('ระดับเฉลี่ย', 'Average Level'), `${averageLevel}%`],
+                    ].map(([label, value]) => <div key={label} style={{ padding: '11px 18px', borderRight: `1px solid ${C.line}`, minWidth: 145, flex: 1 }}>
+                        <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, letterSpacing: .5 }}>{label}</div>
+                        <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: C.accent, marginTop: 3 }}>{value}</div>
+                    </div>)}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.55fr) minmax(0,1fr)', gap: 14, padding: '0 16px 16px' }}>
+                    <div style={{ minWidth: 0 }}>
+                        <Cap idx={selectedWaterSite ? '02' : '01'} en={selectedWaterSite ? 'WATER TANK METERS' : 'BRANCHES'} th={selectedWaterSite ? selectedWaterSite.name : t('เรียงมาก→น้อย', 'Sorted High → Low')} C={C} />
+                        {selectedWaterSite ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 10 }}>
+                            {allTanks.map((tank) => <div key={tank.id} style={{ ...waterPanel, borderTop: `2px solid ${waterStatusColor(tank)}`, padding: 12 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontWeight: 700, fontSize: 13 }}><span>{tank.name}</span><span style={{ color: waterStatusColor(tank), fontSize: 10 }}>{waterStatus(tank)}</span></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginTop: 12 }}>
+                                    <div aria-label={`${tank.level}%`} style={{ position: 'relative', width: 42, height: 76, border: `2px solid ${C.sub}`, borderRadius: 6, overflow: 'hidden', background: C.panel2, flexShrink: 0 }}><div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${tank.level}%`, background: 'linear-gradient(180deg,#43c9f7,#0873ce)' }} /></div>
+                                    <div><div style={{ color: C.accent, fontFamily: MONO, fontWeight: 700, fontSize: 23 }}>{tank.level}%</div><div style={{ color: C.sub, fontSize: 11 }}>{t('ระดับ', 'Level')}: {(tank.level * .04).toFixed(2)} m</div><div style={{ color: C.sub, fontSize: 11 }}>{t('ปริมาตร', 'Volume')}: {fmt(tank.capacity * tank.level / 100, 1)} m³</div><div style={{ color: C.sub, fontSize: 11 }}>{t('ข้อมูลตัวอย่าง', 'Mock data')}</div></div>
+                                </div>
+                                <div style={{ height: 4, background: C.panel2, marginTop: 12 }}><div style={{ width: `${tank.level}%`, height: '100%', background: waterStatusColor(tank) }} /></div>
+                            </div>)}
+                        </div> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
+                            {[...siteRows].sort((a, b) => sortDesc ? b.volume - a.volume : a.volume - b.volume).map((site) => <button key={site.id} className="ec-card" onClick={() => setPath([`site-${site.id}`])} style={{ ...waterPanel, textAlign: 'left', padding: 12, cursor: 'pointer', color: C.ink, borderTop: `2px solid ${site.alarms ? C.yellow : C.green}` }}>
+                                <div style={{ fontWeight: 700, fontSize: 13 }}>{site.name}</div><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 21, marginTop: 10 }}>{fmt(site.volume)} <span style={{ fontSize: 10, color: C.sub }}>m³</span></div><div style={{ color: C.sub, fontSize: 10, marginTop: 8 }}>{site.tanks.length} TANK · {site.alarms} {t('แจ้งเตือน', 'ALERTS')}</div>
+                            </button>)}
+                        </div>}
+                    </div>
+                    <div style={{ ...waterPanel, minWidth: 0, alignSelf: 'start' }}>
+                        <div style={{ padding: '10px 12px', background: C.panel2, display: 'flex', alignItems: 'center', gap: 8, fontFamily: MONO, fontSize: 11, fontWeight: 700 }}><Activity size={14} color={C.accent} />{t('สถานะปัจจุบัน · ข้อมูลตัวอย่าง', 'CURRENT STATUS · MOCK DATA')}<button onClick={() => setSortDesc((value) => !value)} style={{ marginLeft: 'auto', background: 'transparent', border: `1px solid ${C.line}`, color: C.accent, cursor: 'pointer' }}><ArrowUpDown size={12} /> m³</button></div>
+                        <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr style={{ background: C.panel2, color: C.sub, textAlign: 'left' }}><th style={th()}>#</th><th style={th()}>{selectedWaterSite ? 'TANK' : 'SITE'}</th><th style={th()}>m³</th><th style={th()}>{t('สถานะ', 'STATUS')}</th></tr></thead><tbody>
+                            {selectedWaterSite ? [...allTanks].sort((a, b) => sortDesc ? b.level - a.level : a.level - b.level).map((tank, index) => <tr key={tank.id} style={{ borderTop: `1px solid ${C.line}` }}><td style={td()}>{String(index + 1).padStart(2, '0')}</td><td style={td()}>{tank.name}</td><td style={td()}>{fmt(tank.capacity * tank.level / 100, 1)}</td><td style={{ ...td(), color: waterStatusColor(tank) }}>{waterStatus(tank)}</td></tr>)
+                                : [...siteRows].sort((a, b) => sortDesc ? b.volume - a.volume : a.volume - b.volume).map((site, index) => <tr key={site.id} style={{ borderTop: `1px solid ${C.line}`, cursor: 'pointer' }} onClick={() => setPath([`site-${site.id}`])}><td style={td()}>{String(index + 1).padStart(2, '0')}</td><td style={td()}>{site.name}</td><td style={td()}>{fmt(site.volume, 1)}</td><td style={{ ...td(), color: site.alarms ? C.yellow : C.green }}>{site.alarms ? `${site.alarms} ${t('แจ้งเตือน', 'alerts')}` : t('ปกติ', 'Normal')}</td></tr>)}
+                        </tbody></table></div>
+                    </div>
+                </div>
+
+                <div style={{ ...waterPanel, margin: '0 16px' }}>
+                    <div style={{ padding: '9px 14px', background: C.panel2, borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 8, alignItems: 'center', fontFamily: MONO, fontSize: 11 }}><Activity size={14} color={C.accent} /><b>WATER VOLUME TREND</b><span style={{ color: C.sub }}>· {t('ข้อมูลตัวอย่าง', 'Mock data')}</span><span style={{ marginLeft: 'auto', color: C.accent, fontWeight: 700 }}>{fmt(waterVolume)} m³</span></div>
+                    <div style={{ height: 190, padding: '12px 8px 4px' }}><ResponsiveContainer width="100%" height="100%"><LineChart data={trend}><CartesianGrid strokeDasharray="2 3" stroke={C.line} vertical={false} /><XAxis dataKey="hour" tick={{ fontSize: 10, fill: C.sub }} minTickGap={40} /><YAxis tick={{ fontSize: 10, fill: C.sub }} width={60} domain={['dataMin', 'dataMax']} /><Tooltip formatter={(value: any) => [`${fmt(Number(value))} m³`, t('ปริมาตร', 'Volume')]} /><Line dataKey="volume" stroke={C.accent} strokeWidth={2} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer></div>
+                </div>
+            </>}
+        </div>;
+    }
+
     return (
         <div className="ec-grid" style={{ fontFamily: "'Noto Sans Thai', system-ui, sans-serif", background: C.bg, minHeight: 660, color: C.ink }}>
             <style>{`
@@ -1246,12 +1393,13 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', borderLeft: `1px solid ${C.line}` }}>
-                    <select value={filterTypeId} onChange={e => { setFilterTypeId(e.target.value); setFilterSubTypeId(''); }} style={{
+                    <select value={filterTypeId} onChange={e => { setFilterTypeId(e.target.value); setFilterSubTypeId(''); setPath([]); setSelected(null); }} style={{
                         fontFamily: MONO, fontSize: 11, padding: '4px 8px', border: `1px solid ${C.line}`,
                         background: C.panel, color: C.ink, borderRadius: 0, cursor: 'pointer', minWidth: 140,
                     }}>
                         <option value="">{t('ทุกประเภท', 'All Types')}</option>
                         {meterTypes.map((t: any) => <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>)}
+                        {variant === 'zone' && !meterTypes.some((type: any) => Number(type.meter_type_id) === 2) && <option value="2">Water</option>}
                     </select>
                     <select
                         value={filterSubTypeId}
