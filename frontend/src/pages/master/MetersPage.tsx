@@ -140,6 +140,20 @@ const MetersPage: React.FC = () => {
     const [filterBuildingId, setFilterBuildingId] = useState('');
     const [filterZoneId, setFilterZoneId] = useState('');
 
+    // Search (searchInput = raw typing, search = debounced value sent to API)
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+
+    useEffect(() => {
+        const trimmed = searchInput.trim();
+        if (trimmed === search) return;
+        const timer = setTimeout(() => {
+            setSearch(trimmed);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchInput, search]);
+
     // Header manual entry selection
     const [allMetersForSelect, setAllMetersForSelect] = useState<any[]>([]);
     const [manualMeterSelectId, setManualMeterSelectId] = useState('');
@@ -164,12 +178,13 @@ const MetersPage: React.FC = () => {
             if (filterSiteId) params.siteId = filterSiteId;
             if (filterBuildingId) params.buildingId = filterBuildingId;
             if (filterZoneId) params.zoneId = filterZoneId;
+            if (search) params.search = search;
             const res = await metersApi.getAll(params);
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit, filterMeterTypeId, filterSiteId, filterBuildingId, filterZoneId]);
+    }, [page, limit, filterMeterTypeId, filterSiteId, filterBuildingId, filterZoneId, search]);
 
     const fetchLookups = useCallback(async () => {
         try {
@@ -984,6 +999,7 @@ const MetersPage: React.FC = () => {
                 loading={loading}
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
+                onSearch={setSearchInput}
                 onCreate={user?.role === 'admin' ? handleCreate : undefined}
                 createLabel={t('เพิ่มมิเตอร์', 'Add Meter')}
                 headerActions={

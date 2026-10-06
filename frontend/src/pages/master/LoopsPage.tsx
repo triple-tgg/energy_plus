@@ -37,15 +37,31 @@ const LoopsPage: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
 
+    // Search (searchInput = raw typing, search = debounced value sent to API)
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+
+    useEffect(() => {
+        const trimmed = searchInput.trim();
+        if (trimmed === search) return;
+        const timer = setTimeout(() => {
+            setSearch(trimmed);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchInput, search]);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await metersApi.getLoops({ page, limit });
+            const params: any = { page, limit };
+            if (search) params.search = search;
+            const res = await metersApi.getLoops(params);
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit]);
+    }, [page, limit, search]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
     useEffect(() => {
@@ -135,7 +151,7 @@ const LoopsPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title={t('ลูปการเชื่อมต่อ', 'Communication Loops')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มลูป', 'Add Loop')} />
+            <DataTable title={t('ลูปการเชื่อมต่อ', 'Communication Loops')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={setSearchInput} onCreate={handleCreate} createLabel={t('เพิ่มลูป', 'Add Loop')} />
 
             <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขลูป', 'Edit Loop') : t('เพิ่มลูปใหม่', 'Add New Loop')} size="md"
                 footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}

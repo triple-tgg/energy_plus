@@ -32,15 +32,31 @@ const BrandsPage: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
 
+    // Search (searchInput = raw typing, search = debounced value sent to API)
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+
+    useEffect(() => {
+        const trimmed = searchInput.trim();
+        if (trimmed === search) return;
+        const timer = setTimeout(() => {
+            setSearch(trimmed);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchInput, search]);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await metersApi.getBrands({ page, limit });
+            const params: any = { page, limit };
+            if (search) params.search = search;
+            const res = await metersApi.getBrands(params);
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit]);
+    }, [page, limit, search]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
     useEffect(() => {
@@ -115,7 +131,7 @@ const BrandsPage: React.FC = () => {
     return (
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
-            <DataTable title={t('รุ่นมิเตอร์', 'Meter Models')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onCreate={handleCreate} createLabel={t('เพิ่มรุ่น', 'Add Model')} />
+            <DataTable title={t('รุ่นมิเตอร์', 'Meter Models')} columns={columns} data={data} total={total} page={page} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(l) => { setLimit(l); setPage(1); }} onSearch={setSearchInput} onCreate={handleCreate} createLabel={t('เพิ่มรุ่น', 'Add Model')} />
 
             <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editId ? t('แก้ไขรุ่น', 'Edit Model') : t('เพิ่มรุ่นใหม่', 'Add New Model')} size="md"
                 footer={<div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}><button className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>{t('ยกเลิก', 'Cancel')}</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? t('กำลังบันทึก...', 'Saving...') : editId ? t('อัปเดต', 'Update') : t('สร้าง', 'Create')}</button></div>}

@@ -138,9 +138,21 @@ export class MetersService {
     // Brands
     async getBrands(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const countResult = await query(`SELECT COUNT(*) FROM meter_brand`);
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
+        let whereClause = 'WHERE 1=1';
+        const params: any[] = [];
+        if (search) {
+            params.push(`%${search}%`);
+            const p = `$${params.length}`;
+            whereClause += ` AND (meter_brand_name ILIKE ${p} OR COALESCE(model_name, '') ILIKE ${p} OR COALESCE(notes, '') ILIKE ${p})`;
+        }
+        const countResult = await query(`SELECT COUNT(*) FROM meter_brand ${whereClause}`, params);
         const total = parseInt(countResult.rows[0].count);
-        const result = await query(`SELECT * FROM meter_brand ORDER BY meter_brand_id LIMIT $1 OFFSET $2`, [limit, offset]);
+        params.push(limit, offset);
+        const result = await query(
+            `SELECT * FROM meter_brand ${whereClause} ORDER BY meter_brand_id LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
+        );
         return { data: result.rows, total, page, limit };
     }
     async createBrand(data: any) {
@@ -170,12 +182,23 @@ export class MetersService {
     async getTypes(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
         const activeOnly = queryParams.activeOnly === true || queryParams.activeOnly === 'true';
-        const whereClause = activeOnly ? 'WHERE mt.is_active = true' : '';
-        const countResult = await query(`SELECT COUNT(*) FROM meter_type mt ${whereClause}`);
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
+        let whereClause = 'WHERE 1=1';
+        const params: any[] = [];
+        if (activeOnly) whereClause += ' AND mt.is_active = true';
+        if (search) {
+            params.push(`%${search}%`);
+            const p = `$${params.length}`;
+            whereClause += ` AND (mt.meter_type_name ILIKE ${p} OR EXISTS (
+                SELECT 1 FROM meter_sub_type mst
+                WHERE mst.meter_type_id = mt.meter_type_id AND mst.is_active = true AND mst.sub_type_name ILIKE ${p}))`;
+        }
+        const countResult = await query(`SELECT COUNT(*) FROM meter_type mt ${whereClause}`, params);
         const total = parseInt(countResult.rows[0].count);
+        params.push(limit, offset);
         const typesResult = await query(
-            `SELECT * FROM meter_type mt ${whereClause} ORDER BY mt.meter_type_id LIMIT $1 OFFSET $2`,
-            [limit, offset]
+            `SELECT * FROM meter_type mt ${whereClause} ORDER BY mt.meter_type_id LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
         );
         // Fetch sub types for each type
         const subTypesResult = await query(
@@ -219,10 +242,21 @@ export class MetersService {
     async getSubTypes(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
         const { meterTypeId } = queryParams;
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
         const params: any[] = [];
         let whereClause = 'WHERE 1=1';
         if (meterTypeId) { params.push(parseInt(meterTypeId)); whereClause += ` AND mst.meter_type_id = $${params.length}`; }
-        const countResult = await query(`SELECT COUNT(*) FROM meter_sub_type mst ${whereClause}`, params);
+        if (search) {
+            params.push(`%${search}%`);
+            const p = `$${params.length}`;
+            whereClause += ` AND (mst.sub_type_name ILIKE ${p} OR COALESCE(mt.meter_type_name, '') ILIKE ${p})`;
+        }
+        const countResult = await query(
+            `SELECT COUNT(*) FROM meter_sub_type mst
+       LEFT JOIN meter_type mt ON mst.meter_type_id = mt.meter_type_id
+       ${whereClause}`,
+            params
+        );
         const total = parseInt(countResult.rows[0].count);
         params.push(limit, offset);
         const result = await query(
@@ -261,9 +295,21 @@ export class MetersService {
     // Loops
     async getLoops(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const countResult = await query(`SELECT COUNT(*) FROM loop`);
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
+        let whereClause = 'WHERE 1=1';
+        const params: any[] = [];
+        if (search) {
+            params.push(`%${search}%`);
+            const p = `$${params.length}`;
+            whereClause += ` AND (port_no::text ILIKE ${p} OR baudrate::text ILIKE ${p} OR parity::text ILIKE ${p} OR COALESCE(remark, '') ILIKE ${p})`;
+        }
+        const countResult = await query(`SELECT COUNT(*) FROM loop ${whereClause}`, params);
         const total = parseInt(countResult.rows[0].count);
-        const result = await query(`SELECT * FROM loop ORDER BY loop_id LIMIT $1 OFFSET $2`, [limit, offset]);
+        params.push(limit, offset);
+        const result = await query(
+            `SELECT * FROM loop ${whereClause} ORDER BY loop_id LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
+        );
         return { data: result.rows, total, page, limit };
     }
     async createLoop(data: any) {

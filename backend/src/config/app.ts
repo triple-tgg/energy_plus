@@ -11,7 +11,17 @@ export const createApp = (): Application => {
     const app = express();
 
     // Security
-    app.use(helmet());
+    // Deployment is served over plain HTTP (e.g. http://<ip>:23000), so disable
+    // HTTPS-forcing headers; otherwise browsers upgrade asset requests to https
+    // and the SPA renders a blank page.
+    app.use(helmet({
+        contentSecurityPolicy: {
+            directives: {
+                upgradeInsecureRequests: null,
+            },
+        },
+        strictTransportSecurity: false,
+    }));
 
     // CORS
     const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5175';

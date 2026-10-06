@@ -45,15 +45,31 @@ const SitesPage: React.FC = () => {
     // Success message
     const [successMsg, setSuccessMsg] = useState('');
 
+    // Search (searchInput = raw typing, search = debounced value sent to API)
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+
+    useEffect(() => {
+        const trimmed = searchInput.trim();
+        if (trimmed === search) return;
+        const timer = setTimeout(() => {
+            setSearch(trimmed);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchInput, search]);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await sitesApi.getAll({ page, limit });
+            const params: any = { page, limit };
+            if (search) params.search = search;
+            const res = await sitesApi.getAll(params);
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit]);
+    }, [page, limit, search]);
 
     const fetchSystemUsers = useCallback(async () => {
         try {
@@ -235,6 +251,7 @@ const SitesPage: React.FC = () => {
                 loading={loading}
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
+                onSearch={setSearchInput}
                 onCreate={handleCreate}
                 createLabel={t('เพิ่มไซต์', 'Add Site')}
             />
