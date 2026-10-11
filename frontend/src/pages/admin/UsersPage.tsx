@@ -40,8 +40,20 @@ const UsersPage: React.FC = () => {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
+    const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
+
+    // Debounce search: send to API 400ms after the user stops typing
+    useEffect(() => {
+        const trimmed = searchInput.trim();
+        if (trimmed === search) return;
+        const timer = setTimeout(() => {
+            setSearch(trimmed);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchInput, search]);
 
     // Groups list for dropdown
     const [groups, setGroups] = useState<any[]>([]);
@@ -347,7 +359,7 @@ const UsersPage: React.FC = () => {
                 loading={loading}
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
-                onSearch={(s: string) => { setSearch(s); setPage(1); }}
+                onSearch={setSearchInput}
                 onCreate={handleCreate}
                 createLabel={t('เพิ่มผู้ใช้งาน', 'Add User')}
             />

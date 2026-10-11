@@ -6,7 +6,7 @@ import { AppError } from '../../middleware/errorHandler';
 export class UsersService {
     async getUsers(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const search = queryParams.search || '';
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
 
         let whereClause = '';
         const params: any[] = [];
@@ -93,12 +93,21 @@ export class UsersService {
     // ===== Groups =====
     async getGroups(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
-        const countResult = await query(`SELECT COUNT(*) FROM group_user`);
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
+        let whereClause = 'WHERE 1=1';
+        const params: any[] = [];
+        if (search) {
+            params.push(`%${search}%`);
+            const p = `$${params.length}`;
+            whereClause += ` AND (group_name ILIKE ${p} OR COALESCE(description, '') ILIKE ${p})`;
+        }
+        const countResult = await query(`SELECT COUNT(*) FROM group_user ${whereClause}`, params);
         const total = parseInt(countResult.rows[0].count);
 
+        params.push(limit, offset);
         const result = await query(
-            `SELECT * FROM group_user ORDER BY group_id LIMIT $1 OFFSET $2`,
-            [limit, offset]
+            `SELECT * FROM group_user ${whereClause} ORDER BY group_id LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
         );
         return { data: result.rows, total, page, limit };
     }

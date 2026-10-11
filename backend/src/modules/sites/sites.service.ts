@@ -22,6 +22,12 @@ export class SitesService {
             accessParams.push(access.siteIds || []);
             filters.push(`site_id = ANY($${accessParams.length}::int[])`);
         }
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
+        if (search) {
+            accessParams.push(`%${search}%`);
+            const p = `$${accessParams.length}`;
+            filters.push(`(COALESCE(site_name, '') ILIKE ${p} OR COALESCE(site_name_th, '') ILIKE ${p} OR COALESCE(site_name_en, '') ILIKE ${p} OR COALESCE(site_address, '') ILIKE ${p})`);
+        }
         const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
         const countResult = await query(`SELECT COUNT(*) FROM sites ${whereClause}`, accessParams);
         const total = parseInt(countResult.rows[0].count);
@@ -150,6 +156,13 @@ export class BuildingsService {
         if (queryParams.activeOnly === true || queryParams.activeOnly === 'true') {
             filters.push('b.is_active = true');
             filters.push('s.site_status = true');
+        }
+        const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
+        if (search) {
+            params.push(`%${search}%`);
+            const p = `$${params.length}`;
+            filters.push(`(COALESCE(b.building_name, '') ILIKE ${p} OR COALESCE(b.building_name_th, '') ILIKE ${p} OR COALESCE(b.building_name_en, '') ILIKE ${p}
+                OR COALESCE(s.site_name, '') ILIKE ${p} OR COALESCE(s.site_name_th, '') ILIKE ${p} OR COALESCE(s.site_name_en, '') ILIKE ${p})`);
         }
         const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 

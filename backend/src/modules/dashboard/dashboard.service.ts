@@ -79,8 +79,7 @@ export class DashboardService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter mapped_meter
-                  ON mapped_meter.site_el::text = r.site_id::text
-                 AND mapped_meter.address::text = r.address_id::text
+                  ON (mapped_meter.site_el = r.channel OR (mapped_meter.site_el::text = r.site_id::text AND mapped_meter.address::text = r.address_id::text))
                  AND rmm.id IS NULL
                 WHERE COALESCE(rmm.meter_id, mapped_meter.meter_id) IS NOT NULL
                 ORDER BY COALESCE(rmm.meter_id, mapped_meter.meter_id), r.received_at DESC, r.id DESC
@@ -194,8 +193,7 @@ export class DashboardService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter mapped_meter
-                  ON mapped_meter.site_el::text = r.site_id::text
-                 AND mapped_meter.address::text = r.address_id::text
+                  ON (mapped_meter.site_el = r.channel OR (mapped_meter.site_el::text = r.site_id::text AND mapped_meter.address::text = r.address_id::text))
                  AND rmm.id IS NULL
                 JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, mapped_meter.meter_id)
                 WHERE r.received_at >= NOW() - INTERVAL '24 hours'
@@ -548,8 +546,7 @@ export class DashboardService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter fallback_meter
-                  ON fallback_meter.site_el::text = r.site_id::text
-                 AND fallback_meter.address::text = r.address_id::text
+                  ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
                  AND rmm.id IS NULL
             ),
             scoped AS (
@@ -721,8 +718,7 @@ export class DashboardService {
              AND rmm.is_active = true
              AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter fallback_meter
-              ON fallback_meter.site_el::text = r.site_id::text
-             AND fallback_meter.address::text = r.address_id::text
+              ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
              AND rmm.id IS NULL
         `;
 
@@ -804,8 +800,7 @@ export class DashboardService {
               AND rmm.is_active = true
               AND (rmm.channel IS NULL OR rmm.channel = r.channel)
              LEFT JOIN meter fallback_meter
-               ON fallback_meter.site_el::text = r.site_id::text
-              AND fallback_meter.address::text = r.address_id::text
+               ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
               AND rmm.id IS NULL
              JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, fallback_meter.meter_id)
              JOIN sites s ON s.site_id = m.site_id
