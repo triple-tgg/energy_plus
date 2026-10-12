@@ -78,6 +78,9 @@ interface ParsedMeter {
     ipAddress: string;
     portNumber: number | null;
     converter?: string;
+    multiply?: number | null;
+    externalMeterId?: string;
+    ipConverter?: string;
     previousKwh?: number | null;
     currentKwh?: number | null;
 }
@@ -583,9 +586,12 @@ const MetersPage: React.FC = () => {
         subaddress: ['subaddress', 'sub address', 'sub_address'],
         phase: ['phase', 'เฟส'],
         loop: ['loop no.', 'loop no', 'loop', 'ลูป', 'loop_no'],
-        ipAddress: ['ip address', 'ip converter', 'ip', 'ไอพี', 'ip_address'],
+        ipAddress: ['ip address', 'ip', 'ไอพี', 'ip_address'],
         portNumber: ['port', 'port number', 'พอร์ต', 'port_number'],
         converter: ['converter', 'datalogger', 'ตัวแปลง', 'data logger'],
+        multiply: ['multiply', 'multiplier', 'ตัวคูณ'],
+        externalMeterId: ['meter id', 'meter_id', 'meterid'],
+        ipConverter: ['ip converter', 'ip_converter', 'ipconverter'],
     };
 
     const parseSheetData = (sheet: any): ParsedMeter[] => {
@@ -601,15 +607,23 @@ const MetersPage: React.FC = () => {
             if (!Array.isArray(row)) continue;
             let matches = 0;
             const tempMap: Record<string, number> = {};
-            for (let cIdx = 0; cIdx < row.length; cIdx++) {
-                const cell = row[cIdx];
-                if (cell == null || cell === '') continue;
-                const cellStr = String(cell).trim().toLowerCase();
-                for (const [key, aliases] of Object.entries(headerAliases)) {
-                    if (aliases.some(a => a === cellStr || cellStr.startsWith(a))) {
-                        tempMap[key] = cIdx;
-                        matches++;
-                        break;
+            const usedCols = new Set<number>();
+            // Pass 1 = exact match, pass 2 = prefix match (exact always wins,
+            // e.g. "IP Converter" must not override "IP Address")
+            for (const exactOnly of [true, false]) {
+                for (let cIdx = 0; cIdx < row.length; cIdx++) {
+                    if (usedCols.has(cIdx)) continue;
+                    const cell = row[cIdx];
+                    if (cell == null || cell === '') continue;
+                    const cellStr = String(cell).trim().toLowerCase();
+                    for (const [key, aliases] of Object.entries(headerAliases)) {
+                        if (key in tempMap) continue;
+                        if (aliases.some(a => a === cellStr || (!exactOnly && cellStr.startsWith(a)))) {
+                            tempMap[key] = cIdx;
+                            usedCols.add(cIdx);
+                            matches++;
+                            break;
+                        }
                     }
                 }
             }
@@ -620,9 +634,12 @@ const MetersPage: React.FC = () => {
             }
         }
 
+        const headerFound = headerRowIdx !== -1;
         if (headerRowIdx === -1) {
             headerRowIdx = 0;
         }
+        // New (v2) columns: positional fallback only when no header row detected
+        const v2Idx = (idx: number) => (headerFound ? undefined : idx);
 
         const parsed: ParsedMeter[] = [];
         for (let rIdx = headerRowIdx + 1; rIdx < rows.length; rIdx++) {
@@ -647,6 +664,11 @@ const MetersPage: React.FC = () => {
 
             // Skip row if no essential meter identifying fields
             if (addrVal == null && siteElVal == null && meterModelVal == null && roomNameVal == null) {
+                continue;
+            }
+            // Skip placeholder rows (e.g. spare "5001_31_PM3" with no code / name / room)
+            const hasText = (v: any) => v != null && String(v).trim() !== '';
+            if (!hasText(getVal('meterCode', 12)) && !hasText(getVal('meterName', 13)) && !hasText(roomNameVal) && !hasText(getVal('roomCode', 8))) {
                 continue;
             }
 
@@ -674,6 +696,9 @@ const MetersPage: React.FC = () => {
                 ipAddress: getVal('ipAddress', 20) ? String(getVal('ipAddress', 20)).trim() : '',
                 portNumber: getVal('portNumber', 21) != null && getVal('portNumber', 21) !== '' ? Number(getVal('portNumber', 21)) : null,
                 converter: getVal('converter', 22) ? String(getVal('converter', 22)).trim() : '',
+                multiply: getVal('multiply', v2Idx(23)) != null && getVal('multiply', v2Idx(23)) !== '' && !isNaN(Number(getVal('multiply', v2Idx(23)))) ? Number(getVal('multiply', v2Idx(23))) : null,
+                externalMeterId: getVal('externalMeterId', v2Idx(24)) != null ? String(getVal('externalMeterId', v2Idx(24))).trim() : '',
+                ipConverter: getVal('ipConverter', v2Idx(25)) ? String(getVal('ipConverter', v2Idx(25))).trim() : '',
             });
         }
 
@@ -1010,26 +1035,26 @@ const MetersPage: React.FC = () => {
                                     'No.', 'Status', 'Circuit', 'Site', '(Site EL)', 'Building', 'Floor', 'Zone',
                                     'Room Code', 'Room Name', 'Meter Group', 'Meter Type', 'Meter Code', 'Meter Name',
                                     'Meter Model', 'Max kwh', 'Address', 'Subaddress', 'Phase', 'Loop No.',
-                                    'IP Address', 'Port', 'Converter'
+                                    'IP Address', 'Port', 'Converter', 'Multiply', 'Meter ID', 'IP Converter'
                                 ];
                                 const sampleRows = [
                                     [
-                                        1, 'Manual', 'Main MDB', 'Wanwanach Bakery', '1000_1', 'Building A', '1', 'Production',
+                                        1, 'Auto', 'Main MDB', 'Wanwanach Bakery', '5001_1_PM3-THD', 'Building A', '1', 'Production',
                                         'R-101', 'Main Pump Room', 'ส่วนกลาง', 'ELE', 'MTR-001', 'Main Production Meter',
                                         'MPR-45S', 5000, 1, 1, '3P4W', 1,
-                                        '192.168.1.100', 502, 'EL-300E(10)'
+                                        '192.168.1.100', 502, 'EL-300E(10)', 1, '4900000001', 'site.ddns.net'
                                     ],
                                     [
-                                        2, 'Manual', 'Sub Meter', 'Wanwanach Bakery', '1000_1', 'Building A', '1', 'Kitchen',
+                                        2, 'Auto', 'Sub Meter', 'Wanwanach Bakery', '5001_2_PM3', 'Building A', '1', 'Kitchen',
                                         'R-102', 'Oven Area', 'Kitchen Group', 'ELE', 'MTR-002', 'Oven Meter 1',
                                         'PM5110', 2000, 2, 2, '3P4W', 1,
-                                        '192.168.1.100', 502, 'EL-300E(10)'
+                                        '192.168.1.100', 502, 'EL-300E(10)', 1, '4900000002', 'site.ddns.net'
                                     ],
                                     [
-                                        3, 'Manual', 'Water Main', 'Wanwanach Bakery', '1000_1', 'Building A', '1', 'Outdoor',
+                                        3, 'Manual', 'Water Main', 'Wanwanach Bakery', '', 'Building A', '1', 'Outdoor',
                                         'W-001', 'Water Supply Tank', 'Utilities', 'WAT', 'WAT-001', 'Main Water Meter',
-                                        'WaterFlow-50', 500, 3, null, '1P2W', 1,
-                                        '192.168.1.100', 502, 'EL-300E(10)'
+                                        'WaterFlow-50', 500, null, null, '1P2W', 1,
+                                        '', null, '', 1, '', ''
                                     ]
                                 ];
 
@@ -1042,7 +1067,7 @@ const MetersPage: React.FC = () => {
                                     ['Status', 'สถานะมิเตอร์', 'Meter connection mode', 'Manual, Auto'],
                                     ['Circuit', 'วงจรไฟฟ้า / วัตถุประสงค์', 'Circuit / Panel identification', 'Main MDB, Sub Meter, Air Condition, Lighting'],
                                     ['Site', 'ชื่อไซต์ / โครงการ', 'Site Name (Auto-created if not exists)', 'วรรณวนัช เบเกอรี่, Headquarter'],
-                                    ['(Site EL)', 'รหัส Site EL สำหรับ Realtime Channel', 'Site EL code for Redis streaming', '1000_1, 1000, 2000'],
+                                    ['(Site EL)', 'Redis Channel ({siteID}_{addressID}_{datatype}) — ระบบเก็บ siteID_addressID เป็น Site EL และแยก datatype ไว้', 'Redis channel; datatype suffix is optional and stored separately', '5001_1_PM3-THD, 5001_2_PM3, 5001_1, 1000'],
                                     ['Building', 'ชื่ออาคาร', 'Building Name (Auto-created if not exists)', 'Building A, อาคารผลิต, Main Building'],
                                     ['Floor', 'ชั้น', 'Floor designation (text or number)', '1, 2, 3, G, B1, FL.1'],
                                     ['Zone', 'ชื่อโซน / พื้นที่', 'Zone Name (Auto-created if not exists)', 'Production, Kitchen, Office, Common Area'],
@@ -1054,13 +1079,16 @@ const MetersPage: React.FC = () => {
                                     ['Meter Name', 'ชื่อมิเตอร์', 'Meter display name', 'Main Production Meter, Oven Meter 1'],
                                     ['Meter Model', 'ยี่ห้อและรุ่นมิเตอร์', 'Model Name (Auto-created if not exists)', 'MPR-45S, PM5110, SDM630, M4M 30'],
                                     ['Max kwh', 'พิกัดกำลังไฟฟ้าสูงสุด (kWh)', 'Maximum kWh rating limit', '5000, 2000, 1000'],
-                                    ['Address', 'Modbus Address (ตัวเลข)', 'Modbus Slave ID / Address (1-247)', '1, 2, 3...'],
+                                    ['Address', 'Modbus Address (ตัวเลข) — เว้นว่างได้สำหรับมิเตอร์ Manual/ห้องว่าง', 'Modbus Slave ID / Address (1-247); may be blank', '1, 2, 3...'],
                                     ['Subaddress', 'Subaddress ย่อย (ถ้ามี)', 'Subaddress for multi-channel devices', '1, 2'],
                                     ['Phase', 'เฟสไฟฟ้า', 'Electrical Phase system', '3P4W, 3P3W, 1P2W, 3, 1'],
                                     ['Loop No.', 'หมายเลข Loop หรือ Port', 'Loop / Channel number', '1, 2'],
                                     ['IP Address', 'ไอพี Converter / Datalogger', 'Hardware Gateway IP address', '192.168.1.100'],
                                     ['Port', 'พอร์ตการสื่อสาร', 'Communication port (e.g. 502 Modbus TCP)', '502, 4001, 23'],
-                                    ['Converter', 'ชื่อรุ่นตัวแปลงสัญญาณ / Datalogger', 'Converter device model', 'EL-300E(10), USR-TCP232, Moxa']
+                                    ['Converter', 'ชื่อรุ่นตัวแปลงสัญญาณ / Datalogger', 'Converter device model', 'EL-300E(10), USR-TCP232, Moxa'],
+                                    ['Multiply', 'ตัวคูณ (CT ratio) — ปัจจุบันเก็บไว้อ้างอิง', 'Multiplier (stored for reference)', '1, 40, 80'],
+                                    ['Meter ID', 'รหัสมิเตอร์จากระบบภายนอก / การไฟฟ้า', 'External meter ID', '4901234567'],
+                                    ['IP Converter', 'Host/DDNS ของ Converter', 'Converter public host / DDNS', 'ke111pmt.ddns.net']
                                 ];
                                 const wsGuide = XLSX.utils.aoa_to_sheet([guideHeaders, ...guideRows]);
                                 wsGuide['!cols'] = [{ wch: 16 }, { wch: 42 }, { wch: 42 }, { wch: 45 }];

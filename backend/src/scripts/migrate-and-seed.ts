@@ -258,6 +258,10 @@ export async function migrateAndSeed(closePool: boolean = true) {
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS multiply DECIMAL(12,4) DEFAULT 1`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS external_meter_id VARCHAR(50)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS ip_converter VARCHAR(255)`);
+        await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS redis_datatype VARCHAR(30)`);
         await client.query(`ALTER TABLE meter ADD COLUMN IF NOT EXISTS meter_sub_type_id INTEGER REFERENCES meter_sub_type(meter_sub_type_id)`);
 
         // Actual Meter Data (15-min snapshot history)

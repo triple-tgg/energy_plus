@@ -22,6 +22,35 @@ const buildRealtimeChannel = (project: string, siteEl: number, loopNo: number | 
     return `${projectKey || 'project'}_${siteEl}_${loopKey}`;
 };
 
+/**
+ * Normalize the (Site EL) value of a meter.
+ * The import template may contain the full Redis channel incl. datatype ("5001_1_PM3-THD"), but
+ * meter.site_el must hold the base channel ("5001_1") because realtime readers join
+ * `meter.site_el = meter_data_realtime.channel`. The datatype is kept separately (redis_datatype).
+ *   "5001_1_PM3-THD" → { siteEl: "5001_1", datatype: "PM3-THD", address: "1" }
+ *   "5001_1"         → { siteEl: "5001_1", datatype: null,      address: "1" }
+ *   "1000"           → { siteEl: "1000",   datatype: null,      address: null } (address from its own column)
+ */
+export const normalizeSiteEl = (value: unknown): { siteEl: string | null; datatype: string | null; address: string | null } => {
+    const raw = value === null || value === undefined ? '' : String(value).trim();
+    if (!raw) return { siteEl: null, datatype: null, address: null };
+    const m = /^(\d+)_(\d+)(?:_([A-Za-z][\w-]*))?$/.exec(raw);
+    if (m) return { siteEl: `${m[1]}_${m[2]}`, datatype: m[3] ? m[3].toUpperCase() : null, address: m[2] };
+    return { siteEl: raw, datatype: null, address: null };
+};
+
+const optText = (value: unknown, max: number): string | null => {
+    if (value === null || value === undefined) return null;
+    const s = String(value).trim();
+    return s ? s.slice(0, max) : null;
+};
+
+const optNumber = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+};
+
 export class MetersService {
     async getMeters(queryParams: any) {
         const { page, limit, offset } = parsePagination(queryParams);
@@ -92,15 +121,18 @@ export class MetersService {
             );
         }
 
+        const el = normalizeSiteEl(data.siteEl);
         const result = await query(
             `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, meter_sub_type_id, loop_id,
        site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
-       phase, circuit, floor, status, parent_meter_id, site_el, created_by, created_on)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW()) RETURNING *`,
-            [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId, data.meterSubTypeId || null, data.loopId,
+       phase, circuit, floor, status, parent_meter_id, site_el, created_by, created_on,
+       redis_datatype, multiply, external_meter_id, ip_converter)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW(),$23,COALESCE($24,1),$25,$26) RETURNING *`,
+            [data.meterCode, data.meterName, data.address || el.address, data.meterBrandId, data.meterTypeId, data.meterSubTypeId || null, data.loopId,
             data.siteId, data.buildingId, data.zoneId, data.isActive ?? true, data.ipAddress, data.portNumber,
             data.roomCode, data.roomName, data.phase, data.circuit, data.floor,
-            data.status || 'Manual', data.parentMeterId || null, data.siteEl ?? null, data.createdBy]
+            data.status || 'Manual', data.parentMeterId || null, el.siteEl, data.createdBy,
+            el.datatype, optNumber(data.multiply), optText(data.externalMeterId, 50), optText(data.ipConverter, 255)]
         );
         await refreshMeterSubscriptions();
         return result.rows[0];
@@ -109,19 +141,24 @@ export class MetersService {
     async updateMeter(meterId: number, data: any) {
         // No quota check here: an existing meter already consumes quota whether active or not
 
+        const el = normalizeSiteEl(data.siteEl);
         const result = await query(
             `UPDATE meter SET meter_code=$1, meter_name=$2, address=$3, meter_brand_id=$4, meter_type_id=$5,
        meter_sub_type_id=$6, loop_id=$7, site_id=$8, building_id=$9, zone_id=$10, is_active=$11, ip_address=$12,
        port_number=$13, room_code=$14, room_name=$15, phase=$16, circuit=$17,
        floor=$18, status=$19, parent_meter_id=$20, last_modified_by=$21,
-       site_el=COALESCE($22, site_el), last_modified_on=NOW()
+       site_el=COALESCE($22, site_el),
+       redis_datatype=CASE WHEN $22::text IS NULL THEN redis_datatype ELSE $24 END,
+       multiply=COALESCE($25, multiply), external_meter_id=COALESCE($26, external_meter_id),
+       ip_converter=COALESCE($27, ip_converter), last_modified_on=NOW()
        WHERE meter_id=$23 RETURNING *`,
             [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId,
             data.meterSubTypeId || null, data.loopId,
             data.siteId, data.buildingId, data.zoneId, data.isActive, data.ipAddress, data.portNumber,
             data.roomCode, data.roomName, data.phase, data.circuit,
             data.floor, data.status || 'Manual', data.parentMeterId || null, data.modifiedBy,
-            data.siteEl ?? null, meterId]
+            el.siteEl, meterId, el.datatype,
+            optNumber(data.multiply), optText(data.externalMeterId, 50), optText(data.ipConverter, 255)]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Meter not found');
         await refreshMeterSubscriptions();
@@ -531,21 +568,24 @@ export class MetersService {
                 const savepointName = `sp_row_${i}`;
                 try {
                     await client.query(`SAVEPOINT ${savepointName}`);
+                    // Placeholder rows (only a Site EL / address, no meter identity) → skip
+                    const hasIdentity = [row.meterCode, row.meterName, row.roomName, row.roomCode]
+                        .some((v) => v !== null && v !== undefined && String(v).trim() !== '');
+                    if (!hasIdentity) {
+                        results.skipped++;
+                        await client.query(`RELEASE SAVEPOINT ${savepointName}`);
+                        continue;
+                    }
                     // Resolve lookups — auto-create if not found
                     const siteName = String(row.siteName || '').trim() || deriveSiteName(row.building || '') || 'Main Site';
                     const meterSite = siteName;
 
-                    // Store full siteEl string as unique key (e.g. "1021_1")
-                    let meterSiteEl: string | null = null;
-                    let derivedAddressFromEl: string | null = null;
-                    if (row.siteEl !== null && row.siteEl !== undefined && row.siteEl !== '') {
-                        const strEl = String(row.siteEl).trim();
-                        meterSiteEl = strEl;  // store full value as unique key
-                        if (strEl.includes('_')) {
-                            const [, aPart] = strEl.split('_');
-                            if (aPart) derivedAddressFromEl = aPart;
-                        }
-                    }
+                    // (Site EL) may be the full Redis channel ("5001_1_PM3-THD"): store the base channel
+                    // ("5001_1") as site_el and the datatype in redis_datatype.
+                    const el = normalizeSiteEl(row.siteEl);
+                    const meterSiteEl: string | null = el.siteEl;
+                    const rawSiteEl: string | null = optText(row.siteEl, 100);
+                    const derivedAddressFromEl: string | null = el.address;
 
                     const buildingName = String(row.building || '').trim() || 'Building 1';
                     const zoneName = String(row.zone || '').trim() || 'General Zone';
@@ -558,14 +598,10 @@ export class MetersService {
                     const meterBrandId = await getOrCreateMeterBrand(row.meterName || '', row.meterModel || '');
                     const loopId = await getOrCreateLoop(row.loop);
 
-                    // Address handling
-                    let modbusAddr = row.address !== null && row.address !== undefined && row.address !== ''
+                    // Address handling (no fake address: rows without Address / Site EL keep NULL)
+                    const modbusAddr: string | null = row.address !== null && row.address !== undefined && String(row.address).trim() !== ''
                         ? String(row.address).trim()
                         : derivedAddressFromEl;
-
-                    if (!modbusAddr) {
-                        modbusAddr = String(i + 1);
-                    }
 
                     // Meter Code generation if empty
                     let meterCode = String(row.meterCode || '').trim();
@@ -573,15 +609,20 @@ export class MetersService {
                         if (row.roomCode) {
                             meterCode = String(row.roomCode).trim();
                         } else {
-                            meterCode = `${siteName}_M${modbusAddr}`;
+                            meterCode = `${siteName}_M${modbusAddr ?? i + 1}`;
                         }
                     }
 
                     // Meter Name handling
                     let meterName = String(row.meterName || '').trim();
                     if (!meterName) {
-                        meterName = String(row.roomName || '').trim() || String(row.meterModel || '').trim() || `Meter ${modbusAddr}`;
+                        meterName = String(row.roomName || '').trim() || String(row.meterModel || '').trim() || `Meter ${modbusAddr ?? i + 1}`;
                     }
+
+                    // Template v2 columns (NULL when the column is absent → existing values are kept on update)
+                    const multiply = optNumber(row.multiply);
+                    const externalMeterId = optText(row.externalMeterId, 50);
+                    const ipConverter = optText(row.ipConverter, 255);
 
                     const ipAddr = row.ipAddress ? String(row.ipAddress).trim() : null;
                     const portNumber = row.portNumber ? Number(row.portNumber) : null;
@@ -614,11 +655,14 @@ export class MetersService {
                         }
                     }
 
-                    // Fallback: check by site_el as unique key (e.g. "1021_1")
+                    // Fallback: check by site_el as unique key (base "5001_1" or the raw value of older imports)
                     if (!existingId && meterSiteEl) {
                         const existing = await client.query(
-                            `SELECT meter_id FROM meter WHERE site_el = $1`,
-                            [meterSiteEl]
+                            `SELECT meter_id FROM meter
+                             WHERE (site_el = $1 OR site_el = $2)
+                               AND (POSITION('_' IN site_el) > 0 OR $3::text IS NULL OR address = $3::text)
+                             ORDER BY (site_el = $1) DESC LIMIT 1`,
+                            [meterSiteEl, rawSiteEl ?? meterSiteEl, modbusAddr]
                         );
                         if (existing.rows.length > 0) {
                             existingId = existing.rows[0].meter_id;
@@ -635,7 +679,10 @@ export class MetersService {
                                 site_id=$6, building_id=$7, zone_id=$8, ip_address=$9, port_number=$10,
                                 room_code=$11, room_name=$12, phase=$13, circuit=$14, floor=$15,
                                 site=$16, site_el=$17, meter_group=$18, max_kwh=$19, subaddress=$20,
-                                converter=$21, status=$22, last_modified_by=$23, last_modified_on=NOW()
+                                converter=$21, status=$22, last_modified_by=$23, last_modified_on=NOW(),
+                                address=COALESCE($25, address), redis_datatype=$26,
+                                multiply=COALESCE($27, multiply), external_meter_id=COALESCE($28, external_meter_id),
+                                ip_converter=COALESCE($29, ip_converter)
                              WHERE meter_id=$24`,
                             [
                                 meterCode,
@@ -662,6 +709,11 @@ export class MetersService {
                                 status,
                                 createdBy,
                                 existingId,
+                                modbusAddr,
+                                el.datatype,
+                                multiply,
+                                externalMeterId,
+                                ipConverter,
                             ]
                         );
                         results.updated++;
@@ -672,13 +724,15 @@ export class MetersService {
                                 meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
                                 site_id, building_id, zone_id, is_active, ip_address, port_number,
                                 room_code, room_name, phase, circuit, floor, site, site_el,
-                                meter_group, max_kwh, subaddress, converter, status, created_by, created_on
+                                meter_group, max_kwh, subaddress, converter, status, created_by, created_on,
+                                redis_datatype, multiply, external_meter_id, ip_converter
                              )
                              VALUES (
                                 $1, $2, $3, $4, $5, $6,
                                 $7, $8, $9, true, $10, $11,
                                 $12, $13, $14, $15, $16, $17, $18,
-                                $19, $20, $21, $22, $23, $24, NOW()
+                                $19, $20, $21, $22, $23, $24, NOW(),
+                                $25, COALESCE($26, 1), $27, $28
                              )
                              RETURNING meter_id`,
                             [
@@ -706,14 +760,18 @@ export class MetersService {
                                 converter,
                                 status,
                                 createdBy,
+                                el.datatype,
+                                multiply,
+                                externalMeterId,
+                                ipConverter,
                             ]
                         );
                         savedMeterId = inserted.rows[0]?.meter_id || null;
                         results.imported++;
                     }
 
-                    if (savedMeterId && row.siteEl && modbusAddr !== null) {
-                        const strEl = String(row.siteEl).trim();
+                    if (savedMeterId && meterSiteEl) {
+                        const strEl = meterSiteEl;
                         // Redis base channel ({siteID}_{addressID}) — the same key ingest writes to
                         // meter_data_realtime.channel, so readers can join on it directly.
                         const meterKey = toMeterKey(strEl, modbusAddr);
@@ -721,7 +779,7 @@ export class MetersService {
                         const realtimeSiteId = keyMatch
                             ? parseInt(keyMatch[1], 10)
                             : parseInt(strEl.includes('_') ? strEl.split('_')[0] : strEl, 10);
-                        const realtimeAddressId = keyMatch ? parseInt(keyMatch[2], 10) : Number(modbusAddr);
+                        const realtimeAddressId = keyMatch ? parseInt(keyMatch[2], 10) : Number(modbusAddr ?? NaN);
                         const realtimeChannel = meterKey || buildRealtimeChannel(siteName, realtimeSiteId, row.loop);
                         if (Number.isFinite(realtimeSiteId) && Number.isFinite(realtimeAddressId)) {
                             await client.query(

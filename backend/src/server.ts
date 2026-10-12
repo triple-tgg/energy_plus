@@ -142,6 +142,11 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
+        // Import template v2 columns: Multiply, Meter ID, IP Converter; datatype suffix of (Site EL)
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS multiply DECIMAL(12,4) DEFAULT 1`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS external_meter_id VARCHAR(50)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS ip_converter VARCHAR(255)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS redis_datatype VARCHAR(30)`);
 
         await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_th VARCHAR(200)`);
         await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_en VARCHAR(200)`);
