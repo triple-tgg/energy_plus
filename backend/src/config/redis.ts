@@ -54,13 +54,33 @@ export const connectRedis = async (): Promise<void> =>
 
 /**
  * Disconnect both Redis clients (graceful shutdown)
+ * Each step is time-boxed: with only pattern subscriptions, a bare UNSUBSCRIBE may never resolve
+ * in node-redis v5, which used to block shutdown.
  */
+const settleWithin = async (promise: Promise<unknown>, ms: number): Promise<boolean> =>
+{
+    let timer: NodeJS.Timeout | undefined;
+    try {
+        return await Promise.race([
+            promise.then(() => true),
+            new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), ms); }),
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+};
+
+const closeClient = async (client: RedisClientType): Promise<void> =>
+{
+    if (!client.isOpen) return;
+    if (!(await settleWithin(client.close(), 3000))) client.destroy();
+};
+
 export const disconnectRedis = async (): Promise<void> =>
 {
     try {
-        await subClient.unsubscribe();
-        await subClient.quit();
-        await pubClient.quit();
+        await closeClient(subClient);
+        await closeClient(pubClient);
         console.log('🔌 Redis connections closed');
     } catch (error: any) {
         console.error('❌ Error disconnecting Redis:', error.message);

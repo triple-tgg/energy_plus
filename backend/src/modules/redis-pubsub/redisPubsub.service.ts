@@ -1,30 +1,66 @@
 import { Response } from 'express';
 import { pubClient, subClient, REDIS_ENABLED } from '../../config/redis';
 import pool from '../../config/database';
+import { RouteResult, routeMessage } from './ingest/handlers';
+import { ensureRealtimeIngestSchema } from './ingest/schema';
+
+/**
+ * Also SUBSCRIBE legacy `{site}_{address}` channels (payload without datatype → PM3).
+ * Publishers now use `{site}_{address}_{datatype}`, so this is off by default.
+ */
+const REDIS_SUBSCRIBE_LEGACY = process.env.REDIS_SUBSCRIBE_LEGACY === 'true';
 
 // Track SSE clients per channel
 const sseClientsMap: Map<string, Set<Response>> = new Map();
 const subscribedChannels = new Set<string>();
+/** Legacy exact meter channels `{site}_{address}` whose messages are persisted. */
 const meterChannels = new Set<string>();
+/** Meter patterns `{site}_{address}_*` whose messages are persisted. */
+const meterPatterns = new Set<string>();
 let syncPromise: Promise<void> | null = null;
 
-const handleRedisMessage = (channel: string) => async (message: string): Promise<void> => {
-    if (meterChannels.has(channel)) {
-        await saveMeterDataToDb(channel, message);
+const broadcast = (sseChannel: string, payload: Record<string, unknown>): void => {
+    const clients = sseClientsMap.get(sseChannel);
+    if (!clients || clients.size === 0) return;
+    const data = `data: ${JSON.stringify(payload)}\n\n`;
+    for (const client of clients) {
+        client.write(data);
     }
+};
 
-    const data = `data: ${JSON.stringify({ channel, message })}\n\n`;
-    const clients = sseClientsMap.get(channel);
-    if (clients) {
-        for (const client of clients) {
-            client.write(data);
-        }
+const persist = async (channel: string, message: string): Promise<RouteResult | undefined> => {
+    try {
+        return await routeMessage(channel, message);
+    } catch (error: any) {
+        console.error(`❌ Redis ingest error on ${channel}:`, error.message);
+        return undefined;
+    }
+};
+
+const datatypeOf = (result?: RouteResult): string | undefined =>
+    result && result.status !== 'invalid' ? result.header.datatype : undefined;
+
+/** Exact-channel subscriptions: SSE clients and legacy meter channels. */
+const handleChannelMessage = async (message: string, channel: string): Promise<void> => {
+    const result = meterChannels.has(channel) ? await persist(channel, message) : undefined;
+    broadcast(channel, { channel, message, datatype: datatypeOf(result) });
+};
+
+/**
+ * Meter pattern subscriptions (`{meterChannel}_*`): persist via the datatype router, then
+ * forward to SSE clients of the base channel (e.g. "1005_1"). Clients subscribed to the
+ * exact channel already receive it through their own SUBSCRIBE.
+ */
+const handlePatternMessage = async (message: string, channel: string): Promise<void> => {
+    const result = await persist(channel, message);
+    if (result && result.status !== 'invalid' && result.header.baseChannel !== channel) {
+        broadcast(result.header.baseChannel, { channel, message, datatype: result.header.datatype });
     }
 };
 
 const ensureRedisSubscription = async (channel: string): Promise<void> => {
     if (subscribedChannels.has(channel)) return;
-    await subClient.subscribe(channel, handleRedisMessage(channel));
+    await subClient.subscribe(channel, handleChannelMessage);
     subscribedChannels.add(channel);
     console.log(`📡 Redis subscribed to channel: ${channel}`);
 };
@@ -121,94 +157,79 @@ export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?
 
 
 /**
- * Save meter data from Redis message to database
+ * Meter channel key (without datatype) from meter.site_el / meter.address.
+ * meter.site_el holds the Redis channel of the meter (readers join `r.channel = m.site_el`):
+ *   "1005_1"        → "1005_1"   (normal)
+ *   "1005_1_PM3"    → "1005_1"   (datatype suffix entered by mistake → stripped)
+ *   "1005" + addr 1 → "1005_1"   (older rows: site number only, address in its own column)
+ *   "1021_10_55"    → "1021_10_55" (other numeric forms kept as-is)
  */
-const saveMeterDataToDb = async (channel: string, message: string): Promise<void> => {
-    try {
-        const data = JSON.parse(message);
-        const dataChannel = data.channel ?? data.Channel ?? channel;
-
-        await pool.query(
-            `INSERT INTO meter_data_realtime (
-                channel, site_id, address_id, device, code, type,
-                vl1, vl2, vl3, vl12, vl23, vl31,
-                il1, il2, il3,
-                kw1, kw2, kw3, kw_3ph,
-                kvar1, kvar2, kvar3, kvar_3ph,
-                kva1, kva2, kva3, kva_3ph,
-                pf1, pf2, pf3,
-                hz, import_kwhr,
-                device_datetime, raw_json
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6,
-                $7, $8, $9, $10, $11, $12,
-                $13, $14, $15,
-                $16, $17, $18, $19,
-                $20, $21, $22, $23,
-                $24, $25, $26, $27,
-                $28, $29, $30,
-                $31, $32,
-                $33, $34
-            )`,
-            [
-                dataChannel,
-                data.siteID ?? null,
-                data.addressID ?? null,
-                data.device ?? null,
-                data.code ?? null,
-                data.type ?? null,
-                data.VL1 ?? 0, data.VL2 ?? 0, data.VL3 ?? 0,
-                data.VL12 ?? 0, data.VL23 ?? 0, data.VL31 ?? 0,
-                data.IL1 ?? 0, data.IL2 ?? 0, data.IL3 ?? 0,
-                data.KW1 ?? 0, data.KW2 ?? 0, data.KW3 ?? 0, data.KW_3Ph ?? 0,
-                data.KVar1 ?? 0, data.KVar2 ?? 0, data.KVar3 ?? 0, data.KVar_3Ph ?? 0,
-                data.KVA1 ?? 0, data.KVA2 ?? 0, data.KVA3 ?? 0, data.KVA_3Ph ?? 0,
-                data.PF1 ?? 0, data.PF2 ?? 0, data.PF3 ?? 0,
-                data.Hz ?? 0,
-                data.Import_KWhr ?? 0,
-                data.datetime ? new Date(data.datetime) : new Date(),
-                JSON.stringify(data),
-            ]
-        );
-    } catch (error: any) {
-        console.error('❌ Failed to save meter data to DB:', error.message);
+export const toMeterKey = (siteEl: unknown, address: unknown): string | null => {
+    const el = String(siteEl ?? '').trim();
+    if (!el) return null;
+    if (/^\d+$/.test(el)) {
+        const addr = String(address ?? '').trim();
+        return /^\d+$/.test(addr) ? `${el}_${Number(addr)}` : null;
     }
+    const withDatatype = /^(\d+_\d+)_[A-Za-z].*$/.exec(el);
+    if (withDatatype) return withDatatype[1];
+    return /^[\w-]+$/.test(el) ? el : null;
 };
 
 /**
- * Auto-subscribe to channels derived from the Meter table on server startup.
- * Reads all active meters' site_el + address, builds channel names like "1000_1",
- * and subscribes to each unique channel.
- * Messages will be saved to database and broadcast to SSE clients.
- * Called from server.ts if REDIS_AUTO_SUBSCRIBE=true
+ * Reconcile Redis subscriptions with active meters.
+ * - PSUBSCRIBE `{meterChannel}_*` per meter (publisher format `{site}_{address}_{datatype}`)
+ * - SUBSCRIBE `{meterChannel}` per meter when REDIS_SUBSCRIBE_LEGACY=true
+ * Messages are persisted through the datatype router and broadcast to SSE clients.
+ * Called on startup, after meter writes, and periodically (REDIS_SUBSCRIPTION_SYNC_MS).
  */
 export const syncMeterSubscriptions = async (): Promise<void> => {
     if (!REDIS_ENABLED || !subClient.isReady) return;
     if (syncPromise) return syncPromise;
 
     syncPromise = (async () => {
+        await ensureRealtimeIngestSchema();
+
         const result = await pool.query(
-            `SELECT DISTINCT m.site_el
+            `SELECT DISTINCT m.site_el::text AS site_el, m.address::text AS address
              FROM meter m
              JOIN sites s ON s.site_id = m.site_id
              WHERE m.site_el IS NOT NULL
-               AND TRIM(m.site_el) != ''
+               AND TRIM(m.site_el::text) != ''
                AND m.is_active = true
-               AND s.site_status = true
-             ORDER BY m.site_el`
+               AND s.site_status = true`
         );
-        const desired = new Set<string>(
-            result.rows
-                .map((row: any) => String(row.site_el).trim())
-                .filter((channel: string) => channel.length > 0)
-        );
+        const keys = new Set<string>();
+        for (const row of result.rows) {
+            const key = toMeterKey(row.site_el, row.address);
+            if (key) keys.add(key);
+        }
 
-        const added = [...desired].filter((channel) => !meterChannels.has(channel));
-        const removed = [...meterChannels].filter((channel) => !desired.has(channel));
+        // Patterns: {meterChannel}_*
+        const desiredPatterns = new Set([...keys].map((key) => `${key}_*`));
+        const addedPatterns = [...desiredPatterns].filter((p) => !meterPatterns.has(p));
+        const removedPatterns = [...meterPatterns].filter((p) => !desiredPatterns.has(p));
+        for (const pattern of addedPatterns) {
+            meterPatterns.add(pattern);
+            try {
+                await subClient.pSubscribe(pattern, handlePatternMessage);
+            } catch (error) {
+                meterPatterns.delete(pattern);
+                throw error;
+            }
+        }
+        for (const pattern of removedPatterns) {
+            await subClient.pUnsubscribe(pattern);
+            meterPatterns.delete(pattern);
+        }
 
+        // Legacy exact channels: {meterChannel}
+        const desiredLegacy = REDIS_SUBSCRIBE_LEGACY ? keys : new Set<string>();
+        const addedLegacy = [...desiredLegacy].filter((channel) => !meterChannels.has(channel));
+        const removedLegacy = [...meterChannels].filter((channel) => !desiredLegacy.has(channel));
         // Mark first so messages arriving immediately after SUBSCRIBE are persisted.
-        added.forEach((channel) => meterChannels.add(channel));
-        for (const channel of added) {
+        addedLegacy.forEach((channel) => meterChannels.add(channel));
+        for (const channel of addedLegacy) {
             try {
                 await ensureRedisSubscription(channel);
             } catch (error) {
@@ -216,8 +237,7 @@ export const syncMeterSubscriptions = async (): Promise<void> => {
                 throw error;
             }
         }
-
-        for (const channel of removed) {
+        for (const channel of removedLegacy) {
             meterChannels.delete(channel);
             const hasSseClients = (sseClientsMap.get(channel)?.size ?? 0) > 0;
             if (!hasSseClients && subscribedChannels.has(channel)) {
@@ -227,8 +247,12 @@ export const syncMeterSubscriptions = async (): Promise<void> => {
             }
         }
 
-        if (added.length || removed.length) {
-            console.log(`📡 Meter subscriptions synced (+${added.length}, -${removed.length}, total ${meterChannels.size})`);
+        const changed = addedPatterns.length + removedPatterns.length + addedLegacy.length + removedLegacy.length;
+        if (changed) {
+            console.log(
+                `📡 Meter subscriptions synced: patterns +${addedPatterns.length}/-${removedPatterns.length} (total ${meterPatterns.size})` +
+                (REDIS_SUBSCRIBE_LEGACY ? `, legacy +${addedLegacy.length}/-${removedLegacy.length} (total ${meterChannels.size})` : '')
+            );
         }
     })().finally(() => {
         syncPromise = null;

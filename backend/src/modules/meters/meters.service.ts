@@ -1,7 +1,7 @@
 import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
-import { syncMeterSubscriptions } from '../redis-pubsub/redisPubsub.service';
+import { syncMeterSubscriptions, toMeterKey } from '../redis-pubsub/redisPubsub.service';
 import { licenseService } from '../license/license.service';
 
 const refreshMeterSubscriptions = async (): Promise<void> => {
@@ -714,9 +714,15 @@ export class MetersService {
 
                     if (savedMeterId && row.siteEl && modbusAddr !== null) {
                         const strEl = String(row.siteEl).trim();
-                        const realtimeSiteId = parseInt(strEl.includes('_') ? strEl.split('_')[0] : strEl, 10);
-                        const realtimeAddressId = Number(modbusAddr);
-                        const realtimeChannel = buildRealtimeChannel(siteName, realtimeSiteId, row.loop);
+                        // Redis base channel ({siteID}_{addressID}) — the same key ingest writes to
+                        // meter_data_realtime.channel, so readers can join on it directly.
+                        const meterKey = toMeterKey(strEl, modbusAddr);
+                        const keyMatch = meterKey ? /^(\d+)_(\d+)$/.exec(meterKey) : null;
+                        const realtimeSiteId = keyMatch
+                            ? parseInt(keyMatch[1], 10)
+                            : parseInt(strEl.includes('_') ? strEl.split('_')[0] : strEl, 10);
+                        const realtimeAddressId = keyMatch ? parseInt(keyMatch[2], 10) : Number(modbusAddr);
+                        const realtimeChannel = meterKey || buildRealtimeChannel(siteName, realtimeSiteId, row.loop);
                         if (Number.isFinite(realtimeSiteId) && Number.isFinite(realtimeAddressId)) {
                             await client.query(
                                 `UPDATE realtime_meter_map

@@ -223,6 +223,28 @@ export const realtimeApi = {
     getChannels: () => api.get('/redis/channels'),
 };
 
+// Power Quality (Harmonic dashboard)
+export type PowerQualitySourceParams = { siteId: number; addressId: number };
+export const powerQualityApi = {
+    getSources: (params?: { days?: number }) => api.get('/redis/power-quality/sources', { params }),
+    getLatest: (params: PowerQualitySourceParams) => api.get('/redis/power-quality/latest', { params }),
+    getHarmonicsHistory: (params: PowerQualitySourceParams & { datatype: string; hours?: number }) =>
+        api.get('/redis/power-quality/harmonics-history', { params }),
+    getThdHistory: (params: PowerQualitySourceParams & { hours?: number }) =>
+        api.get('/redis/power-quality/thd-history', { params }),
+};
+
+// Redis channel auto-discovery (Admin)
+export const redisDiscoveryApi = {
+    list: () => api.get('/redis/discovery'),
+    summary: () => api.get('/redis/discovery/summary'),
+    sample: (channel: string) => api.get('/redis/discovery/sample', { params: { channel } }),
+    searchMeters: (q: string) => api.get('/redis/discovery/meters', { params: { q } }),
+    link: (baseChannel: string, meterId: number) => api.post('/redis/discovery/link', { baseChannel, meterId }),
+    unlink: (meterId: number) => api.post('/redis/discovery/unlink', { meterId }),
+    ignore: (baseChannel: string, ignored: boolean) => api.post('/redis/discovery/ignore', { baseChannel, ignored }),
+};
+
 // Data Cleanup (Admin)
 export const dataCleanupApi = {
     getRealtimeStats: () => api.get('/data-cleanup/realtime-stats'),
