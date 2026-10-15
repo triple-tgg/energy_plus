@@ -207,6 +207,21 @@ function latestAge(list: MeterData[], now: number): number | null {
     return Math.round((now - Math.max(...active.map((m) => m.received_at))) / 1000);
 }
 const fmt = (v: number, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+/** ลดขนาดตัวเลขตามความยาว เพื่อให้ค่าหลายหลัก (10+ หลัก) ไม่ล้นกรอบการ์ด */
+const fitFontSize = (text: string, base: number) => {
+    const len = text.length;
+    if (len <= 10) return base;
+    if (len <= 13) return Math.round(base * 0.82);
+    if (len <= 16) return Math.round(base * 0.68);
+    return Math.round(base * 0.58);
+};
+/** แปลงหน่วยพลังงานอัตโนมัติ: ≥ 1,000,000 kWh → MWh, ≥ 1,000,000,000 kWh → GWh */
+const fmtEnergy = (kwh: number) => {
+    const abs = Math.abs(kwh);
+    if (abs >= 1e9) return { value: fmt(kwh / 1e6), unit: 'GWh' };
+    if (abs >= 1e6) return { value: fmt(kwh / 1e3), unit: 'MWh' };
+    return { value: fmt(kwh), unit: 'kWh' };
+};
 const LEVEL_TH = ['สาขา', 'อาคาร', 'ชั้น', 'โซน', 'ห้อง'];
 const LEVEL_EN = ['BRANCH', 'BUILDING', 'FLOOR', 'ZONE', 'ROOM'];
 
@@ -1225,10 +1240,11 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                     <span style={{ fontWeight: 600, fontSize: 13, color: C.ink }}>{it.node.name}</span>
                     <StatusDot s={it.status} pulse C={C} />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 10 }}>
-                    <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</span>
-                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>kWh</span>
-                </div>
+                {(() => { const e = fmtEnergy(it.kwh); return (
+                <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 4, marginTop: 10, minWidth: 0 }} title={`${fmt(it.kwh)} kWh`}>
+                    <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: fitFontSize(e.value, 22), fontWeight: 700, color: C.ink, overflowWrap: 'anywhere', minWidth: 0 }}>{e.value}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>{e.unit}</span>
+                </div>); })()}
                 <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10.5, color: C.sub, display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: 0.3 }}>
                     <span>{it.node.level === 'room' ? `${it.m!.device} · L${it.m!.loop}` : `${it.count} MTR`}</span>
                     {it.node.level === 'room'
@@ -1471,10 +1487,11 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                     <div style={{ display: 'flex', flexWrap: 'wrap', background: C.panel, borderBottom: `1px solid ${C.line}`, margin: '0 16px 16px', border: `1px solid ${C.line}` }}>
                         <div style={{ padding: '11px 18px', borderRight: `1px solid ${C.line}`, minWidth: 180 }}>
                             <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, textTransform: 'uppercase' }}>{t('รวม · งวดนี้', 'Total · This Period')}</div>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                                <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 24, fontWeight: 700, color: C.accent }}>{fmt(totalKwh)}</span>
-                                <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
-                            </div>
+                            {(() => { const e = fmtEnergy(totalKwh); return (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }} title={`${fmt(totalKwh)} kWh`}>
+                                <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: fitFontSize(e.value, 24), fontWeight: 700, color: C.accent, overflowWrap: 'anywhere' }}>{e.value}</span>
+                                <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>{e.unit}</span>
+                            </div>); })()}
                         </div>
                         {STATUS_ORDER.map((s) => (
                             <div key={s} style={{ padding: '11px 16px', borderRight: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 9, minWidth: 110 }}>

@@ -693,7 +693,6 @@ const RealtimePage: React.FC = () => {
     const [meters, setMeters] = useState<RealtimeMeterData[]>([]);
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
     const [chartMetric, setChartMetric] = useState<ChartMetric>('kw');
-    const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
     const [dbSyncStatus, setDbSyncStatus] = useState<'active' | 'syncing' | 'error'>('syncing');
     const [initialLoading, setInitialLoading] = useState(true);
     const [alerts, setAlerts] = useState<{ id: string; time: string; msg: string; type: 'warning' | 'danger' }[]>([]);
@@ -1037,49 +1036,6 @@ const RealtimePage: React.FC = () => {
         '#06B6D4', '#F97316', '#14B8A6', '#6366F1', '#D946EF', '#84CC16',
     ];
 
-    // Group active chart series by meter name so 3-phase meters can be toggled together in legend
-    const chartMeterGroups = React.useMemo(() => {
-        const map = new Map<string, { name: string; phase?: string; color: string }[]>();
-
-        activeChartSeries.forEach((seriesName, idx) => {
-            let baseMeter = seriesName;
-            let phase: string | undefined = undefined;
-
-            const phaseMatch = seriesName.match(/\s*\((L[123])\)$/);
-            if (phaseMatch) {
-                baseMeter = seriesName.replace(/\s*\((L[123])\)$/, '').trim();
-                phase = phaseMatch[1];
-            }
-
-            if (!map.has(baseMeter)) {
-                map.set(baseMeter, []);
-            }
-
-            const color = chartColors[idx % chartColors.length];
-            map.get(baseMeter)!.push({ name: seriesName, phase, color });
-        });
-
-        return Array.from(map.entries()).map(([meterLabel, series]) => ({
-            meterLabel,
-            series,
-        }));
-    }, [activeChartSeries, chartColors]);
-
-    const handleToggleMeterGroup = (group: { meterLabel: string; series: { name: string }[] }) => {
-        setHiddenSeries(prev => {
-            const next = new Set(prev);
-            const allHidden = group.series.every(s => next.has(s.name));
-            if (allHidden) {
-                // Unhide all phases of this meter
-                group.series.forEach(s => next.delete(s.name));
-            } else {
-                // Hide all phases of this meter
-                group.series.forEach(s => next.add(s.name));
-            }
-            return next;
-        });
-    };
-
     const selectedMetricInfo = CHART_METRICS.find(m => m.key === chartMetric)!;
 
     if (initialLoading) return <LoadingScreen theme={theme} />;
@@ -1390,58 +1346,6 @@ const RealtimePage: React.FC = () => {
                                         labelStyle={{ fontSize: 11, fontWeight: 'bold', color: C.sub, marginBottom: 4 }}
                                         formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value}
                                     />
-                                    <Legend
-                                        content={() => (
-                                            <div style={{
-                                                display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
-                                                gap: '8px 14px', paddingTop: 14, paddingBottom: 4,
-                                            }}>
-                                                {chartMeterGroups.map((group) => {
-                                                    const isHidden = group.series.every(s => hiddenSeries.has(s.name));
-                                                    return (
-                                                        <div
-                                                            key={group.meterLabel}
-                                                            onClick={() => handleToggleMeterGroup(group)}
-                                                            style={{
-                                                                display: 'flex', alignItems: 'center', gap: 6,
-                                                                cursor: 'pointer', userSelect: 'none',
-                                                                padding: '4px 10px',
-                                                                background: isHidden ? 'transparent' : (theme === 'light' ? '#f3f4f6' : '#1f2937'),
-                                                                border: `1px solid ${isHidden ? C.line : (theme === 'light' ? '#d1d5db' : '#374151')}`,
-                                                                borderRadius: '4px',
-                                                                opacity: isHidden ? 0.35 : 1,
-                                                                transition: 'all 0.2s',
-                                                            }}
-                                                            title={group.series.length > 1 ? `${group.meterLabel} (${t('รวม 3 เฟส L1, L2, L3', 'Combined 3-Phase L1, L2, L3')})` : group.meterLabel}
-                                                        >
-                                                            {/* Dots representing phases */}
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                                                {group.series.map(s => (
-                                                                    <span
-                                                                        key={s.name}
-                                                                        style={{
-                                                                            width: 8, height: 8, borderRadius: '50%',
-                                                                            background: isHidden ? C.sub : s.color,
-                                                                            display: 'inline-block',
-                                                                            transition: 'all 0.2s',
-                                                                        }}
-                                                                    />
-                                                                ))}
-                                                            </div>
-                                                            <span style={{
-                                                                fontFamily: MONO, fontSize: 11, fontWeight: 600,
-                                                                color: isHidden ? C.sub : C.ink,
-                                                                textDecoration: isHidden ? 'line-through' : 'none',
-                                                                transition: 'all 0.2s',
-                                                            }}>
-                                                                {group.meterLabel}
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    />
                                     {activeChartSeries.map((label, idx) => (
                                         <Area
                                             key={label}
@@ -1454,7 +1358,6 @@ const RealtimePage: React.FC = () => {
                                             strokeWidth={2}
                                             dot={false}
                                             activeDot={{ r: 4 }}
-                                            hide={hiddenSeries.has(label)}
                                         />
                                     ))}
                                 </AreaChart>

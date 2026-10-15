@@ -3,6 +3,11 @@ import { aggregationConfig } from '../../config/aggregation';
 import { parsePagination } from '../../utils/pagination';
 import { parseSiteIds } from '../../utils/siteFilter';
 
+// มิเตอร์ MDB = meter_sub_type ชื่อ MDB หรือ meter_type ชื่อ MDB (บางตัวตั้งแค่ meter_type ไม่มี sub type)
+// ต้องใช้กับ alias `m` (ตาราง meter)
+const MDB_METER_SQL = `(EXISTS (SELECT 1 FROM meter_sub_type mst_mdb WHERE mst_mdb.meter_sub_type_id = m.meter_sub_type_id AND mst_mdb.sub_type_name ILIKE '%MDB%')
+    OR EXISTS (SELECT 1 FROM meter_type mt_mdb WHERE mt_mdb.meter_type_id = m.meter_type_id AND mt_mdb.meter_type_name ILIKE '%MDB%'))`;
+
 const numberOrNull = (value: any): number | null => {
     if (value === undefined || value === null || value === '') return null;
     const parsed = Number(value);
@@ -21,11 +26,11 @@ export class DashboardService {
         const floor = numberOrNull(queryParams.floor);
         const zoneId = numberOrNull(queryParams.zoneId);
 
-        // MDB scope: มิเตอร์ที่เป็นชนิด "MDB" ระบุจาก meter_sub_type ชื่อ MDB (case-insensitive)
+        // MDB scope: มิเตอร์ที่เป็นชนิด "MDB" ระบุจาก meter_sub_type หรือ meter_type ชื่อ MDB (case-insensitive)
         //   mdb=only    → เอาเฉพาะมิเตอร์ MDB (หน้า /dashboard/mdb)
         //   mdb=exclude → ตัดมิเตอร์ MDB ออก (หน้า /dashboard/zone)
         const mdbScope = String(queryParams.mdb || '').toLowerCase();
-        const MDB_MATCH = `EXISTS (SELECT 1 FROM meter_sub_type mst2 WHERE mst2.meter_sub_type_id = m.meter_sub_type_id AND mst2.sub_type_name ILIKE '%MDB%')`;
+        const MDB_MATCH = MDB_METER_SQL;
         const mdbSql = mdbScope === 'only'
             ? ` AND ${MDB_MATCH}`
             : mdbScope === 'exclude'
@@ -512,7 +517,7 @@ export class DashboardService {
             ? `AND d.date_keep >= NOW() - INTERVAL '30 days'`
             : `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
 
-        let whereClause = `WHERE EXISTS (SELECT 1 FROM meter_sub_type mst2 WHERE mst2.meter_sub_type_id = m.meter_sub_type_id AND mst2.sub_type_name ILIKE '%MDB%') ${dateFilter}`;
+        let whereClause = `WHERE ${MDB_METER_SQL} ${dateFilter}`;
         const siteIds = parseSiteIds(siteId);
         if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
 
@@ -639,7 +644,7 @@ export class DashboardService {
         const filters: string[] = [
             `d.date_keep >= ($1::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
             `d.date_keep < ($2::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
-            `mst.sub_type_name ILIKE '%MDB%'`,
+            MDB_METER_SQL,
             `m.is_active = true`,
         ];
         const siteIds = parseSiteIds(siteId);
@@ -790,7 +795,7 @@ export class DashboardService {
         const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
         const mdbScope = String(mdb || '').toLowerCase();
-        const MDB_MATCH = `EXISTS (SELECT 1 FROM meter_sub_type mst2 WHERE mst2.meter_sub_type_id = m.meter_sub_type_id AND mst2.sub_type_name ILIKE '%MDB%')`;
+        const MDB_MATCH = MDB_METER_SQL;
         if (mdbScope === 'only') {
             filters.push(MDB_MATCH);
         } else if (mdbScope === 'exclude') {
