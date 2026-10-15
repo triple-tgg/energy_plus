@@ -217,6 +217,7 @@ const AlarmReportPage: React.FC = () => {
             </div>
 
             <FilterBar
+                defaultAllSites
                 onSubmit={handleFilterSubmit}
                 loading={loading}
                 showMeterType={false}

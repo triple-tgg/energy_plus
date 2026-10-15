@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { successResponse, errorResponse } from '../../utils/response';
+import { parseSiteIds } from '../../utils/siteFilter';
 import {
     subscribeChannel,
     publishMessage,
@@ -99,7 +100,7 @@ export const channels = async (req: Request, res: Response): Promise<void> => {
  */
 export const latest = async (req: Request, res: Response): Promise<void> => {
     try {
-        const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+        const siteId = parseSiteIds(req.query.siteId) ?? undefined;
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
         const floor = req.query.floor !== undefined && req.query.floor !== '' ? String(req.query.floor) : undefined;
         const zoneId = req.query.zoneId ? parseInt(req.query.zoneId as string) : undefined;
@@ -119,7 +120,7 @@ export const latest = async (req: Request, res: Response): Promise<void> => {
 export const realtimeHistory = async (req: Request, res: Response): Promise<void> => {
     try {
         const minutes = req.query.minutes ? parseInt(req.query.minutes as string) : 30;
-        const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+        const siteId = parseSiteIds(req.query.siteId) ?? undefined;
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
         const floor = req.query.floor !== undefined && req.query.floor !== '' ? String(req.query.floor) : undefined;
         const zoneId = req.query.zoneId ? parseInt(req.query.zoneId as string) : undefined;
@@ -134,7 +135,7 @@ export const realtimeHistory = async (req: Request, res: Response): Promise<void
 /** GET /alerts — unacknowledged alarms for the realtime panel. */
 export const realtimeAlerts = async (req: Request, res: Response): Promise<void> => {
     try {
-        const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+        const siteId = parseSiteIds(req.query.siteId) ?? undefined;
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
         const floor = req.query.floor !== undefined && req.query.floor !== '' ? String(req.query.floor) : undefined;
         const zoneId = req.query.zoneId ? parseInt(req.query.zoneId as string) : undefined;

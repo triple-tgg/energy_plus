@@ -1,5 +1,6 @@
 import { query } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
+import { parseSiteIds } from '../../utils/siteFilter';
 
 export class MeterDataService {
     async getRealtimeData(queryParams: any) {
@@ -7,7 +8,8 @@ export class MeterDataService {
         let whereClause = 'WHERE 1=1';
         const params: any[] = [];
 
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
         if (buildingId) { params.push(parseInt(buildingId)); whereClause += ` AND m.building_id = $${params.length}`; }
         if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); whereClause += ` AND m.meter_type_id = $${params.length}`; }
@@ -44,7 +46,8 @@ export class MeterDataService {
         const params: any[] = [];
 
         if (meterId) { params.push(parseInt(meterId)); whereClause += ` AND d.meter_id = $${params.length}`; }
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND EXISTS (SELECT 1 FROM meter sm WHERE sm.meter_id=d.meter_id AND sm.site_id=$${params.length})`; }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); whereClause += ` AND EXISTS (SELECT 1 FROM meter sm WHERE sm.meter_id=d.meter_id AND sm.site_id = ANY($${params.length}::int[]))`; }
         if (startDate) { params.push(startDate); whereClause += ` AND d.date_keep >= $${params.length}`; }
         if (endDate) { params.push(endDate); whereClause += ` AND d.date_keep <= $${params.length}`; }
 
@@ -69,7 +72,8 @@ export class MeterDataService {
         let whereClause = 'WHERE 1=1';
         const params: any[] = [];
 
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
         if (buildingId) { params.push(parseInt(buildingId)); whereClause += ` AND m.building_id = $${params.length}`; }
         if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
         if (startDate) { params.push(startDate); whereClause += ` AND d.date_keep >= $${params.length}`; }
@@ -96,7 +100,8 @@ export class MeterDataService {
         const params: any[] = [];
         let whereClause = 'WHERE 1=1';
 
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
         if (year) { params.push(parseInt(year)); whereClause += ` AND EXTRACT(YEAR FROM d.date_keep) = $${params.length}`; }
 
         const result = await query(

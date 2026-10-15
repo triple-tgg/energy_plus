@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { pubClient, subClient, REDIS_ENABLED } from '../../config/redis';
 import pool from '../../config/database';
+import { parseSiteIds } from '../../utils/siteFilter';
 import { RouteResult, routeMessage } from './ingest/handlers';
 import { ensureRealtimeIngestSchema } from './ingest/schema';
 
@@ -117,7 +118,7 @@ export const getActiveChannels = async (): Promise<string[]> => {
 };
 
 /** Latest unacknowledged alarms for the realtime monitoring panel. */
-export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?: number; floor?: string; zoneId?: number }): Promise<any[]> => {
+export const getRealtimeAlerts = async (filters?: { siteId?: number | number[]; buildingId?: number; floor?: string; zoneId?: number }): Promise<any[]> => {
     await pool.query(`CREATE TABLE IF NOT EXISTS alarm_log (
         id BIGSERIAL PRIMARY KEY,
         alarm_config_id INTEGER REFERENCES alarm_config(alarm_config_id),
@@ -135,7 +136,8 @@ export const getRealtimeAlerts = async (filters?: { siteId?: number; buildingId?
 
     const params: any[] = [];
     const filtersSql = ['al.acknowledged = false', 'm.is_active = true'];
-    if (filters?.siteId) { params.push(filters.siteId); filtersSql.push(`m.site_id = $${params.length}`); }
+    const alertSiteIds = parseSiteIds(filters?.siteId);
+    if (alertSiteIds) { params.push(alertSiteIds); filtersSql.push(`m.site_id = ANY($${params.length}::int[])`); }
     if (filters?.buildingId) { params.push(filters.buildingId); filtersSql.push(`m.building_id = $${params.length}`); }
     if (filters?.floor !== undefined && filters?.floor !== '') { params.push(filters.floor); filtersSql.push(`m.floor::text = $${params.length}::text`); }
     if (filters?.zoneId) { params.push(filters.zoneId); filtersSql.push(`m.zone_id = $${params.length}`); }
@@ -268,13 +270,14 @@ export const autoSubscribeFromMeterTable = syncMeterSubscriptions;
  * enriched with meter metadata (name, location, site, building, zone)
  * via realtime_meter_map + meter table.
  */
-export const getLatestRealtimeData = async (filters?: { siteId?: number; buildingId?: number; floor?: string; zoneId?: number }): Promise<any[]> => {
+export const getLatestRealtimeData = async (filters?: { siteId?: number | number[]; buildingId?: number; floor?: string; zoneId?: number }): Promise<any[]> => {
     const params: any[] = [];
     let whereClause = '';
 
-    if (filters?.siteId) {
-        params.push(filters.siteId);
-        whereClause += ` AND m.site_id = $${params.length}`;
+    const latestSiteIds = parseSiteIds(filters?.siteId);
+    if (latestSiteIds) {
+        params.push(latestSiteIds);
+        whereClause += ` AND m.site_id = ANY($${params.length}::int[])`;
     }
     if (filters?.buildingId) {
         params.push(filters.buildingId);
@@ -406,7 +409,7 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number; buildin
  */
 export const getRealtimeHistory = async (filters?: {
     minutes?: number;
-    siteId?: number;
+    siteId?: number | number[];
     buildingId?: number;
     floor?: string;
     zoneId?: number;
@@ -415,9 +418,10 @@ export const getRealtimeHistory = async (filters?: {
     const params: any[] = [minutes];
     let whereClause = '';
 
-    if (filters?.siteId) {
-        params.push(filters.siteId);
-        whereClause += ` AND m.site_id = $${params.length}`;
+    const historySiteIds = parseSiteIds(filters?.siteId);
+    if (historySiteIds) {
+        params.push(historySiteIds);
+        whereClause += ` AND m.site_id = ANY($${params.length}::int[])`;
     }
     if (filters?.buildingId) {
         params.push(filters.buildingId);

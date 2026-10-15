@@ -171,6 +171,7 @@ const EnergyMonthlyReportPage: React.FC = () => {
             </div>
 
             <FilterBar
+                defaultAllSites
                 onSubmit={handleFilterSubmit}
                 loading={loading}
                 showDateRange={false}

@@ -143,6 +143,7 @@ const HistoryReportPage: React.FC = () => {
                 </div>
             </div>
             <FilterBar
+                defaultAllSites
                 onSubmit={handleFilterSubmit}
                 loading={loading}
                 showSearchMeter

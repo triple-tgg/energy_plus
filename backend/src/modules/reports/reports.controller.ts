@@ -15,14 +15,13 @@ export class ReportsController {
 
     async acknowledgeAlarm(req: AuthRequest, res: Response, next: NextFunction) {
         try {
-            const siteId = req.query.siteId ? parseInt(String(req.query.siteId)) : undefined;
-            res.json(successResponse(await svc.acknowledgeAlarm(parseInt(req.params.id), req.user?.userName, siteId), 'Alarm acknowledged'));
+            res.json(successResponse(await svc.acknowledgeAlarm(parseInt(req.params.id), req.user?.userName, req.query.siteId || req.body?.siteId), 'Alarm acknowledged'));
         } catch (e) { next(e); }
     }
 
     async clearAlarms(req: AuthRequest, res: Response, next: NextFunction) {
         try {
-            const result = await svc.clearAlarms({ ...req.query, ...req.body });
+            const result = await svc.clearAlarms({ ...req.query, ...req.body, siteId: req.body?.siteId || req.query.siteId });
             res.json(successResponse(result, `Cleared ${result.deletedCount} alarm records`));
         } catch (e) { next(e); }
     }

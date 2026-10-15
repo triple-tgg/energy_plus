@@ -170,6 +170,7 @@ const EnergyReportPage: React.FC = () => {
             </div>
 
             <FilterBar
+                defaultAllSites
                 onSubmit={handleFilterSubmit}
                 loading={loading}
                 showSearchMeter

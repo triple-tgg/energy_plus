@@ -31,6 +31,8 @@ interface FilterBarProps {
     loading?: boolean;
     actions?: React.ReactNode;
     meterOptions?: any[];
+    /** Start with "All Sites" instead of the site selected in the header (used by report pages). */
+    defaultAllSites?: boolean;
 }
 
 const today = new Intl.DateTimeFormat('en-CA', {
@@ -50,6 +52,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     loading = false,
     actions,
     meterOptions,
+    defaultAllSites = false,
 }) => {
     const { language, t } = useLanguage();
     const { user, selectedSiteId } = useAuth();
@@ -57,7 +60,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         startDate: today,
         endDate: today,
         meterTypeId: '',
-        siteId: selectedSiteId ? String(selectedSiteId) : '',
+        siteId: !defaultAllSites && selectedSiteId ? String(selectedSiteId) : '',
         buildingId: '',
         floor: '',
         zoneId: '',
