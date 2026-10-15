@@ -210,6 +210,7 @@ const TouReportPage: React.FC = () => {
             </div>
 
             <FilterBar
+                defaultAllSites
                 onSubmit={handleFilterSubmit}
                 loading={loading}
                 showSearchMeter

@@ -1,5 +1,6 @@
 import { query } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
+import { parseSiteIds } from '../../utils/siteFilter';
 
 export class ReportsService {
     private async ensureAlarmLogTable() {
@@ -26,7 +27,8 @@ export class ReportsService {
         const { startDate, endDate, search, siteId } = queryParams;
         const params: any[] = [];
         const filters: string[] = ['m.is_active = true'];
-        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); filters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (startDate) { params.push(startDate); filters.push(`al.occurred_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         if (endDate) { params.push(endDate); filters.push(`al.occurred_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         if (search) {
@@ -50,15 +52,15 @@ export class ReportsService {
         return { data: result.rows.map(({ full_count, ...row }: any) => row), total, page, limit };
     }
 
-    async acknowledgeAlarm(id: number, acknowledgedBy?: string, siteId?: number) {
+    async acknowledgeAlarm(id: number, acknowledgedBy?: string, siteId?: unknown) {
         await this.ensureAlarmLogTable();
         const result = await query(
             `UPDATE alarm_log
              SET acknowledged = true, acknowledged_at = NOW(), acknowledged_by = $1
              WHERE id = $2
-               AND ($3::int IS NULL OR meter_id IN (SELECT meter_id FROM meter WHERE site_id=$3))
+               AND ($3::int[] IS NULL OR meter_id IN (SELECT meter_id FROM meter WHERE site_id = ANY($3::int[])))
              RETURNING *`,
-            [acknowledgedBy || 'system', id, siteId || null]
+            [acknowledgedBy || 'system', id, parseSiteIds(siteId)]
         );
         if (result.rows.length === 0) throw new Error('Alarm not found or not in your site');
         return result.rows[0];
@@ -67,16 +69,20 @@ export class ReportsService {
     async clearAlarms(queryParams: any) {
         await this.ensureAlarmLogTable();
         const { startDate, endDate, search, siteId, ids } = queryParams;
+        const siteIds = parseSiteIds(siteId);
         if (Array.isArray(ids) && ids.length > 0) {
             const result = await query(
-                `DELETE FROM alarm_log WHERE id = ANY($1::int[]) RETURNING id`,
-                [ids]
+                `DELETE FROM alarm_log
+                 WHERE id = ANY($1::int[])
+                   AND ($2::int[] IS NULL OR meter_id IN (SELECT meter_id FROM meter WHERE site_id = ANY($2::int[])))
+                 RETURNING id`,
+                [ids, siteIds]
             );
             return { deletedCount: result.rowCount || 0 };
         }
         const params: any[] = [];
         const filters: string[] = ['true'];
-        if (siteId) { params.push(parseInt(siteId)); filters.push(`meter_id IN (SELECT meter_id FROM meter WHERE site_id = $${params.length})`); }
+        if (siteIds) { params.push(siteIds); filters.push(`meter_id IN (SELECT meter_id FROM meter WHERE site_id = ANY($${params.length}::int[]))`); }
         if (startDate) { params.push(startDate); filters.push(`occurred_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         if (endDate) { params.push(endDate); filters.push(`occurred_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         if (search) {
@@ -97,7 +103,8 @@ export class ReportsService {
         const params: any[] = [parseInt(String(year)), parseInt(String(month))];
         const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
-        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); filters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
@@ -162,7 +169,8 @@ export class ReportsService {
         const params: any[] = [];
         const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
-        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); filters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
@@ -232,7 +240,8 @@ export class ReportsService {
             meterFilters.push(`NOT ${MDB_MATCH}`);
         }
 
-        if (siteId) { params.push(parseInt(siteId)); meterFilters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); meterFilters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); meterFilters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); meterFilters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); meterFilters.push(`m.meter_type_id = $${params.length}`); }
@@ -479,7 +488,8 @@ export class ReportsService {
         const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
         meterFilters.push(MDB_MATCH);
 
-        if (siteId) { params.push(parseInt(siteId)); meterFilters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); meterFilters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); meterFilters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); meterFilters.push(`m.zone_id = $${params.length}`); }
         if (meterId) { params.push(parseInt(meterId)); meterFilters.push(`m.meter_id = $${params.length}`); }
@@ -738,7 +748,8 @@ export class ReportsService {
             meterFilters.push(`NOT ${MDB_MATCH}`);
         }
 
-        if (siteId) { params.push(parseInt(siteId)); meterFilters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); meterFilters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); meterFilters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); meterFilters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); meterFilters.push(`m.meter_type_id = $${params.length}`); }

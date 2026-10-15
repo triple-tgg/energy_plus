@@ -1,5 +1,6 @@
 import { query, getClient } from '../../config/database';
 import { parsePagination } from '../../utils/pagination';
+import { parseSiteIds } from '../../utils/siteFilter';
 import { AppError } from '../../middleware/errorHandler';
 import { syncMeterSubscriptions } from '../redis-pubsub/redisPubsub.service';
 import { licenseService } from '../license/license.service';
@@ -29,7 +30,8 @@ export class MetersService {
         let whereClause = 'WHERE 1=1';
         const params: any[] = [];
 
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
         if (buildingId) { params.push(parseInt(buildingId)); whereClause += ` AND m.building_id = $${params.length}`; }
         if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); whereClause += ` AND m.meter_type_id = $${params.length}`; }

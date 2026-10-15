@@ -1,6 +1,7 @@
 import { query } from '../../config/database';
 import { aggregationConfig } from '../../config/aggregation';
 import { parsePagination } from '../../utils/pagination';
+import { parseSiteIds } from '../../utils/siteFilter';
 
 const numberOrNull = (value: any): number | null => {
     if (value === undefined || value === null || value === '') return null;
@@ -15,7 +16,7 @@ const toNumber = (value: any, fallback = 0): number => {
 
 export class DashboardService {
     async getZoneDashboardData(queryParams: any) {
-        const siteId = numberOrNull(queryParams.siteId);
+        const siteIds = parseSiteIds(queryParams.siteId);
         const buildingId = numberOrNull(queryParams.buildingId);
         const floor = numberOrNull(queryParams.floor);
         const zoneId = numberOrNull(queryParams.zoneId);
@@ -33,9 +34,9 @@ export class DashboardService {
 
         const params: any[] = [];
         let meterFilter = 'WHERE 1=1';
-        if (siteId) {
-            params.push(siteId);
-            meterFilter += ` AND m.site_id = $${params.length}`;
+        if (siteIds) {
+            params.push(siteIds);
+            meterFilter += ` AND m.site_id = ANY($${params.length}::int[])`;
         }
         if (buildingId) {
             params.push(buildingId);
@@ -155,9 +156,9 @@ export class DashboardService {
         // Build trend filter params: $1 = interval, then optional siteId, buildingId, floor, zoneId
         const trendParams: any[] = [aggregationConfig.intervalMinutes];
         const trendFilters: string[] = [];
-        if (siteId) {
-            trendParams.push(siteId);
-            trendFilters.push(`m.site_id = $${trendParams.length}`);
+        if (siteIds) {
+            trendParams.push(siteIds);
+            trendFilters.push(`m.site_id = ANY($${trendParams.length}::int[])`);
         }
         if (buildingId) {
             trendParams.push(buildingId);
@@ -216,6 +217,12 @@ export class DashboardService {
             trendParams
         );
 
+        const comparisonParams: any[] = [];
+        let comparisonSiteSql = '';
+        if (siteIds) {
+            comparisonParams.push(siteIds);
+            comparisonSiteSql = ` AND m.site_id = ANY($1::int[])`;
+        }
         const comparisonResult = await query(
             `WITH meter_scope AS (
                 SELECT m.meter_id, m.site_id, m.building_id, s.site_name, b.building_name
@@ -223,6 +230,7 @@ export class DashboardService {
                 LEFT JOIN sites s ON m.site_id = s.site_id
                 LEFT JOIN buildings b ON m.building_id = b.building_id
                 WHERE m.is_active IS DISTINCT FROM false
+                  ${comparisonSiteSql}
                   ${mdbSql}
             ),
             hourly_meter AS (
@@ -334,7 +342,8 @@ export class DashboardService {
             FROM unioned
             WHERE building_id IS NOT NULL
             GROUP BY gran, bucket, building_id, site_name, building_name
-            ORDER BY gran, bucket, entity_type, entity_name`
+            ORDER BY gran, bucket, entity_type, entity_name`,
+            comparisonParams
         );
 
 
@@ -478,7 +487,8 @@ export class DashboardService {
         }
 
         let whereClause = `WHERE 1=1 ${dateFilter}`;
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
         if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
 
         const result = await query(
@@ -503,7 +513,8 @@ export class DashboardService {
             : `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
 
         let whereClause = `WHERE EXISTS (SELECT 1 FROM meter_sub_type mst2 WHERE mst2.meter_sub_type_id = m.meter_sub_type_id AND mst2.sub_type_name ILIKE '%MDB%') ${dateFilter}`;
-        if (siteId) { params.push(parseInt(siteId)); whereClause += ` AND m.site_id = $${params.length}`; }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
 
         const result = await query(
             `SELECT m.meter_name, DATE(d.date_keep) as date,
@@ -528,7 +539,8 @@ export class DashboardService {
             'mt.is_active = true',
         ];
 
-        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); filters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
         if (meterId) { params.push(parseInt(meterId)); filters.push(`m.meter_id = $${params.length}`); }
@@ -630,9 +642,10 @@ export class DashboardService {
             `mst.sub_type_name ILIKE '%MDB%'`,
             `m.is_active = true`,
         ];
-        if (siteId) {
-            params.push(parseInt(siteId));
-            filters.push(`m.site_id = $${params.length}`);
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) {
+            params.push(siteIds);
+            filters.push(`m.site_id = ANY($${params.length}::int[])`);
         }
         if (buildingId) {
             params.push(parseInt(buildingId));
@@ -686,7 +699,8 @@ export class DashboardService {
         const params: any[] = [];
         const filters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
-        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); filters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
@@ -783,7 +797,8 @@ export class DashboardService {
             filters.push(`NOT ${MDB_MATCH}`);
         }
 
-        if (siteId) { params.push(parseInt(siteId)); filters.push(`m.site_id = $${params.length}`); }
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) { params.push(siteIds); filters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
