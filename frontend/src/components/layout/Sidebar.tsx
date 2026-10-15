@@ -1,15 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { redisDiscoveryApi } from '../../api/client';
 import {
     Settings, Building2, Users, User, MapPin, Construction,
     Package, Plug, Tag, RefreshCw, Zap, Layers,
     Wrench, Bell, AlertTriangle, Coins, TrendingDown, Map, Upload, Trash2, ShieldCheck,
     Radio, BarChart3, Network, Activity,
     FileText, BarChartBig, History, GitCompare, Clock,
-    LayoutDashboard, MapPinned, Gauge, Table, CalendarDays, CalendarRange,
+    LayoutDashboard, MapPinned, Gauge, Table, CalendarDays, CalendarRange, AudioWaveform,
     type LucideIcon,
 } from 'lucide-react';
 import logo from '../../assets/logo.jpg';
@@ -20,6 +21,10 @@ interface NavItem {
     path: string;
     icon: LucideIcon;
     permissionKey: string;
+    /** Only shown to role=admin. */
+    adminOnly?: boolean;
+    /** Live counter shown next to the label. */
+    badge?: 'redisNewChannels';
 }
 
 interface NavGroup {
@@ -38,6 +43,7 @@ const navGroups: NavGroup[] = [
             { labelEn: 'Meter Dashboard', labelTh: 'แดชบอร์ดมิเตอร์', path: '/dashboard/zone', icon: MapPinned, permissionKey: 'dashboard' },
             { labelEn: 'MDB Dashboard', labelTh: 'แดชบอร์ด MDB', path: '/dashboard/mdb', icon: Gauge, permissionKey: 'dashboard' },
             { labelEn: 'Demand Dashboard', labelTh: 'แดชบอร์ดดีมานด์พีค', path: '/dashboard/demand', icon: TrendingDown, permissionKey: 'dashboard' },
+            { labelEn: 'Harmonic Dashboard', labelTh: 'แดชบอร์ดฮาร์มอนิก', path: '/dashboard/harmonics', icon: AudioWaveform, permissionKey: 'dashboard' },
         ],
     },
     {
@@ -78,6 +84,7 @@ const navGroups: NavGroup[] = [
             { labelEn: 'Export Settings', labelTh: 'ตั้งค่าการ Export', path: '/settings/export', icon: Upload, permissionKey: 'settings' },
             { labelEn: 'Data Cleanup', labelTh: 'ล้างข้อมูล Realtime', path: '/settings/data-cleanup', icon: Trash2, permissionKey: 'settings' },
             { labelEn: 'License & Quota', labelTh: 'License & โควตามิเตอร์', path: '/settings/license', icon: ShieldCheck, permissionKey: 'settings' },
+            { labelEn: 'Redis Channels', labelTh: 'Redis Channels / ผูกมิเตอร์', path: '/settings/redis-channels', icon: Radio, permissionKey: 'settings', adminOnly: true, badge: 'redisNewChannels' },
         ],
     },
     {
@@ -119,6 +126,23 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNa
     const { user } = useAuth();
     const { t } = useLanguage();
     const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+    const isAdmin = user?.role === 'admin';
+    const [badges, setBadges] = useState<Record<string, number>>({});
+
+    // Newly discovered, not yet linked Redis channels (admin only)
+    useEffect(() => {
+        if (!isAdmin) return;
+        let cancelled = false;
+        const load = () => redisDiscoveryApi.summary()
+            .then((res) => {
+                const s = res?.data?.data ?? res?.data;
+                if (!cancelled) setBadges((b) => ({ ...b, redisNewChannels: Number(s?.newToday) || 0 }));
+            })
+            .catch(() => { /* badge is optional */ });
+        load();
+        const id = setInterval(load, 60_000);
+        return () => { cancelled = true; clearInterval(id); };
+    }, [isAdmin]);
 
     // Filter nav groups and items based on user permissions
     const filteredNavGroups = useMemo(() => {
@@ -126,10 +150,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNa
         return navGroups
             .map(group => ({
                 ...group,
-                items: group.items.filter(item => perms.includes(item.permissionKey)),
+                items: group.items.filter(item => perms.includes(item.permissionKey) && (!item.adminOnly || isAdmin)),
             }))
             .filter(group => group.items.length > 0);
-    }, [user?.permissions]);
+    }, [user?.permissions, isAdmin]);
 
     const toggleGroup = (titleEn: string) => {
         setOpenGroups(prev => {
@@ -200,6 +224,18 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNa
                                                 <IconComp size={18} strokeWidth={1.8} />
                                             </span>
                                             {!collapsed && <span className="sidebar-link__label">{itemLabel}</span>}
+                                            {item.badge && (badges[item.badge] ?? 0) > 0 && (
+                                                <span
+                                                    title={t('channel ใหม่ที่ยังไม่ผูกมิเตอร์', 'new unlinked channels')}
+                                                    style={{
+                                                        marginLeft: 'auto', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9,
+                                                        background: '#7c3aed', color: '#fff', fontSize: 10, fontWeight: 700,
+                                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                    }}
+                                                >
+                                                    {badges[item.badge] > 99 ? '99+' : badges[item.badge]}
+                                                </span>
+                                            )}
                                         </NavLink>
                                     );
                                 })}

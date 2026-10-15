@@ -182,7 +182,7 @@ export class AlertEngine {
             JOIN LATERAL (
                 SELECT r2.received_at, r2.vl1, r2.vl2, r2.vl3, r2.il1, r2.il2, r2.il3, r2.kw_3ph, r2.kva_3ph, r2.hz, r2.import_kwhr
                 FROM meter_data_realtime r2
-                WHERE r2.site_id = m.site_el AND r2.address_id = m.address::int
+                WHERE r2.channel = CASE WHEN POSITION('_' IN m.site_el) > 0 THEN m.site_el ELSE m.site_el || '_' || m.address END
                 ORDER BY r2.received_at DESC LIMIT 1
             ) r ON true
             WHERE m.meter_id = ANY($1)
@@ -244,7 +244,7 @@ export class AlertEngine {
             FROM meter m
             JOIN LATERAL (
                 SELECT r2.* FROM meter_data_realtime r2
-                WHERE r2.site_id = m.site_el AND r2.address_id = m.address::int
+                WHERE r2.channel = CASE WHEN POSITION('_' IN m.site_el) > 0 THEN m.site_el ELSE m.site_el || '_' || m.address END
                 ORDER BY r2.received_at DESC LIMIT 1
             ) r ON true
             WHERE m.meter_id = ANY($1)

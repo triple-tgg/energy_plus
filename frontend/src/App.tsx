@@ -30,6 +30,7 @@ import LayoutSettingsPage from './pages/settings/LayoutSettingsPage';
 import ExportSettingsPage from './pages/settings/ExportSettingsPage';
 import DataCleanupPage from './pages/settings/DataCleanupPage';
 import LicensePage from './pages/settings/LicensePage';
+import RedisChannelsPage from './pages/settings/RedisChannelsPage';
 
 // Monitoring
 import RealtimePage from './pages/monitoring/RealtimePage';
@@ -40,6 +41,7 @@ import LayoutViewPage from './pages/monitoring/LayoutViewPage';
 import ZoneDashboard from './pages/dashboard/ZoneDashboard';
 import MdbDashboard from './pages/dashboard/MdbDashboard';
 import DemandDashboard from './pages/dashboard/DemandDashboard';
+import HarmonicDashboard from './pages/dashboard/HarmonicDashboard';
 import ConsumptionTable from './pages/dashboard/ConsumptionTable';
 
 // Reports
@@ -90,6 +92,7 @@ const App: React.FC = () => {
                                 <Route path="/settings/export" element={<ProtectedRoute permissionKey="settings"><ExportSettingsPage /></ProtectedRoute>} />
                                 <Route path="/settings/data-cleanup" element={<ProtectedRoute permissionKey="settings"><DataCleanupPage /></ProtectedRoute>} />
                                 <Route path="/settings/license" element={<ProtectedRoute permissionKey="settings"><LicensePage /></ProtectedRoute>} />
+                                <Route path="/settings/redis-channels" element={<ProtectedRoute permissionKey="settings"><RedisChannelsPage /></ProtectedRoute>} />
 
                                 {/* Monitoring */}
                                 <Route path="/monitoring/realtime" element={<ProtectedRoute permissionKey="monitoring"><RealtimePage /></ProtectedRoute>} />
@@ -110,6 +113,7 @@ const App: React.FC = () => {
                                 <Route path="/dashboard/zone" element={<ProtectedRoute permissionKey="dashboard"><ZoneDashboard /></ProtectedRoute>} />
                                 <Route path="/dashboard/mdb" element={<ProtectedRoute permissionKey="dashboard"><MdbDashboard /></ProtectedRoute>} />
                                 <Route path="/dashboard/demand" element={<ProtectedRoute permissionKey="dashboard"><DemandDashboard /></ProtectedRoute>} />
+                                <Route path="/dashboard/harmonics" element={<ProtectedRoute permissionKey="dashboard"><HarmonicDashboard /></ProtectedRoute>} />
                                 <Route path="/dashboard/consumption" element={<ProtectedRoute permissionKey="dashboard"><ConsumptionTable /></ProtectedRoute>} />
 
                                 {/* Account */}

@@ -19,12 +19,12 @@ async function runTest() {
 
         if (meterRes.rows.length === 0) {
             console.log('⚠️  No active meters found in DB with site_el and address.');
-            console.log('Using default channel: 1000_1');
+            console.log('Using default channel: 1000_1_PM3');
             meterRes.rows.push({
                 meter_id: 1,
                 meter_code: 'TEST_01',
                 meter_name: 'Test Meter',
-                site_el: 1000,
+                site_el: '1000_1',
                 address: '1'
             });
         }
@@ -32,14 +32,21 @@ async function runTest() {
         console.log(`📡 Testing publish to ${meterRes.rows.length} meters...\n`);
 
         for (const m of meterRes.rows) {
-            const channel = `${m.site_el}_${m.address}`;
+            // Publisher format: {site}_{address}_{datatype}; meter.site_el holds "{site}_{address}"
+            // (older rows: site number only + address column).
+            const siteEl = String(m.site_el).trim();
+            const baseChannel = /^\d+$/.test(siteEl) ? `${siteEl}_${m.address}` : siteEl;
+            const [siteId, addressId] = baseChannel.split('_').map((v: string) => parseInt(v, 10));
+            const channel = `${baseChannel}_PM3`;
+            const bangkokNow = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
             const mockPayload = {
-                channel,
-                siteID: m.site_el,
-                addressID: parseInt(m.address, 10) || 1,
+                datetime: bangkokNow,
+                siteID: siteId,
+                addressID: addressId || 1,
                 device: m.meter_name || 'Meter_Device',
                 code: m.meter_code,
-                type: 'ELE',
+                type: 'POWER-METER',
+                datatype: 'PM3',
                 VL1: +(220 + Math.random() * 5).toFixed(2),
                 VL2: +(220 + Math.random() * 5).toFixed(2),
                 VL3: +(220 + Math.random() * 5).toFixed(2),
@@ -66,7 +73,6 @@ async function runTest() {
                 PF3: 0.98,
                 Hz: 50.0,
                 Import_KWhr: +(1500 + Math.random() * 100).toFixed(2),
-                datetime: new Date().toISOString()
             };
 
             const receivers = await pubClient.publish(channel, JSON.stringify(mockPayload));

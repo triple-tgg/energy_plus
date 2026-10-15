@@ -23,6 +23,8 @@ import dataCleanupRoutes from './modules/data-cleanup/dataCleanup.routes';
 import licenseRoutes from './modules/license/license.routes';
 import exportsRoutes from './modules/exports/exports.routes';
 import { autoSubscribeFromMeterTable, syncMeterSubscriptions } from './modules/redis-pubsub/redisPubsub.service';
+import { ensureRealtimeIngestSchema } from './modules/redis-pubsub/ingest/schema';
+import { startChannelDiscovery, stopChannelDiscovery } from './modules/redis-pubsub/ingest/discovery';
 import { aggregationScheduler } from './modules/aggregation/aggregation.scheduler';
 import { ensureAccessControlSchema } from './config/accessControl';
 import { ensureMeterMasterData } from './config/meterMasterData';
@@ -140,6 +142,11 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS max_kwh DECIMAL(18,2)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS subaddress INTEGER`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS converter VARCHAR(100)`);
+        // Import template v2 columns: Multiply, Meter ID, IP Converter; datatype suffix of (Site EL)
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS multiply DECIMAL(12,4) DEFAULT 1`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS external_meter_id VARCHAR(50)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS ip_converter VARCHAR(255)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS redis_datatype VARCHAR(30)`);
 
         await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_th VARCHAR(200)`);
         await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_en VARCHAR(200)`);
@@ -164,6 +171,11 @@ const startServer = async () => {
 
     await ensureMeterMasterData();
     await ensureAccessControlSchema();
+    try {
+        await ensureRealtimeIngestSchema();
+    } catch (e: any) {
+        console.warn('⚠️  Realtime ingest schema patch skipped:', e.message);
+    }
     let meterSubscriptionSyncTimer: NodeJS.Timeout | null = null;
 
     if (REDIS_ENABLED) {
@@ -180,6 +192,13 @@ const startServer = async () => {
                 });
             }, syncIntervalMs);
             meterSubscriptionSyncTimer.unref();
+
+            // Auto-discovery of new channels (stats only; no data stored until linked to a meter)
+            try {
+                await startChannelDiscovery();
+            } catch (error: any) {
+                console.warn('⚠️  Redis channel discovery failed to start:', error.message);
+            }
         } catch (error) {
             console.warn('⚠️  Redis connection failed, server will start without Redis');
         }
@@ -213,6 +232,7 @@ const startServer = async () => {
         aggregationScheduler.stop();
         alertEngine.stop();
         if (meterSubscriptionSyncTimer) clearInterval(meterSubscriptionSyncTimer);
+        await stopChannelDiscovery();
         await disconnectRedis();
         server.close(() => {
             console.log('👋 Server closed');
