@@ -1153,7 +1153,10 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     useEffect(() => {
         if (isWater) { setLoading(false); return; }
         let mounted = true;
+        let inFlight = false;
         const load = async () => {
+            if (inFlight) return;
+            inFlight = true;
             try {
                 const params: any = { mdb: variant === 'mdb' ? 'only' : 'exclude' };
                 if (currentSiteId) params.siteId = currentSiteId;
@@ -1176,11 +1179,12 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                 if (!mounted) return;
                 setLoadError(error?.response?.data?.message || error?.message || (language === 'th' ? 'โหลดข้อมูลไม่สำเร็จ' : 'Unable to load data'));
             } finally {
+                inFlight = false;
                 if (mounted) setLoading(false);
             }
         };
         load();
-        const a = setInterval(load, 10000);
+        const a = setInterval(load, 15000);
         const b = setInterval(() => setClock(Date.now()), 1000);
         return () => { mounted = false; clearInterval(a); clearInterval(b); };
     }, [language, currentSiteId, currentBuildingId, currentFloor, currentZoneId, variant, isWater]);
