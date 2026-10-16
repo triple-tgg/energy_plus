@@ -77,18 +77,19 @@ export const powerQualitySources = async (req: Request, res: Response): Promise<
         }
 
         // If user is restricted to certain sites, merge with requested siteIds
-        let effectiveSiteIds = siteIds;
+        let effectiveSiteIds: number[] | null = siteIds;
         if (user && user.siteAccessMode !== 'all') {
-            const userAllowed = user.siteIds || [];
+            const userAllowed: number[] = user.siteIds || [];
             if (userAllowed.length === 0) {
                 res.json(successResponse([]));
                 return;
             }
-            effectiveSiteIds = siteIds ? siteIds.filter((id: number) => userAllowed.includes(id)) : userAllowed;
-            if (effectiveSiteIds.length === 0) {
+            const filtered = siteIds ? siteIds.filter((id: number) => userAllowed.includes(id)) : userAllowed;
+            if (filtered.length === 0) {
                 res.json(successResponse([]));
                 return;
             }
+            effectiveSiteIds = filtered;
         }
 
         res.json(successResponse(await getPowerQualitySources(clampInt(req.query.days, 7, 1, 90), effectiveSiteIds)));
