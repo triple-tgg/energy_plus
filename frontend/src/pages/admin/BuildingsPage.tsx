@@ -3,6 +3,7 @@ import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import { sitesApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface BuildingForm {
     buildingName: string;
@@ -16,14 +17,18 @@ const emptyForm: BuildingForm = { buildingName: '', buildingNameTh: '', building
 
 const BuildingsPage: React.FC = () => {
     const { t, language } = useLanguage();
+    const { user } = useAuth();
+    const canManage = user?.role === 'admin';
+
     const [data, setData] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [loading, setLoading] = useState(true);
 
-    // Sites for dropdown
+    // Sites for dropdown and filter
     const [sites, setSites] = useState<any[]>([]);
+    const [siteFilter, setSiteFilter] = useState('');
 
     // Modal
     const [showModal, setShowModal] = useState(false);
@@ -59,12 +64,13 @@ const BuildingsPage: React.FC = () => {
         try {
             const params: any = { page, limit };
             if (search) params.search = search;
+            if (siteFilter) params.siteId = siteFilter;
             const res = await sitesApi.getAllBuildings(params);
             setData(res.data.data || []);
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit, search]);
+    }, [page, limit, search, siteFilter]);
 
     const fetchSites = useCallback(async () => {
         try {
@@ -85,7 +91,10 @@ const BuildingsPage: React.FC = () => {
 
     const handleCreate = () => {
         setEditId(null);
-        setForm(emptyForm);
+        setForm({
+            ...emptyForm,
+            siteId: siteFilter || (sites.length === 1 ? sites[0].site_id.toString() : ''),
+        });
         setFormError('');
         setShowModal(true);
     };
@@ -184,7 +193,7 @@ const BuildingsPage: React.FC = () => {
                 </span>
             ),
         },
-        {
+        ...(canManage ? [{
             key: 'actions',
             title: t('จัดการ', 'Actions'),
             render: (_: any, row: any) => (
@@ -197,7 +206,7 @@ const BuildingsPage: React.FC = () => {
                     </button>
                 </div>
             ),
-        },
+        }] : []),
     ];
 
     const deleteDisplayName = deleteTarget ? (
@@ -220,8 +229,37 @@ const BuildingsPage: React.FC = () => {
                 onPageChange={setPage}
                 onLimitChange={(l) => { setLimit(l); setPage(1); }}
                 onSearch={setSearchInput}
-                onCreate={handleCreate}
+                onCreate={canManage ? handleCreate : undefined}
                 createLabel={t('เพิ่มอาคาร', 'Add Building')}
+                headerActions={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-sub, #888)' }}>
+                            {t('ไซต์:', 'Site:')}
+                        </span>
+                        <select
+                            className="form-control"
+                            value={siteFilter}
+                            onChange={(e) => {
+                                setSiteFilter(e.target.value);
+                                setPage(1);
+                            }}
+                            style={{
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                height: 30,
+                                minWidth: 150,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <option value="">{t('— ทุกไซต์ —', '— All Sites —')}</option>
+                            {sites.map((s: any) => (
+                                <option key={s.site_id} value={s.site_id}>
+                                    {language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                }
             />
 
             {/* Create / Edit Modal */}

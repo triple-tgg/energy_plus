@@ -143,16 +143,33 @@ export class SitesService {
 }
 
 export class BuildingsService {
-    async getBuildings(queryParams: any) {
+    async getBuildings(queryParams: any, access?: { siteAccessMode?: string; siteIds?: number[] }) {
         const { page, limit, offset } = parsePagination(queryParams);
         const siteId = queryParams.siteId;
         const params: any[] = [];
         const filters: string[] = [];
 
-        if (siteId) {
+        if (access && access.siteAccessMode !== 'all') {
+            const allowed = (access.siteIds || []).map(Number).filter(Number.isInteger);
+            if (allowed.length === 0) {
+                return { data: [], total: 0, page, limit };
+            }
+            if (siteId) {
+                const requestedSiteId = parseInt(siteId);
+                if (!allowed.includes(requestedSiteId)) {
+                    return { data: [], total: 0, page, limit };
+                }
+                params.push(requestedSiteId);
+                filters.push(`b.site_id = $${params.length}`);
+            } else {
+                params.push(allowed);
+                filters.push(`b.site_id = ANY($${params.length}::int[])`);
+            }
+        } else if (siteId) {
             params.push(parseInt(siteId));
             filters.push(`b.site_id = $${params.length}`);
         }
+
         if (queryParams.activeOnly === true || queryParams.activeOnly === 'true') {
             filters.push('b.is_active = true');
             filters.push('s.site_status = true');
@@ -184,14 +201,21 @@ export class BuildingsService {
         return { data: result.rows, total, page, limit };
     }
 
-    async getBuildingById(buildingId: number) {
+    async getBuildingById(buildingId: number, access?: { siteAccessMode?: string; siteIds?: number[] }) {
         const result = await query(
             `SELECT b.*, s.site_name, s.site_name_th, s.site_name_en FROM buildings b
        LEFT JOIN sites s ON b.site_id = s.site_id
        WHERE b.building_id = $1`, [buildingId]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Building not found');
-        return result.rows[0];
+        const building = result.rows[0];
+        if (access && access.siteAccessMode !== 'all') {
+            const allowed = (access.siteIds || []).map(Number);
+            if (!allowed.includes(building.site_id)) {
+                throw new AppError(403, 'FORBIDDEN', 'Access denied to this building');
+            }
+        }
+        return building;
     }
 
     async createBuilding(data: any) {
@@ -206,7 +230,14 @@ export class BuildingsService {
         return result.rows[0];
     }
 
-    async updateBuilding(buildingId: number, data: any) {
+    async updateBuilding(buildingId: number, data: any, access?: { siteAccessMode?: string; siteIds?: number[] }) {
+        if (access && access.siteAccessMode !== 'all') {
+            await this.getBuildingById(buildingId, access);
+            const allowed = (access.siteIds || []).map(Number);
+            if (data.siteId && !allowed.includes(parseInt(data.siteId))) {
+                throw new AppError(403, 'FORBIDDEN', 'Cannot assign building to an unauthorized site');
+            }
+        }
         const nameTh = data.buildingNameTh || data.buildingName || '';
         const nameEn = data.buildingNameEn || data.buildingName || '';
         const primaryName = nameTh || nameEn;
@@ -220,7 +251,10 @@ export class BuildingsService {
         return result.rows[0];
     }
 
-    async deleteBuilding(buildingId: number) {
+    async deleteBuilding(buildingId: number, access?: { siteAccessMode?: string; siteIds?: number[] }) {
+        if (access && access.siteAccessMode !== 'all') {
+            await this.getBuildingById(buildingId, access);
+        }
         const result = await query(`DELETE FROM buildings WHERE building_id = $1 RETURNING building_id`, [buildingId]);
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Building not found');
         return result.rows[0];
@@ -228,11 +262,20 @@ export class BuildingsService {
 }
 
 export class ZonesService {
-    async getZones(queryParams: any) {
+    async getZones(queryParams: any, access?: { siteAccessMode?: string; siteIds?: number[] }) {
         const { page, limit, offset } = parsePagination(queryParams);
         const buildingId = queryParams.buildingId;
         const params: any[] = [];
         const filters: string[] = [];
+
+        if (access && access.siteAccessMode !== 'all') {
+            const allowed = (access.siteIds || []).map(Number).filter(Number.isInteger);
+            if (allowed.length === 0) {
+                return { data: [], total: 0, page, limit };
+            }
+            params.push(allowed);
+            filters.push(`b.site_id = ANY($${params.length}::int[])`);
+        }
 
         if (buildingId) {
             params.push(parseInt(buildingId));
@@ -266,14 +309,21 @@ export class ZonesService {
         return { data: result.rows, total, page, limit };
     }
 
-    async getZoneById(zoneId: number) {
+    async getZoneById(zoneId: number, access?: { siteAccessMode?: string; siteIds?: number[] }) {
         const result = await query(
-            `SELECT z.*, b.building_name FROM zones z
+            `SELECT z.*, b.building_name, b.site_id FROM zones z
        LEFT JOIN buildings b ON z.building_id = b.building_id
        WHERE z.zone_id = $1`, [zoneId]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Zone not found');
-        return result.rows[0];
+        const zone = result.rows[0];
+        if (access && access.siteAccessMode !== 'all') {
+            const allowed = (access.siteIds || []).map(Number);
+            if (!allowed.includes(zone.site_id)) {
+                throw new AppError(403, 'FORBIDDEN', 'Access denied to this zone');
+            }
+        }
+        return zone;
     }
 
     async createZone(data: any) {

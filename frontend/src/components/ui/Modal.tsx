@@ -68,22 +68,29 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
                 <div style={{
                     padding: '12px 16px',
                     background: C.bar,
-                    color: '#fff',
+                    color: C.ink,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     borderBottom: `1px solid ${C.line}`
                 }}>
-                    <h3 style={{ margin: 0, fontFamily: MONO, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>{title}</h3>
+                    <h3 style={{ margin: 0, fontFamily: MONO, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.ink }}>{title}</h3>
                     <button onClick={onClose} style={{
                         background: 'transparent',
                         border: 'none',
-                        color: '#fff',
+                        color: C.ink,
                         fontSize: '20px',
                         lineHeight: 1,
                         cursor: 'pointer',
                         padding: '0 4px',
-                    }}>&times;</button>
+                        opacity: 0.7,
+                        transition: 'opacity 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+                    aria-label="Close"
+                    title="Close"
+                    >&times;</button>
                 </div>
 
                 {/* Body */}
