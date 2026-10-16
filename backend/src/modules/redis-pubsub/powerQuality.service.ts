@@ -29,7 +29,18 @@ const METER_MATCH = (alias: string) => `
     ) mm ON true`;
 
 /** Devices that have harmonic, THD or max-demand data in the last `days` days. */
-export const getPowerQualitySources = async (days = 7): Promise<any[]> => {
+export const getPowerQualitySources = async (days = 7, filterSiteIds?: number[] | null): Promise<any[]> => {
+    const params: any[] = [days];
+    let siteFilter = 'WHERE (mm.meter_site_id IS NULL OR mm.meter_site_id != 26)';
+    if (filterSiteIds !== undefined && filterSiteIds !== null) {
+        const validSiteIds = filterSiteIds.filter(id => id !== 26);
+        if (validSiteIds.length === 0) {
+            return [];
+        }
+        params.push(validSiteIds);
+        siteFilter = `WHERE mm.meter_site_id = ANY($${params.length}::int[]) AND mm.meter_site_id != 26`;
+    }
+
     const result = await pool.query(
         `WITH src AS (
             SELECT site_id, address_id,
@@ -58,13 +69,14 @@ export const getPowerQualitySources = async (days = 7): Promise<any[]> => {
                src.last_harmonics, thd.last_thd,
                COALESCE(thd.has_demand, false) AS has_demand,
                GREATEST(src.last_harmonics, thd.last_thd) AS last_seen,
-               mm.meter_id, mm.meter_code, mm.meter_name, mm.site_name
+               mm.meter_id, mm.meter_code, mm.meter_name, mm.site_name, mm.meter_site_id
         FROM keys k
         LEFT JOIN src ON src.site_id = k.site_id AND src.address_id = k.address_id
         LEFT JOIN thd ON thd.site_id = k.site_id AND thd.address_id = k.address_id
         ${METER_MATCH('k')}
+        ${siteFilter}
         ORDER BY k.site_id, k.address_id`,
-        [days]
+        params
     );
     return result.rows;
 };

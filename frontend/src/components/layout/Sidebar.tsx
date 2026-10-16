@@ -123,7 +123,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNavigate }) => {
     const location = useLocation();
     const { theme } = useTheme();
-    const { user } = useAuth();
+    const { user, selectedSiteId } = useAuth();
     const { t } = useLanguage();
     const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
     const isAdmin = user?.role === 'admin';
@@ -150,7 +150,9 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, mobileOpen, onToggle, onNa
         return navGroups
             .map(group => ({
                 ...group,
-                items: group.items.filter(item => perms.includes(item.permissionKey) && (!item.adminOnly || isAdmin)),
+                items: group.items.filter(item => {
+                    return perms.includes(item.permissionKey) && (!item.adminOnly || isAdmin);
+                }),
             }))
             .filter(group => group.items.length > 0);
     }, [user?.permissions, isAdmin]);

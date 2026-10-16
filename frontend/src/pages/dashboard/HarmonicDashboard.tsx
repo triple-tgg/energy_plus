@@ -3,10 +3,11 @@ import {
     Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine,
     ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { Activity, AlertTriangle, BarChart3, Clock, Gauge, RefreshCw, Waves, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, Clock, Gauge, RefreshCw, ShieldAlert, Waves, Zap } from 'lucide-react';
 import { powerQualityApi } from '../../api/client';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 /* ─────────────────────────── theme / constants ─────────────────────────── */
 
@@ -89,6 +90,7 @@ const unwrap = (res: any) => res?.data?.data ?? res?.data;
 const HarmonicDashboard: React.FC = () => {
     const { theme } = useTheme();
     const { t } = useLanguage();
+    const { user } = useAuth();
     const C = THEMES[theme];
 
     const [sources, setSources] = useState<Source[]>([]);
@@ -299,7 +301,7 @@ const HarmonicDashboard: React.FC = () => {
                         onChange={(e) => setSelected(e.target.value)}
                         style={{ background: C.panel2, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 6, padding: '6px 10px', fontSize: 12, fontFamily: MONO, minWidth: 260 }}
                     >
-                        {sources.length === 0 && <option value="">{t('— ไม่มีอุปกรณ์ที่มีข้อมูล —', '— no devices with data —')}</option>}
+                        {sources.length === 0 && <option value="">{t('— ไม่มีมิเตอร์ที่สามารถเลือกได้ —', '— No meters available —')}</option>}
                         {sources.map((s) => (
                             <option key={sourceKey(s)} value={sourceKey(s)}>
                                 {s.channel} · {s.meter_name || s.meter_code || t('ยังไม่ผูกมิเตอร์', 'unmapped')}
@@ -326,10 +328,12 @@ const HarmonicDashboard: React.FC = () => {
 
                 {!source ? (
                     <div style={{ ...card, padding: 40 }}>
-                        {empty(t(
-                            'ยังไม่มีข้อมูลฮาร์มอนิก — ข้อมูลจะเริ่มเข้ามาเมื่อมิเตอร์ที่ลงทะเบียนไว้ส่ง HD33-* / PM3-THD-* ผ่าน Redis',
-                            'No harmonic data yet — data appears once a registered meter publishes HD33-* / PM3-THD-* via Redis',
-                        ), 160)}
+                        {empty(
+                            sources.length === 0
+                                ? t('ไม่มีมิเตอร์ที่มีข้อมูลฮาร์มอนิกในสิทธิ์การเข้าถึงของคุณ', 'No harmonic meters available for your permitted sites')
+                                : t('ยังไม่มีข้อมูลฮาร์มอนิก — กรุณาเลือกมิเตอร์', 'No harmonic data — please select a meter'),
+                            160
+                        )}
                     </div>
                 ) : (
                     <>

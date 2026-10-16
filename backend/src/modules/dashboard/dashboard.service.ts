@@ -57,63 +57,41 @@ export class DashboardService {
         }
         meterFilter += mdbSql;
 
-        const metersResult = await query(
-            `WITH latest AS (
-                SELECT DISTINCT ON (d.meter_id)
-                    d.meter_id, d.date_keep, d.energy_kwh, d.energy_kva, d.energy_kw, d.energy_kvar,
-                    d.energy_frequency, d.energy_volt_p1, d.energy_volt_p2, d.energy_volt_p3,
-                    d.energy_volt_l1, d.energy_volt_l2, d.energy_volt_l3,
-                    d.energy_amp1, d.energy_amp2, d.energy_amp3,
-                    d.energy_pf1, d.energy_pf2, d.energy_pf3, d.status
-                FROM actual_meter_data d
-                ORDER BY d.meter_id, d.date_keep DESC, COALESCE(d.id, 0) DESC
-            ),
-            latest_realtime AS (
-                SELECT DISTINCT ON (COALESCE(rmm.meter_id, mapped_meter.meter_id))
-                    COALESCE(rmm.meter_id, mapped_meter.meter_id) AS meter_id,
-                    r.channel, r.site_id AS realtime_site_id, r.address_id AS realtime_address_id,
-                    r.device_datetime, r.received_at, r.import_kwhr,
-                    r.kva1, r.kva2, r.kva3, r.kva_3ph,
-                    r.kw1, r.kw2, r.kw3, r.kw_3ph,
-                    r.kvar1, r.kvar2, r.kvar3, r.kvar_3ph, r.hz,
-                    r.vl1, r.vl2, r.vl3, r.vl12, r.vl23, r.vl31,
-                    r.il1, r.il2, r.il3, r.pf1, r.pf2, r.pf3
-                FROM meter_data_realtime r
-                LEFT JOIN realtime_meter_map rmm
-                  ON rmm.realtime_site_id = r.site_id
-                 AND rmm.realtime_address_id = r.address_id
-                 AND rmm.is_active = true
-                 AND (rmm.channel IS NULL OR rmm.channel = r.channel)
-                LEFT JOIN meter mapped_meter
-                  ON (mapped_meter.site_el = r.channel OR (mapped_meter.site_el::text = r.site_id::text AND mapped_meter.address::text = r.address_id::text))
-                 AND rmm.id IS NULL
-                WHERE COALESCE(rmm.meter_id, mapped_meter.meter_id) IS NOT NULL
-                ORDER BY COALESCE(rmm.meter_id, mapped_meter.meter_id), r.received_at DESC, r.id DESC
-            ),
-            day_start AS (
-                SELECT DISTINCT ON (d.meter_id)
-                    d.meter_id, d.energy_kwh AS period_start_kwh
-                FROM actual_meter_data d
-                WHERE (d.date_keep AT TIME ZONE 'Asia/Bangkok')::date = (NOW() AT TIME ZONE 'Asia/Bangkok')::date
-                ORDER BY d.meter_id, d.date_keep ASC, COALESCE(d.id, 0) ASC
-            ),
-            day_counts AS (
-                SELECT d.meter_id, COUNT(*)::int AS reading_count
-                FROM actual_meter_data d
-                WHERE (d.date_keep AT TIME ZONE 'Asia/Bangkok')::date = (NOW() AT TIME ZONE 'Asia/Bangkok')::date
-                GROUP BY d.meter_id
+        const metersSql = `WITH meter_target AS (
+                SELECT
+                    m.meter_id,
+                    m.meter_code,
+                    m.meter_name,
+                    m.room_code,
+                    m.room_name,
+                    m.address,
+                    m.site_id,
+                    m.building_id,
+                    m.zone_id,
+                    m.loop_id,
+                    m.floor,
+                    m.status AS meter_status,
+                    m.is_active,
+                    m.meter_type_id,
+                    m.meter_sub_type_id,
+                    COALESCE(rmm.realtime_site_id, CASE WHEN m.site_el ~ '^[0-9]+$' THEN m.site_el::int ELSE NULL END) AS target_site_id,
+                    COALESCE(rmm.realtime_address_id, CASE WHEN m.address ~ '^[0-9]+$' THEN m.address::int ELSE NULL END) AS target_address_id,
+                    COALESCE(rmm.channel, m.site_el) AS target_channel
+                FROM meter m
+                LEFT JOIN realtime_meter_map rmm ON rmm.meter_id = m.meter_id AND rmm.is_active = true
+                ${meterFilter}
             )
             SELECT
                 m.meter_id, m.meter_code, m.meter_name, m.room_code, m.room_name, m.address,
-                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.status AS meter_status, m.is_active, m.meter_type_id, m.meter_sub_type_id,
+                m.site_id, m.building_id, m.zone_id, m.loop_id, m.floor, m.meter_status, m.is_active, m.meter_type_id, m.meter_sub_type_id,
                 mt.meter_type_name, mst.sub_type_name,
                 s.site_name, b.building_name, z.zone_name,
                 COALESCE(latest_realtime.received_at, latest.date_keep) AS date_keep,
                 COALESCE(latest_realtime.device_datetime, latest_realtime.received_at, latest.date_keep) AS device_datetime,
                 latest_realtime.channel AS realtime_channel,
-                latest_realtime.realtime_site_id,
-                latest_realtime.realtime_address_id,
-                CASE WHEN latest_realtime.meter_id IS NOT NULL THEN 'realtime' WHEN latest.meter_id IS NOT NULL THEN 'actual' ELSE 'none' END AS data_source,
+                latest_realtime.site_id AS realtime_site_id,
+                latest_realtime.address_id AS realtime_address_id,
+                CASE WHEN latest_realtime.id IS NOT NULL THEN 'realtime' WHEN latest.meter_id IS NOT NULL THEN 'actual' ELSE 'none' END AS data_source,
                 COALESCE(latest_realtime.import_kwhr, latest.energy_kwh, 0) AS energy_kwh,
                 COALESCE(latest_realtime.kva_3ph, latest.energy_kva, 0) AS energy_kva,
                 COALESCE(latest_realtime.kw_3ph, latest.energy_kw, 0) AS energy_kw,
@@ -143,20 +121,32 @@ export class DashboardService {
                 latest.status AS data_status,
                 0 AS period_start_kwh,
                 latest_realtime.received_at AS realtime_received_at
-            FROM meter m
+            FROM meter_target m
             LEFT JOIN sites s ON m.site_id = s.site_id
             LEFT JOIN buildings b ON m.building_id = b.building_id
             LEFT JOIN zones z ON m.zone_id = z.zone_id
             LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
             LEFT JOIN meter_sub_type mst ON m.meter_sub_type_id = mst.meter_sub_type_id
-            LEFT JOIN latest ON latest.meter_id = m.meter_id
-            LEFT JOIN latest_realtime ON latest_realtime.meter_id = m.meter_id
-            LEFT JOIN day_start ON day_start.meter_id = m.meter_id
-            LEFT JOIN day_counts ON day_counts.meter_id = m.meter_id
-            ${meterFilter}
-            ORDER BY s.site_name, b.building_name, COALESCE(m.floor, '0'), z.zone_name, m.meter_code`,
-            params
-        );
+            LEFT JOIN LATERAL (
+                SELECT *
+                FROM actual_meter_data d
+                WHERE d.meter_id = m.meter_id
+                ORDER BY d.meter_id, d.date_keep DESC
+                LIMIT 1
+            ) latest ON true
+            LEFT JOIN LATERAL (
+                SELECT *
+                FROM meter_data_realtime r
+                WHERE m.target_site_id IS NOT NULL 
+                  AND m.target_address_id IS NOT NULL
+                  AND r.site_id = m.target_site_id 
+                  AND r.address_id = m.target_address_id
+                  AND (m.target_channel IS NULL OR r.channel = m.target_channel)
+                  AND r.received_at >= NOW() - INTERVAL '7 days'
+                ORDER BY r.received_at DESC, r.id DESC
+                LIMIT 1
+            ) latest_realtime ON true
+            ORDER BY s.site_name, b.building_name, COALESCE(m.floor, '0'), z.zone_name, m.meter_code`;
 
         // Build trend filter params: $1 = interval, then optional siteId, buildingId, floor, zoneId
         const trendParams: any[] = [aggregationConfig.intervalMinutes];
@@ -184,28 +174,29 @@ export class DashboardService {
         `;
         const realtimeBucketExpr = bucketExpr('r.received_at');
 
-        const trendResult = await query(
-            `WITH realtime_per_meter AS (
+        const trendSql = `WITH meter_targets AS (
+                SELECT
+                    m.meter_id,
+                    COALESCE(rmm.realtime_site_id, CASE WHEN m.site_el ~ '^[0-9]+$' THEN m.site_el::int ELSE NULL END) AS realtime_site_id,
+                    COALESCE(rmm.realtime_address_id, CASE WHEN m.address ~ '^[0-9]+$' THEN m.address::int ELSE NULL END) AS realtime_address_id
+                FROM meter m
+                LEFT JOIN realtime_meter_map rmm ON rmm.meter_id = m.meter_id AND rmm.is_active = true
+                WHERE m.is_active IS DISTINCT FROM false
+                  ${trendSiteFilter}
+            ),
+            realtime_per_meter AS (
                 SELECT
                     ${realtimeBucketExpr} AS date_keep,
-                    m.meter_id,
+                    mt.meter_id,
                     SUM(COALESCE(r.kw_3ph, 0)) AS kw,
                     MAX(COALESCE(r.import_kwhr, 0)) AS kwh,
                     COUNT(*)::int AS readings
                 FROM meter_data_realtime r
-                LEFT JOIN realtime_meter_map rmm
-                  ON rmm.realtime_site_id = r.site_id
-                 AND rmm.realtime_address_id = r.address_id
-                 AND rmm.is_active = true
-                 AND (rmm.channel IS NULL OR rmm.channel = r.channel)
-                LEFT JOIN meter mapped_meter
-                  ON (mapped_meter.site_el = r.channel OR (mapped_meter.site_el::text = r.site_id::text AND mapped_meter.address::text = r.address_id::text))
-                 AND rmm.id IS NULL
-                JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, mapped_meter.meter_id)
+                JOIN meter_targets mt
+                  ON r.site_id = mt.realtime_site_id
+                 AND r.address_id = mt.realtime_address_id
                 WHERE r.received_at >= NOW() - INTERVAL '24 hours'
-                  AND m.is_active IS DISTINCT FROM false
-                  ${trendSiteFilter}
-                GROUP BY ${realtimeBucketExpr}, m.meter_id
+                GROUP BY ${realtimeBucketExpr}, mt.meter_id
             ),
             realtime_scoped AS (
                 SELECT
@@ -218,9 +209,7 @@ export class DashboardService {
             )
             SELECT date_keep AS t, kw, kwh, readings
             FROM realtime_scoped
-            ORDER BY t`,
-            trendParams
-        );
+            ORDER BY t`;
 
         const comparisonParams: any[] = [];
         let comparisonSiteSql = '';
@@ -228,8 +217,7 @@ export class DashboardService {
             comparisonParams.push(siteIds);
             comparisonSiteSql = ` AND m.site_id = ANY($1::int[])`;
         }
-        const comparisonResult = await query(
-            `WITH meter_scope AS (
+        const comparisonSql = `WITH meter_scope AS (
                 SELECT m.meter_id, m.site_id, m.building_id, s.site_name, b.building_name
                 FROM meter m
                 LEFT JOIN sites s ON m.site_id = s.site_id
@@ -347,9 +335,13 @@ export class DashboardService {
             FROM unioned
             WHERE building_id IS NOT NULL
             GROUP BY gran, bucket, building_id, site_name, building_name
-            ORDER BY gran, bucket, entity_type, entity_name`,
-            comparisonParams
-        );
+            ORDER BY gran, bucket, entity_type, entity_name`;
+
+        const [metersResult, trendResult, comparisonResult] = await Promise.all([
+            query(metersSql, params),
+            query(trendSql, trendParams),
+            query(comparisonSql, comparisonParams),
+        ]);
 
 
         const tree = this.buildZoneTree(metersResult.rows);

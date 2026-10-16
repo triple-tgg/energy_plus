@@ -228,7 +228,7 @@ export const realtimeApi = {
 // Power Quality (Harmonic dashboard)
 export type PowerQualitySourceParams = { siteId: number; addressId: number };
 export const powerQualityApi = {
-    getSources: (params?: { days?: number }) => api.get('/redis/power-quality/sources', { params }),
+    getSources: (params?: { days?: number; filterSiteId?: number }) => api.get('/redis/power-quality/sources', { params }),
     getLatest: (params: PowerQualitySourceParams) => api.get('/redis/power-quality/latest', { params }),
     getHarmonicsHistory: (params: PowerQualitySourceParams & { datatype: string; hours?: number }) =>
         api.get('/redis/power-quality/harmonics-history', { params }),

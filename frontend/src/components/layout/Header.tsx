@@ -63,44 +63,12 @@ const Header: React.FC = () => {
     const navigate = useNavigate();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [sitesList, setSitesList] = useState<{ siteId: number; siteName: string }[]>([]);
-
-    // Load active sites only
+    // Clear selectedSiteId since top site selector is disabled
     useEffect(() => {
-        let isMounted = true;
-        const fetchActiveSites = async () => {
-            try {
-                const res = await sitesApi.getAll({ limit: 200, activeOnly: true });
-                const data = res.data.data || [];
-                const mapped = data.map((s: any) => ({
-                    siteId: s.site_id,
-                    siteName: language === 'en' ? (s.site_name_en || s.site_name) : (s.site_name_th || s.site_name),
-                    siteNameTh: s.site_name_th || s.site_name,
-                    siteNameEn: s.site_name_en || s.site_name,
-                }));
-                if (isMounted) {
-                    let activeSites = mapped;
-                    if (user?.siteAccessMode !== 'all' && user?.sites) {
-                        const allowedIds = new Set(user.sites.map((us: any) => us.siteId));
-                        activeSites = mapped.filter((s: any) => allowedIds.has(s.siteId));
-                    }
-                    setSitesList(activeSites);
-
-                    // Reset selectedSiteId if current selection is inactive or not allowed
-                    if (selectedSiteId) {
-                        const stillExists = activeSites.some((s: { siteId: number }) => s.siteId === selectedSiteId);
-                        if (!stillExists) {
-                            setSelectedSiteId(null);
-                        }
-                    }
-                }
-            } catch {
-                // silent — keep empty list until next retry
-            }
-        };
-        fetchActiveSites();
-        return () => { isMounted = false; };
-    }, [user?.siteAccessMode, user?.sites]);
+        if (selectedSiteId) {
+            setSelectedSiteId(null);
+        }
+    }, [selectedSiteId, setSelectedSiteId]);
 
     // Notification state
     const [notifOpen, setNotifOpen] = useState(false);
@@ -222,43 +190,6 @@ const Header: React.FC = () => {
             </div>
 
             <div className="topbar__right">
-                {/* Site Selector */}
-                {sitesList.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                            <circle cx="12" cy="10" r="3" />
-                        </svg>
-                        <select
-                            id="header-site-select"
-                            style={{
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface-2, rgba(255,255,255,0.06))',
-                                color: 'var(--text)',
-                                fontSize: '12.5px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                outline: 'none',
-                                minWidth: 150,
-                            }}
-                            value={selectedSiteId ?? ''}
-                            onChange={(e) => {
-                                const val = e.target.value ? Number(e.target.value) : null;
-                                setSelectedSiteId(val);
-                            }}
-                            title={t('เลือกสาขา', 'Select site')}
-                        >
-                            <option value="">{t('ทุกสาขา', 'All Sites')}</option>
-                            {sitesList.map((s) => (
-                                <option key={s.siteId} value={s.siteId}>
-                                    {s.siteName}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
 
                 {/* Date/Time Pill */}
                 <div className="topbar__datetime">

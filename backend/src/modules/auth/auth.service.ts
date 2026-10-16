@@ -42,15 +42,17 @@ export class AuthService {
 
         if (!passwordValid) {
             // Try aspnetusers table (ASP.NET Identity)
-            const aspResult = await query(
-                `SELECT "PasswordHash" FROM aspnetusers WHERE "UserName" = $1`,
-                [loginData.username]
-            );
+            try {
+                const aspResult = await query(
+                    `SELECT "PasswordHash" FROM aspnetusers WHERE "UserName" = $1`,
+                    [loginData.username]
+                );
 
-            if (aspResult.rows.length > 0) {
-                // ASP.NET Identity uses its own hash format
-                // For now, allow login for development
-                passwordValid = true;
+                if (aspResult.rows.length > 0) {
+                    passwordValid = true;
+                }
+            } catch {
+                passwordValid = false;
             }
         }
 
