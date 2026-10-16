@@ -61,9 +61,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', refreshToken);
         localStorage.setItem('user', JSON.stringify(u));
-        const storedSite = Number(localStorage.getItem('selectedSiteId'));
+        const storedSiteRaw = localStorage.getItem('selectedSiteId');
         const allowedIds = (u.sites || []).map((site: any) => site.siteId);
-        if (u.siteAccessMode !== 'all' && !allowedIds.includes(storedSite)) setSelectedSiteId(allowedIds[0] || null);
+        if (storedSiteRaw && u.siteAccessMode !== 'all' && !allowedIds.includes(Number(storedSiteRaw))) {
+            setSelectedSiteId(null);
+        }
         setUser(u);
     };
 

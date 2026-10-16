@@ -14,8 +14,10 @@ api.interceptors.request.use((config) => {
         config.headers.Authorization = `Bearer ${token}`;
     }
     const selectedSiteId = localStorage.getItem('selectedSiteId');
-    if (selectedSiteId) {
-        config.params = { ...config.params, siteId: config.params?.siteId || selectedSiteId };
+    if (selectedSiteId && selectedSiteId !== 'all') {
+        if (config.params?.siteId === undefined) {
+            config.params = { ...config.params, siteId: selectedSiteId };
+        }
     }
     return config;
 });

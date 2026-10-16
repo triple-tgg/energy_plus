@@ -337,7 +337,7 @@ const LayoutViewPage: React.FC = () => {
 
     // Sites accessible by current user based on permission
     const accessibleSites = useMemo(() => {
-        if (user?.role === 'admin' || user?.siteAccessMode === 'all') {
+        if (user?.siteAccessMode === 'all') {
             return allSites;
         }
         if (!user?.sites || user.sites.length === 0) {
@@ -398,7 +398,7 @@ const LayoutViewPage: React.FC = () => {
 
     // Layouts filtered by user site access permissions
     const userAccessibleLayouts = useMemo(() => {
-        if (user?.role === 'admin' || user?.siteAccessMode === 'all') {
+        if (user?.siteAccessMode === 'all') {
             return layouts;
         }
         if (!user?.sites || user.sites.length === 0) {
