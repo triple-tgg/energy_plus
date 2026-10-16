@@ -475,28 +475,31 @@ export class DashboardService {
         const params: any[] = [];
         let dateFilter = '';
 
-        if (period === 'week') {
-            dateFilter = `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
-        } else if (period === 'month') {
+        if (period === 'month') {
             dateFilter = `AND d.date_keep >= NOW() - INTERVAL '30 days'`;
         } else {
             dateFilter = `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
         }
 
-        let whereClause = `WHERE 1=1 ${dateFilter}`;
+        const meterFilters: string[] = ['m.is_active = true'];
         const siteIds = parseSiteIds(siteId);
-        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
-        if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
+        if (siteIds) { params.push(siteIds); meterFilters.push(`m.site_id = ANY($${params.length}::int[])`); }
+        if (zoneId) { params.push(parseInt(zoneId)); meterFilters.push(`m.zone_id = $${params.length}`); }
 
         const result = await query(
-            `SELECT z.zone_name, DATE(d.date_keep) as date,
-              SUM(CASE WHEN d.energy_kwh > 0 THEN d.energy_kwh ELSE 0 END) as total_kwh
-       FROM actual_meter_data d
-       JOIN meter m ON d.meter_id = m.meter_id
-       JOIN zones z ON m.zone_id = z.zone_id
-       ${whereClause}
-       GROUP BY z.zone_name, DATE(d.date_keep)
-       ORDER BY DATE(d.date_keep)`,
+            `WITH target_meters AS (
+                SELECT m.meter_id, z.zone_name
+                FROM meter m
+                JOIN zones z ON m.zone_id = z.zone_id
+                WHERE ${meterFilters.join(' AND ')}
+            )
+            SELECT tm.zone_name, DATE(d.date_keep) as date,
+                   SUM(CASE WHEN d.energy_kwh > 0 THEN d.energy_kwh ELSE 0 END) as total_kwh
+            FROM actual_meter_data d
+            JOIN target_meters tm ON tm.meter_id = d.meter_id
+            WHERE 1=1 ${dateFilter}
+            GROUP BY tm.zone_name, DATE(d.date_keep)
+            ORDER BY DATE(d.date_keep)`,
             params
         );
         return result.rows;
@@ -509,18 +512,27 @@ export class DashboardService {
             ? `AND d.date_keep >= NOW() - INTERVAL '30 days'`
             : `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
 
-        let whereClause = `WHERE ${MDB_METER_SQL} ${dateFilter}`;
+        const meterFilters: string[] = [
+            'm.is_active = true',
+            MDB_METER_SQL,
+        ];
         const siteIds = parseSiteIds(siteId);
-        if (siteIds) { params.push(siteIds); whereClause += ` AND m.site_id = ANY($${params.length}::int[])`; }
+        if (siteIds) { params.push(siteIds); meterFilters.push(`m.site_id = ANY($${params.length}::int[])`); }
 
         const result = await query(
-            `SELECT m.meter_name, DATE(d.date_keep) as date,
-              MAX(d.energy_kwh) - MIN(d.energy_kwh) as daily_kwh
-       FROM actual_meter_data d
-       JOIN meter m ON d.meter_id = m.meter_id
-       ${whereClause}
-       GROUP BY m.meter_name, DATE(d.date_keep)
-       ORDER BY DATE(d.date_keep)`,
+            `WITH target_meters AS (
+                SELECT m.meter_id, m.meter_name
+                FROM meter m
+                LEFT JOIN meter_sub_type mst ON mst.meter_sub_type_id = m.meter_sub_type_id
+                WHERE ${meterFilters.join(' AND ')}
+            )
+            SELECT tm.meter_name, DATE(d.date_keep) as date,
+                   MAX(d.energy_kwh) - MIN(d.energy_kwh) as daily_kwh
+            FROM actual_meter_data d
+            JOIN target_meters tm ON tm.meter_id = d.meter_id
+            WHERE 1=1 ${dateFilter}
+            GROUP BY tm.meter_name, DATE(d.date_keep)
+            ORDER BY DATE(d.date_keep)`,
             params
         );
         return result.rows;
@@ -633,35 +645,39 @@ export class DashboardService {
         const endDate = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
 
         const params: any[] = [startDate, endDate];
-        const filters: string[] = [
-            `d.date_keep >= ($1::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
-            `d.date_keep < ($2::date::timestamp AT TIME ZONE 'Asia/Bangkok')`,
-            MDB_METER_SQL,
+        const meterFilters: string[] = [
             `m.is_active = true`,
+            MDB_METER_SQL,
         ];
         const siteIds = parseSiteIds(siteId);
         if (siteIds) {
             params.push(siteIds);
-            filters.push(`m.site_id = ANY($${params.length}::int[])`);
+            meterFilters.push(`m.site_id = ANY($${params.length}::int[])`);
         }
         if (buildingId) {
             params.push(parseInt(buildingId));
-            filters.push(`m.building_id = $${params.length}`);
+            meterFilters.push(`m.building_id = $${params.length}`);
         }
         if (floor !== undefined && floor !== null && floor !== '') {
             params.push(String(floor));
-            filters.push(`m.floor = $${params.length}`);
+            meterFilters.push(`m.floor = $${params.length}`);
         }
 
-        // อ่านจาก actual_meter_data ที่เก็บข้อมูลสรุปราย 15 นาทีอยู่แล้ว
+        // อ่านจาก actual_meter_data โดยกรองเฉพาะ MDB มิเตอร์เป้าหมายก่อน
         const result = await query(
-            `SELECT
+            `WITH target_meters AS (
+                SELECT m.meter_id
+                FROM meter m
+                LEFT JOIN meter_sub_type mst ON mst.meter_sub_type_id = m.meter_sub_type_id
+                WHERE ${meterFilters.join(' AND ')}
+            )
+            SELECT
                 d.date_keep AS time,
                 SUM(COALESCE(d.energy_kw, 0)) AS kw
             FROM actual_meter_data d
-            JOIN meter m ON m.meter_id = d.meter_id
-            LEFT JOIN meter_sub_type mst ON mst.meter_sub_type_id = m.meter_sub_type_id
-            WHERE ${filters.join(' AND ')}
+            JOIN target_meters tm ON tm.meter_id = d.meter_id
+            WHERE d.date_keep >= ($1::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+              AND d.date_keep < ($2::date::timestamp AT TIME ZONE 'Asia/Bangkok')
             GROUP BY d.date_keep
             ORDER BY d.date_keep`,
             params
@@ -702,16 +718,17 @@ export class DashboardService {
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
         if (meterId) { params.push(parseInt(meterId)); filters.push(`m.meter_id = $${params.length}`); }
+        const dateFilters: string[] = [];
         if (startDate) {
             params.push(startDate);
-            filters.push(`r.received_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`);
+            dateFilters.push(`r.received_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`);
         } else {
             // ค่าเริ่มต้น: ต้นวันนี้ (กันการสแกนข้อมูลทั้งชุดถ้าไม่ได้ส่งช่วงวันมา)
-            filters.push(`r.received_at >= date_trunc('day', NOW() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok'`);
+            dateFilters.push(`r.received_at >= date_trunc('day', NOW() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok'`);
         }
         if (endDate) {
             params.push(endDate);
-            filters.push(`r.received_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`);
+            dateFilters.push(`r.received_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`);
         }
         if (searchMeter) {
             params.push(`%${String(searchMeter).trim()}%`);
@@ -731,6 +748,7 @@ export class DashboardService {
             LEFT JOIN meter fallback_meter
               ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
              AND rmm.id IS NULL
+            WHERE ${dateFilters.join(' AND ')}
         `;
 
         // สรุปการใช้ไฟ "รายวันต่อมิเตอร์" ในช่วงที่เลือก (เหมือนระบบเดิม)
