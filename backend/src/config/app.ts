@@ -12,19 +12,17 @@ export const createApp = (): Application => {
 
     // Security
     // Deployment is served over plain HTTP (e.g. http://<ip>:23000), so disable
-    // HTTPS-forcing headers; otherwise browsers upgrade asset requests to https
-    // and the SPA renders a blank page.
+    // CSP, HSTS, and strict CORP/COOP headers; otherwise browsers upgrade asset
+    // requests to https or block script/css modules.
     app.use(helmet({
-        contentSecurityPolicy: {
-            directives: {
-                upgradeInsecureRequests: null,
-            },
-        },
+        contentSecurityPolicy: false,
+        crossOriginResourcePolicy: false,
+        crossOriginOpenerPolicy: false,
         strictTransportSecurity: false,
     }));
 
     // CORS
-    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5175';
+    const corsOrigin = process.env.CORS_ORIGIN || '*';
     app.use(cors({
         origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(o => o.trim()),
         credentials: true,
