@@ -87,6 +87,10 @@ app.use(`${API_PREFIX}/data-cleanup`, dataCleanupRoutes);
 app.use(`${API_PREFIX}/license`, licenseRoutes);
 app.use(`${API_PREFIX}/exports`, exportsRoutes);
 
+// Report API Documentation Aliases
+app.get('/docs/reports', (_req, res) => res.redirect(`${API_PREFIX}/reports/docs`));
+app.get('/reports/docs', (_req, res) => res.redirect(`${API_PREFIX}/reports/docs`));
+
 // Swagger API Documentation
 app.use(`${API_PREFIX}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
@@ -222,6 +226,8 @@ const startServer = async () => {
         console.log(`\n🚀 MSoft Energy Monitoring API Server running on port ${PORT}`);
         console.log(`📡 API Base URL: http://localhost:${PORT}${API_PREFIX}`);
         console.log(`📖 Swagger API Docs: http://localhost:${PORT}${API_PREFIX}/docs`);
+        console.log(`📊 Report API Spec & Docs: http://localhost:${PORT}${API_PREFIX}/reports/docs`);
+        console.log(`📄 Report OpenAPI JSON: http://localhost:${PORT}${API_PREFIX}/reports/openapi.json`);
         console.log(`💚 Health check: http://localhost:${PORT}${API_PREFIX}/health`);
         console.log(`📡 Redis Pub/Sub: http://localhost:${PORT}${API_PREFIX}/redis/channels\n`);
     });

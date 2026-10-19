@@ -645,32 +645,36 @@ export class MetersService {
                         ? Number(row.floor)
                         : null;
 
-                    // Check for existing meter by meter_code first, then by site_el (unique key)
+                    // Check for existing meter by meter_code within the same site first
                     let existingId: number | null = null;
                     if (meterCode) {
                         const existing = await client.query(
-                            `SELECT meter_id FROM meter WHERE meter_code = $1`,
-                            [meterCode]
+                            `SELECT meter_id FROM meter
+                             WHERE meter_code = $1
+                               AND (site_id = $2 OR LOWER(TRIM(COALESCE(site, ''))) = LOWER(TRIM($3)))`,
+                            [meterCode, siteId, siteName]
                         );
                         if (existing.rows.length > 0) {
                             existingId = existing.rows[0].meter_id;
                         }
                     }
 
-                    // Fallback: check by site_el as unique key (base "5001_1" or the raw value of older imports)
+                    // Fallback: check by site_el as unique key WITHIN THE SAME SITE (base "5001_1" or the raw value of older imports)
                     if (!existingId && meterSiteEl) {
                         const existing = await client.query(
                             `SELECT meter_id FROM meter
                              WHERE (site_el = $1 OR site_el = $2)
                                AND (POSITION('_' IN site_el) > 0 OR $3::text IS NULL OR address = $3::text)
+                               AND (site_id = $4 OR LOWER(TRIM(COALESCE(site, ''))) = LOWER(TRIM($5)))
                              ORDER BY (site_el = $1) DESC LIMIT 1`,
-                            [meterSiteEl, rawSiteEl ?? meterSiteEl, modbusAddr]
+                            [meterSiteEl, rawSiteEl ?? meterSiteEl, modbusAddr, siteId, siteName]
                         );
                         if (existing.rows.length > 0) {
                             existingId = existing.rows[0].meter_id;
                         }
                     }
 
+                    const isUpdate = Boolean(existingId);
                     let savedMeterId: number | null = existingId;
 
                     if (existingId) {
@@ -718,7 +722,6 @@ export class MetersService {
                                 ipConverter,
                             ]
                         );
-                        results.updated++;
                     } else {
                         // INSERT new meter
                         const inserted = await client.query(
@@ -769,7 +772,6 @@ export class MetersService {
                             ]
                         );
                         savedMeterId = inserted.rows[0]?.meter_id || null;
-                        results.imported++;
                     }
 
                     if (savedMeterId && meterSiteEl) {
@@ -784,29 +786,38 @@ export class MetersService {
                         const realtimeAddressId = keyMatch ? parseInt(keyMatch[2], 10) : Number(modbusAddr ?? NaN);
                         const realtimeChannel = meterKey || buildRealtimeChannel(siteName, realtimeSiteId, row.loop);
                         if (Number.isFinite(realtimeSiteId) && Number.isFinite(realtimeAddressId)) {
+                            // 1. Deactivate any conflicting active mappings:
+                            //    - Mappings of this meter to other channels
+                            //    - Mappings of this channel to other meters
                             await client.query(
                                 `UPDATE realtime_meter_map
                                  SET is_active = false, updated_at = NOW()
-                                 WHERE meter_id = $1
-                                   AND NOT (realtime_site_id = $2 AND realtime_address_id = $3 AND channel = $4)`,
+                                 WHERE is_active = true
+                                   AND (
+                                     (meter_id = $1 AND (realtime_site_id <> $2 OR realtime_address_id <> $3 OR COALESCE(channel, '') <> COALESCE($4, '')))
+                                     OR
+                                     (realtime_site_id = $2 AND realtime_address_id = $3 AND COALESCE(channel, '') = COALESCE($4, ''))
+                                   )`,
                                 [savedMeterId, realtimeSiteId, realtimeAddressId, realtimeChannel]
                             );
 
+                            // 2. Check if a mapping row for this exact meter and channel already exists
                             const existingMap = await client.query(
                                 `SELECT id FROM realtime_meter_map
                                  WHERE realtime_site_id = $1
                                    AND realtime_address_id = $2
-                                   AND channel = $3
-                                 LIMIT 1`,
-                                [realtimeSiteId, realtimeAddressId, realtimeChannel]
+                                   AND COALESCE(channel, '') = COALESCE($3, '')
+                                   AND meter_id = $4
+                                 ORDER BY id LIMIT 1`,
+                                [realtimeSiteId, realtimeAddressId, realtimeChannel, savedMeterId]
                             );
 
                             if (existingMap.rows.length > 0) {
                                 await client.query(
                                     `UPDATE realtime_meter_map
-                                     SET meter_id = $1, is_active = true, updated_at = NOW()
-                                     WHERE id = $2`,
-                                    [savedMeterId, existingMap.rows[0].id]
+                                     SET is_active = true, updated_at = NOW()
+                                     WHERE id = $1`,
+                                    [existingMap.rows[0].id]
                                 );
                             } else {
                                 await client.query(
@@ -843,6 +854,11 @@ export class MetersService {
                              ON CONFLICT (meter_id, year_month) DO UPDATE SET total_kwh = EXCLUDED.total_kwh`,
                             [savedMeterId, readingValue]
                         );
+                    }
+                    if (isUpdate) {
+                        results.updated++;
+                    } else {
+                        results.imported++;
                     }
                     await client.query(`RELEASE SAVEPOINT ${savepointName}`);
                 } catch (err: any) {
