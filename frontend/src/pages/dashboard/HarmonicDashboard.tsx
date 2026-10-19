@@ -137,26 +137,32 @@ const HarmonicDashboard: React.FC = () => {
         }
     }, [params, t]);
 
-    const loadHistory = useCallback(async () => {
+    const loadHarmonics = useCallback(async () => {
         if (!params) return;
         try {
-            const [h, thd] = await Promise.all([
-                powerQualityApi.getHarmonicsHistory({ ...params, datatype, hours }),
-                powerQualityApi.getThdHistory({ ...params, hours }),
-            ]);
-            setSnapshots(unwrap(h) || []);
-            setThdHistory(unwrap(thd) || []);
+            const h = unwrap(await powerQualityApi.getHarmonicsHistory({ ...params, datatype, hours }));
+            setSnapshots(h || []);
         } catch (err: any) {
             setError(err?.response?.data?.error?.message || err?.message || t('โหลดข้อมูลย้อนหลังไม่สำเร็จ', 'Failed to load history'));
         }
     }, [params, datatype, hours, t]);
 
+    const loadThd = useCallback(async () => {
+        if (!params) return;
+        try {
+            const thd = unwrap(await powerQualityApi.getThdHistory({ ...params, hours }));
+            setThdHistory(thd || []);
+        } catch (err: any) {
+            setError(err?.response?.data?.error?.message || err?.message || t('โหลดข้อมูลย้อนหลังไม่สำเร็จ', 'Failed to load history'));
+        }
+    }, [params, hours, t]);
+
     const refreshAll = useCallback(async () => {
         setLoading(true);
         await loadSources();
-        await Promise.all([loadLatest(), loadHistory()]);
+        await Promise.all([loadLatest(), loadHarmonics(), loadThd()]);
         setLoading(false);
-    }, [loadSources, loadLatest, loadHistory]);
+    }, [loadSources, loadLatest, loadHarmonics, loadThd]);
 
     useEffect(() => { loadSources(); }, [loadSources]);
     useEffect(() => {
@@ -168,10 +174,15 @@ const HarmonicDashboard: React.FC = () => {
         return () => clearInterval(id);
     }, [loadLatest, params]);
     useEffect(() => {
-        loadHistory();
-        const id = setInterval(loadHistory, HISTORY_REFRESH_MS);
+        loadHarmonics();
+        const id = setInterval(loadHarmonics, HISTORY_REFRESH_MS);
         return () => clearInterval(id);
-    }, [loadHistory]);
+    }, [loadHarmonics]);
+    useEffect(() => {
+        loadThd();
+        const id = setInterval(loadThd, HISTORY_REFRESH_MS);
+        return () => clearInterval(id);
+    }, [loadThd]);
     useEffect(() => {
         const id = setInterval(() => setNow(Date.now()), 10_000);
         return () => clearInterval(id);

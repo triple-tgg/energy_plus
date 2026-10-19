@@ -1,11 +1,35 @@
 import { Router } from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { authenticate } from '../../middleware/auth';
 import { ReportsController } from './reports.controller';
 import { enforceSiteAccess, requireRole } from '../../middleware/accessControl';
+import { reportOpenApiDocument, renderReportDocsHtml } from './reportDocs';
 
 const router = Router();
 const controller = new ReportsController();
 
+// ── Public Report API Documentation & Specification (No Auth Required) ──
+// 1. Beautiful Standalone Developer Guide Portal
+router.get('/docs', (_req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderReportDocsHtml('/api/v1'));
+});
+
+// 2. OpenAPI 3.0 JSON Specification
+router.get('/openapi.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(reportOpenApiDocument);
+});
+
+router.get('/spec.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(reportOpenApiDocument);
+});
+
+// 3. Dedicated Swagger UI for Reports
+router.use('/swagger', swaggerUi.serveFiles(reportOpenApiDocument), swaggerUi.setup(reportOpenApiDocument));
+
+// ── Authenticated Data Extraction Routes (Auth Required) ──
 router.use(authenticate, enforceSiteAccess);
 router.get('/energy-consumption', controller.getEnergyConsumption);
 router.get('/energy-monthly', controller.getEnergyMonthlyReport);

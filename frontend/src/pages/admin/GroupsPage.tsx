@@ -253,6 +253,30 @@ const GroupsPage: React.FC = () => {
         <div>
             {successMsg && <div className="toast-success">✅ {successMsg}</div>}
 
+            {/* Info Banner */}
+            <div style={{
+                marginBottom: 16,
+                padding: '10px 14px',
+                borderRadius: 4,
+                background: 'rgba(43, 76, 126, 0.08)',
+                border: '1px solid rgba(43, 76, 126, 0.2)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                fontSize: '12px',
+                lineHeight: 1.5,
+                color: 'inherit'
+            }}>
+                <span style={{ fontSize: 18, lineHeight: 1 }}>💡</span>
+                <div>
+                    <strong>{t('บทบาทของ User Group:', 'About User Groups:')}</strong>{' '}
+                    {t(
+                        'กลุ่มผู้ใช้งาน (User Group) ใช้สำหรับกำหนดสิทธิ์การมองเห็นเมนูและหน้าต่างๆ ในระบบ (Permissions) เช่น Dashboard, Monitoring, Master Data ฯลฯ โดยอำนาจในการเพิ่ม แก้ไข หรือลบข้อมูล จะทำงานสัมพันธ์กับ ระดับสิทธิ์ (Role: Admin / Operator / Viewer) ของผู้ใช้แต่ละคนที่กำหนดในหน้าผู้ใช้งาน',
+                        'User Groups define menu and module access permissions (e.g. Dashboard, Monitoring, Master Data). The ability to add, edit, or delete data also interacts with each user\'s Role (Admin / Operator / Viewer) configured in the Users page.'
+                    )}
+                </div>
+            </div>
+
             <DataTable
                 title={t('กลุ่มผู้ใช้งาน', 'User Groups')}
                 columns={columns}
@@ -286,6 +310,18 @@ const GroupsPage: React.FC = () => {
                 }
             >
                 {formError && <div className="form-error-banner">{formError}</div>}
+
+                <div style={{
+                    marginBottom: 12,
+                    padding: '8px 12px',
+                    borderRadius: 4,
+                    background: 'rgba(43, 76, 126, 0.07)',
+                    border: '1px solid rgba(43, 76, 126, 0.2)',
+                    fontSize: '11.5px',
+                    lineHeight: '1.45'
+                }}>
+                    ℹ️ {t('หลังจากสร้างกลุ่มแล้ว สามารถกดปุ่ม "จัดการสิทธิ์" ที่ตาราง เพื่อกำหนดเมนูที่กลุ่มนี้เข้าถึงได้', 'After creating a group, click "Add Permission" in the table to configure accessible menus.')}
+                </div>
 
                 <div className="form-group">
                     <label className="form-label">{t('ชื่อกลุ่ม', 'Group Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -377,8 +413,25 @@ const GroupsPage: React.FC = () => {
             >
                 {permsError && <div className="form-error-banner">{permsError}</div>}
 
+                <div style={{
+                    marginTop: 4,
+                    marginBottom: 12,
+                    padding: '8px 12px',
+                    borderRadius: 4,
+                    background: 'rgba(54, 194, 206, 0.08)',
+                    border: '1px solid rgba(54, 194, 206, 0.25)',
+                    fontSize: '11.5px',
+                    lineHeight: '1.45',
+                    color: 'inherit'
+                }}>
+                    💡 {t(
+                        'กำหนดสิทธิ์การเข้าถึงโมดูลของกลุ่มนี้: สิทธิ์ "ดู" (View) จะเปิดให้เข้าเมนูนั้นๆ ได้ ส่วนสิทธิ์สร้าง/แก้ไข/ลบ จะมีผลร่วมกับผู้ใช้ที่มี Role เป็น Admin หรือ Operator',
+                        'Configure module access: "View" enables access to that menu, while Create/Edit/Delete actions are further governed by user Role (Admin/Operator).'
+                    )}
+                </div>
+
                 {permsTarget && permsList.length > 0 ? (
-                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
                         <thead>
                             <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border)' }}>
                                 <th style={{ padding: '8px' }}>{t('โมดูล / เมนู', 'Module / Menu')}</th>

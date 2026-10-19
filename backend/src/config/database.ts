@@ -15,7 +15,9 @@ const poolConfig: PoolConfig = {
     database: process.env.DB_DATABASE || 'energy_plus',
     password: process.env.DB_PASSWORD || '',
     port: parseInt(process.env.DB_PORT || '25060', 10),
-    max: 20,
+    max: 10,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
     ssl: useSsl
         ? {
             rejectUnauthorized: false,

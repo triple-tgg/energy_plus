@@ -432,6 +432,9 @@ const UsersPage: React.FC = () => {
                                 <option key={g.group_id} value={g.group_id}>{g.group_name}</option>
                             ))}
                         </select>
+                        <small style={{ display: 'block', marginTop: 4, fontSize: '11px', color: 'var(--text-sub, #888)' }}>
+                            ℹ️ {t('กำหนดเมนูและหน้าที่ผู้ใช้มีสิทธิ์เข้าถึง (คุมโดย User Group)', 'Defines which menus and pages the user can access (governed by User Group)')}
+                        </small>
                     </div>
                 </div>
 
@@ -450,19 +453,25 @@ const UsersPage: React.FC = () => {
 
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">{t('ระดับสิทธิ์', 'Role')}</label>
+                        <label className="form-label">{t('ระดับสิทธิ์ (Role)', 'Role')}</label>
                         <select className="form-control" value={form.role} onChange={e => setForm({ ...form, role: e.target.value as UserForm['role'] })}>
-                            <option value="viewer">Viewer</option>
-                            <option value="operator">Operator</option>
-                            <option value="admin">Admin</option>
+                            <option value="viewer">Viewer ({t('ดูข้อมูลได้อย่างเดียว', 'Read-only')})</option>
+                            <option value="operator">Operator ({t('ดูและปฏิบัติการ', 'View & Operate')})</option>
+                            <option value="admin">Admin ({t('จัดการระบบ / เพิ่ม แก้ไข ลบ', 'Full Management')})</option>
                         </select>
+                        <small style={{ display: 'block', marginTop: 4, fontSize: '11px', color: 'var(--text-sub, #888)' }}>
+                            ℹ️ {t('Admin = จัดการ/แก้ไข/ลบข้อมูลได้, Viewer = ดูได้อย่างเดียว', 'Admin = Can add/edit/delete, Viewer = Read-only')}
+                        </small>
                     </div>
                     <div className="form-group">
                         <label className="form-label">{t('รูปแบบการเข้าถึง Site', 'Site Access Mode')}</label>
                         <select className="form-control" value={form.siteAccessMode} onChange={e => setForm({ ...form, siteAccessMode: e.target.value as UserForm['siteAccessMode'] })}>
                             <option value="assigned">{t('เฉพาะ Site ที่กำหนด', 'Assigned Sites')}</option>
-                            <option value="all">{t('ทุกสาขา', 'All Sites')}</option>
+                            <option value="all">{t('ทุกสาขา (All Sites)', 'All Sites')}</option>
                         </select>
+                        <small style={{ display: 'block', marginTop: 4, fontSize: '11px', color: 'var(--text-sub, #888)' }}>
+                            ℹ️ {t('All = ดูได้ทุกไซต์, Assigned = ดูได้เฉพาะไซต์ที่เลือกด้านล่าง', 'All = Access all sites, Assigned = Access only selected sites below')}
+                        </small>
                     </div>
                 </div>
                 {form.siteAccessMode === 'assigned' && (
@@ -473,6 +482,26 @@ const UsersPage: React.FC = () => {
                         </select>
                     </div>
                 )}
+
+                {/* Explanation Banner */}
+                <div style={{
+                    marginTop: 12,
+                    marginBottom: 12,
+                    padding: '8px 12px',
+                    borderRadius: 4,
+                    background: 'rgba(43, 76, 126, 0.07)',
+                    border: '1px solid rgba(43, 76, 126, 0.2)',
+                    fontSize: '11.5px',
+                    lineHeight: '1.45',
+                    color: 'inherit'
+                }}>
+                    <strong style={{ color: 'var(--primary, #2B4C7E)' }}>💡 {t('คำอธิบายสิทธิ์:', 'Permission Overview:')}</strong>
+                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                        <li><strong>{t('Group:', 'Group:')}</strong> {t('คุมการเข้าถึงเมนูต่างๆ ในระบบ', 'Controls menu/page access')}</li>
+                        <li><strong>{t('Role:', 'Role:')}</strong> {t('คุมอำนาจการทำรายการ (Admin แก้ไข/ลบได้, Viewer ดูอย่างเดียว)', 'Controls actions (Admin can edit/delete, Viewer is read-only)')}</li>
+                        <li><strong>{t('Site Access:', 'Site Access:')}</strong> {t('คุมขอบเขตข้อมูลของไซต์ที่มองเห็น', 'Controls visible site data scope')}</li>
+                    </ul>
+                </div>
 
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
