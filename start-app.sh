@@ -129,7 +129,7 @@ sleep 1.5
 # Start Frontend (strictPort: fail instead of silently switching to 5176)
 echo -e "${BLUE}🎨 Starting Frontend Dev Server (Port $FRONTEND_PORT)...${NC}"
 cd frontend
-npm run dev -- --port $FRONTEND_PORT --strictPort &
+npm run dev -- --host 0.0.0.0 --port $FRONTEND_PORT --strictPort &
 FRONTEND_PID=$!
 cd ..
 
