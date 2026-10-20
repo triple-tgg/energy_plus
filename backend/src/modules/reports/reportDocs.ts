@@ -101,11 +101,11 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
             HistoryRecordItem: {
                 type: 'object',
                 properties: {
-                    id: { type: 'integer', example: 598412 },
-                    meter_id: { type: 'integer', example: 101 },
-                    meter_code: { type: 'string', example: 'MTR-FL1-01' },
-                    meter_name: { type: 'string', example: 'Main Incomer 1' },
-                    date_keep: { type: 'string', format: 'date-time', example: '2026-10-18T10:15:00.000Z' },
+                    id: { type: 'integer', example: 1001 },
+                    meter_id: { type: 'integer', example: 1 },
+                    meter_code: { type: 'string', example: 'MTR-001' },
+                    meter_name: { type: 'string', example: 'Main Feeder 1' },
+                    date_keep: { type: 'string', format: 'date-time', example: '2026-01-01T10:15:00.000Z' },
                     energy_kwh: { type: 'number', example: 128920.80 },
                     energy_kw: { type: 'number', example: 124.50 },
                     energy_kvar: { type: 'number', example: 35.20 },
@@ -143,8 +143,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                                 type: 'object',
                                 required: ['username', 'password'],
                                 properties: {
-                                    username: { type: 'string', example: 'api_client' },
-                                    password: { type: 'string', example: 'password123' },
+                                    username: { type: 'string', example: 'api_user' },
+                                    password: { type: 'string', example: 'your_password' },
                                 },
                             },
                         },
@@ -182,8 +182,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 summary: 'ดึงรายงานการใช้พลังงานรวม (Energy Consumption Report)',
                 description: 'ดึงข้อมูลหน่วยการใช้ไฟฟ้า (kWh), ค่าไฟ, Peak Demand และเลขมิเตอร์เริ่มต้น-สิ้นสุด ตามช่วงวันที่และเงื่อนไขที่กำหนด',
                 parameters: [
-                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-10-01', description: 'วันที่เริ่มต้น (YYYY-MM-DD)' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-10-18', description: 'วันที่สิ้นสุด (YYYY-MM-DD)' },
+                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-01', description: 'วันที่เริ่มต้น (YYYY-MM-DD)' },
+                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-31', description: 'วันที่สิ้นสุด (YYYY-MM-DD)' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' }, description: 'รหัสไซต์/สาขา (หากไม่ระบุจะดึงตามสิทธิ์ผู้ใช้งาน)' },
                     { name: 'buildingId', in: 'query', schema: { type: 'integer' }, description: 'รหัสอาคาร' },
                     { name: 'zoneId', in: 'query', schema: { type: 'integer' }, description: 'รหัสโซน' },
@@ -222,8 +222,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 summary: 'ดึงรายงานค่าไฟฟ้าตามอัตรา TOU (Time of Use Report)',
                 description: 'คำนวณและสรุปหน่วยการใช้ไฟฟ้าแยกตามช่วงเวลา On-Peak, Off-Peak, Holiday และค่าไฟฟ้าสุทธิ (รวม Ft, Demand, ค่าบริการ และ VAT)',
                 parameters: [
-                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-10-01', description: 'วันที่เริ่มต้น (YYYY-MM-DD)' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-10-18', description: 'วันที่สิ้นสุด (YYYY-MM-DD)' },
+                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-01', description: 'วันที่เริ่มต้น (YYYY-MM-DD)' },
+                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-31', description: 'วันที่สิ้นสุด (YYYY-MM-DD)' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' }, description: 'รหัสไซต์' },
                     { name: 'buildingId', in: 'query', schema: { type: 'integer' }, description: 'รหัสอาคาร' },
                     { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
@@ -292,8 +292,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 description: 'ดึงข้อมูลค่ากระแสไฟฟ้า แรงดัน กำลังไฟฟ้า และหน่วยสะสม ทุกรอบการบันทึก (interval log)',
                 parameters: [
                     { name: 'meterId', in: 'query', schema: { type: 'integer' }, description: 'รหัสมิเตอร์' },
-                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-10-18' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-10-18' },
+                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-01' },
+                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-31' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' } },
                     { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
                     { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
@@ -326,8 +326,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 summary: 'ดึงข้อมูลการใช้พลังงานสรุปรายวัน (Daily Aggregated Data)',
                 parameters: [
                     { name: 'siteId', in: 'query', schema: { type: 'integer' } },
-                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-10-01' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-10-18' },
+                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-01-01' },
+                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-01-31' },
                 ],
                 responses: { 200: { description: 'ข้อมูลสรุปรายวัน' } },
             },
@@ -349,8 +349,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 tags: ['4. Comparison & Alarms'],
                 summary: 'ดึงรายงานประวัติการแจ้งเตือน (Alarm History Report)',
                 parameters: [
-                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-10-01' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-10-18' },
+                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-01-01' },
+                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-01-31' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' } },
                     { name: 'search', in: 'query', schema: { type: 'string' } },
                     { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
@@ -365,8 +365,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 summary: 'ดาวน์โหลดรายงานเป็นไฟล์ Excel (.xlsx)',
                 parameters: [
                     { name: 'reportType', in: 'path', required: true, schema: { type: 'string', enum: ['energy-consumption', 'energy-monthly', 'tou', 'tou-monthly', 'history'] }, example: 'energy-consumption' },
-                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-10-01' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-10-18' },
+                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-01-01' },
+                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-01-31' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' } },
                 ],
                 responses: {
@@ -804,8 +804,8 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                     <div class="code-content">curl -X POST "${serverOrigin}${baseUrl}/auth/login" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "username": "api_client",
-    "password": "your_password"
+    "username": "YOUR_USERNAME",
+    "password": "YOUR_PASSWORD"
   }'</div>
                 </div>
                 <div class="code-container">
@@ -817,11 +817,11 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
     "refreshToken": "eyJhbGciOiJIUzI1NiIsIn...",
     "expiresIn": 86400,
     "user": {
-      "userId": 4,
-      "userName": "api_client",
+      "userId": 1,
+      "userName": "api_user",
       "role": "viewer",
-      "siteAccessMode": "assigned",
-      "sites": [{ "siteId": 26, "siteName": "วรรณวนัช เบเกอรี่" }]
+      "siteAccessMode": "all",
+      "sites": [{ "siteId": 1, "siteName": "Example Site A" }]
     }
   }
 }</div>
@@ -858,21 +858,21 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                                 <td><span class="param-type">string (date)</span></td>
                                 <td><span class="badge-opt">Optional</span></td>
                                 <td>วันที่เริ่มต้น (YYYY-MM-DD) ค่าเริ่มต้นคือวันนี้</td>
-                                <td><code>2026-10-01</code></td>
+                                <td><code>2026-01-01</code></td>
                             </tr>
                             <tr>
                                 <td><span class="param-name">endDate</span></td>
                                 <td><span class="param-type">string (date)</span></td>
                                 <td><span class="badge-opt">Optional</span></td>
                                 <td>วันที่สิ้นสุด (YYYY-MM-DD)</td>
-                                <td><code>2026-10-18</code></td>
+                                <td><code>2026-01-31</code></td>
                             </tr>
                             <tr>
                                 <td><span class="param-name">siteId</span></td>
                                 <td><span class="param-type">integer</span></td>
                                 <td><span class="badge-opt">Optional</span></td>
                                 <td>รหัสไซต์/สาขา (หากไม่ระบุ ระบบจะกรองตามสิทธิ์ของผู้ใช้)</td>
-                                <td><code>26</code></td>
+                                <td><code>1</code></td>
                             </tr>
                             <tr>
                                 <td><span class="param-name">buildingId</span></td>
@@ -917,7 +917,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption?startDate=2026-10-01&endDate=2026-10-18&limit=100" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption?startDate=2026-01-01&endDate=2026-01-31&limit=100" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
                 <div class="code-container">
@@ -926,18 +926,18 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
   "success": true,
   "data": [
     {
-      "meter_id": 101,
-      "meter_code": "MTR-01",
+      "meter_id": 1,
+      "meter_code": "MTR-001",
       "meter_name": "Main Transformer 1",
-      "building_name": "อาคารผลิต",
-      "zone_name": "ชั้น 1",
-      "first_reading": 15420.50,
-      "last_reading": 17850.80,
-      "diff_reading": 2430.30,
-      "total_kwh": 2430.30,
+      "building_name": "Building A",
+      "zone_name": "Floor 1",
+      "first_reading": 10000.00,
+      "last_reading": 12500.00,
+      "diff_reading": 2500.00,
+      "total_kwh": 2500.00,
       "multiplier": 1.0,
-      "peak_kw": 125.40,
-      "cost": 10936.35
+      "peak_kw": 150.00,
+      "cost": 10500.00
     }
   ],
   "pagination": {
@@ -978,19 +978,19 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                                 <td><span class="param-name">startDate</span></td>
                                 <td><span class="param-type">string (date)</span></td>
                                 <td>วันที่เริ่มต้น (YYYY-MM-DD)</td>
-                                <td><code>2026-10-01</code></td>
+                                <td><code>2026-01-01</code></td>
                             </tr>
                             <tr>
                                 <td><span class="param-name">endDate</span></td>
                                 <td><span class="param-type">string (date)</span></td>
                                 <td>วันที่สิ้นสุด (YYYY-MM-DD)</td>
-                                <td><code>2026-10-18</code></td>
+                                <td><code>2026-01-31</code></td>
                             </tr>
                             <tr>
                                 <td><span class="param-name">siteId</span></td>
                                 <td><span class="param-type">integer</span></td>
                                 <td>รหัสไซต์ที่ต้องการดึง</td>
-                                <td><code>26</code></td>
+                                <td><code>1</code></td>
                             </tr>
                         </tbody>
                     </table>
@@ -1000,7 +1000,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/tou?startDate=2026-10-01&endDate=2026-10-18" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/tou?startDate=2026-01-01&endDate=2026-01-31" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
                 <div class="code-container">
@@ -1009,23 +1009,23 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
   "success": true,
   "data": [
     {
-      "meter_id": 101,
-      "meter_code": "MTR-01",
-      "customer_name": "Main Transformer",
-      "site_name": "วรรณวนัช เบเกอรี่",
-      "total_kwh": 3700.60,
-      "on_peak_kwh": 2100.40,
-      "off_peak_kwh": 1100.20,
-      "holiday_kwh": 500.00,
-      "max_kw": 185.50,
-      "on_peak_cost": 12178.52,
-      "off_peak_cost": 2901.12,
-      "holiday_cost": 1318.45,
-      "demand_cost": 38955.00,
-      "ft_cost": 600.61,
-      "service_charge": 38.22,
-      "vat_amount": 3919.43,
-      "total_cost": 59911.35
+      "meter_id": 1,
+      "meter_code": "MTR-001",
+      "customer_name": "Main Feeder 1",
+      "site_name": "Example Site A",
+      "total_kwh": 3000.00,
+      "on_peak_kwh": 1800.00,
+      "off_peak_kwh": 1200.00,
+      "holiday_kwh": 0.00,
+      "max_kw": 120.00,
+      "on_peak_cost": 9000.00,
+      "off_peak_cost": 3000.00,
+      "holiday_cost": 0.00,
+      "demand_cost": 15000.00,
+      "ft_cost": 500.00,
+      "service_charge": 38.00,
+      "vat_amount": 1927.66,
+      "total_cost": 29465.66
     }
   ]
 }</div>
@@ -1049,7 +1049,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-monthly?year=2026&month=10" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-monthly?year=2026&month=1" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
             </section>
@@ -1071,7 +1071,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/history?meterId=101&startDate=2026-10-18&endDate=2026-10-18&limit=50" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/history?meterId=1&startDate=2026-01-01&endDate=2026-01-01&limit=50" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
             </section>
@@ -1094,7 +1094,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                         <span>cURL Example (Save to file)</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption/export/excel?startDate=2026-10-01&endDate=2026-10-18" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption/export/excel?startDate=2026-01-01&endDate=2026-01-31" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
   -o "energy_report.xlsx"</div>
                 </div>
