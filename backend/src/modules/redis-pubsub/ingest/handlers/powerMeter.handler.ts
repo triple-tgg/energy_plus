@@ -114,7 +114,7 @@ const insertRealtime = async (client: PoolClient, header: ParsedHeader, data: Re
  */
 export const powerMeterHandler: DatatypeHandler = {
     name: 'power-meter',
-    datatypes: ['PM3', 'PM3-THD', 'PM3-THD-DEMAND'],
+    datatypes: ['PM1', 'PM3', 'PM3-THD', 'PM3-THD-DEMAND'],
     async save(client, header, data) {
         const realtimeId = await insertRealtime(client, header, data);
         if (hasMaxDemand(data)) {
