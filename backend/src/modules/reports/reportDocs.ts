@@ -388,7 +388,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
  * Generates an interactive, modern, developer-friendly HTML documentation page
  * for clients and external developers.
  */
-export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
+export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: string): string => {
+    const serverOrigin = (origin && origin.trim()) ? origin.trim().replace(/\/+$/, '') : 'http://<url>:<port>';
     return `<!DOCTYPE html>
 <html lang="th">
 <head>
@@ -778,7 +779,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                     เอกสารข้อกำหนด API สำหรับให้ลูกค้าภายนอกหรือระบบอัตโนมัติ (Automated Data Pipeline, ERP, PowerBI) ดึงข้อมูลสรุปหน่วยการใช้ไฟฟ้า, ค่าไฟฟ้าอัตรา TOU, และ Log ข้อมูลย้อนหลัง
                 </p>
                 <div class="callout" style="margin-top: 16px;">
-                    <strong>Base URL:</strong> <code>http://&lt;SERVER_HOST&gt;:3003${baseUrl}</code><br>
+                    <strong>Base URL:</strong> <code>${serverOrigin}${baseUrl}</code><br>
                     <strong>การยืนยันตัวตน:</strong> แนบ Token ใน Header <code>Authorization: Bearer &lt;accessToken&gt;</code> ทุกคำขอ
                 </div>
             </div>
@@ -800,7 +801,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                         <span>Request Body (JSON)</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy cURL</button>
                     </div>
-                    <div class="code-content">curl -X POST "http://localhost:3003${baseUrl}/auth/login" \\
+                    <div class="code-content">curl -X POST "${serverOrigin}${baseUrl}/auth/login" \\
   -H "Content-Type: application/json" \\
   -d '{
     "username": "api_client",
@@ -916,7 +917,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "http://localhost:3003${baseUrl}/reports/energy-consumption?startDate=2026-10-01&endDate=2026-10-18&limit=100" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption?startDate=2026-10-01&endDate=2026-10-18&limit=100" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
                 <div class="code-container">
@@ -999,7 +1000,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "http://localhost:3003${baseUrl}/reports/tou?startDate=2026-10-01&endDate=2026-10-18" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/tou?startDate=2026-10-01&endDate=2026-10-18" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
                 <div class="code-container">
@@ -1048,7 +1049,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "http://localhost:3003${baseUrl}/reports/energy-monthly?year=2026&month=10" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-monthly?year=2026&month=10" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
             </section>
@@ -1070,7 +1071,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                         <span>cURL Example</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "http://localhost:3003${baseUrl}/reports/history?meterId=101&startDate=2026-10-18&endDate=2026-10-18&limit=50" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/history?meterId=101&startDate=2026-10-18&endDate=2026-10-18&limit=50" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
                 </div>
             </section>
@@ -1093,7 +1094,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                         <span>cURL Example (Save to file)</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "http://localhost:3003${baseUrl}/reports/energy-consumption/export/excel?startDate=2026-10-01&endDate=2026-10-18" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption/export/excel?startDate=2026-10-01&endDate=2026-10-18" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
   -o "energy_report.xlsx"</div>
                 </div>
@@ -1117,6 +1118,22 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1'): string => {
                 }, 2000);
             });
         }
+
+        // Dynamically sync origin with user's current browser location
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                var origin = window.location.origin;
+                if (origin) {
+                    document.querySelectorAll('.code-content, .callout code').forEach(function(el) {
+                        el.innerHTML = el.innerHTML
+                            .replace(/http:\/\/(?:&lt;url&gt;|&lt;SERVER_HOST&gt;):(?:\d+|&lt;port&gt;)/g, origin)
+                            .replace(/http:\/\/&lt;url&gt;:&lt;port&gt;/g, origin)
+                            .replace(/http:\/\/<url>:<port>/g, origin)
+                            .replace(/http:\/\/localhost:3003/g, origin);
+                    });
+                }
+            } catch (e) {}
+        });
     </script>
 </body>
 </html>`;

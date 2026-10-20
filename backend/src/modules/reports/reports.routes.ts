@@ -10,9 +10,12 @@ const controller = new ReportsController();
 
 // ── Public Report API Documentation & Specification (No Auth Required) ──
 // 1. Beautiful Standalone Developer Guide Portal
-router.get('/docs', (_req, res) => {
+router.get('/docs', (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderReportDocsHtml('/api/v1'));
+    const host = req.get('host');
+    const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+    const origin = host ? `${protocol}://${host}` : '';
+    res.send(renderReportDocsHtml('/api/v1', origin));
 });
 
 // 2. OpenAPI 3.0 JSON Specification
