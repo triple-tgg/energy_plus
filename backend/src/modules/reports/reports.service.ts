@@ -1197,13 +1197,18 @@ export class ReportsService {
             };
         });
 
-        // Generate CSV string: If batchName is empty, omit BATCH_NAME column so rows start directly with LEASE_NUMBER without leading , or |
+        // Generate CSV string:
+        // สำหรับรูปแบบ Pipe ('|'): แต่ละแถวจะขึ้นต้นด้วย '|' ตามตัวอย่างฟอร์แมต CHOD ใน PDF
+        // สำหรับรูปแบบ Comma (','): เป็นฟอร์แมต CSV มาตรฐาน ไม่ต้องมีคอมมานำหน้า
+        const isPipe = sep === '|';
+        const prefix = isPipe ? '|' : '';
+
         const hasBatchName = Boolean(batchName && String(batchName).trim().length > 0);
         const headers = hasBatchName
             ? ['BATCH_NAME', 'LEASE_NUMBER', 'VR NUMBER', 'REP_STR_DATE', 'REP_END_DATE', 'USAGE', 'METER_FROM', 'METER_TO']
             : ['LEASE_NUMBER', 'VR NUMBER', 'REP_STR_DATE', 'REP_END_DATE', 'USAGE', 'METER_FROM', 'METER_TO'];
 
-        const csvRows = [headers.join(sep)];
+        const csvRows = [prefix + headers.join(sep)];
         for (const row of data) {
             const leaseNo = row.LEASE_NUMBER || row.meter_code || '-';
             const rowValues = hasBatchName
@@ -1226,7 +1231,7 @@ export class ReportsService {
                     row.METER_FROM,
                     row.METER_TO,
                   ];
-            csvRows.push(formatChodCsvRow(rowValues, sep));
+            csvRows.push(prefix + formatChodCsvRow(rowValues, sep));
         }
 
         const csvString = csvRows.join('\r\n');
