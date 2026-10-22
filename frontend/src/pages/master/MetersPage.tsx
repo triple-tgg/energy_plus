@@ -44,6 +44,8 @@ interface MeterForm {
     status: string;
     parentMeterId: string;
     isActive: boolean;
+    leaseNumber: string;
+    vrNumber: string;
 }
 
 const emptyForm: MeterForm = {
@@ -51,6 +53,7 @@ const emptyForm: MeterForm = {
     loopId: '', siteId: '', buildingId: '', zoneId: '', ipAddress: '', portNumber: '',
     roomCode: '', roomName: '', phase: '', circuit: '', floor: '', status: 'Manual',
     parentMeterId: '', isActive: true,
+    leaseNumber: '', vrNumber: '',
 };
 
 // Excel column mapping for meter import (supporting standard & final multi-sheet template)
@@ -282,6 +285,8 @@ const MetersPage: React.FC = () => {
         setForm({
             meterCode: row.meter_code || '',
             meterName: row.meter_name || '',
+            leaseNumber: row.lease_number || '',
+            vrNumber: row.vr_number || '',
             address: row.address?.toString() || '',
             meterBrandId: row.meter_brand_id?.toString() || '',
             meterTypeId: row.meter_type_id?.toString() || '',
@@ -312,6 +317,8 @@ const MetersPage: React.FC = () => {
         try {
             const payload = {
                 ...form,
+                leaseNumber: form.leaseNumber?.trim() || null,
+                vrNumber: form.vrNumber?.trim() || null,
                 address: form.address || null,
                 meterBrandId: form.meterBrandId ? parseInt(form.meterBrandId) : null,
                 meterTypeId: form.meterTypeId ? parseInt(form.meterTypeId) : null,
@@ -785,6 +792,16 @@ const MetersPage: React.FC = () => {
     const columns = [
         { key: 'meter_code', title: t('รหัส', 'Code') },
         { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
+        {
+            key: 'lease_number',
+            title: t('เลขที่สัญญา (Lease No.)', 'Lease No.'),
+            render: (v: string) => v ? <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.accent }}>{v}</span> : <span style={{ color: C.sub }}>—</span>,
+        },
+        {
+            key: 'vr_number',
+            title: t('VR Number', 'VR Number'),
+            render: (v: string) => v ? <span style={{ fontSize: 12 }}>{v}</span> : <span style={{ color: C.sub }}>—</span>,
+        },
         { key: 'address', title: t('Address', 'Address') },
         {
             key: 'site_name',
@@ -1194,6 +1211,41 @@ const MetersPage: React.FC = () => {
                             <option value="">— {t('เลือก', 'Select')} —</option>
                             {brands.map(b => <option key={b.meter_brand_id} value={b.meter_brand_id}>{b.meter_brand_name}{b.model_name ? ` — ${b.model_name}` : ''}</option>)}
                         </select>
+                    </div>
+                </div>
+
+                {/* ข้อมูลสัญญาเช่าและ VR Number (CHOD Integration) */}
+                <div style={{ marginBottom: 8, marginTop: 8, fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.accent, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    {t('ข้อมูลสัญญาเช่า (CHOD Integration)', 'LEASE & VR INFO (CHOD)')}
+                </div>
+                <div className="form-row">
+                    <div className="form-group">
+                        <label className="form-label">
+                            {t('เลขที่สัญญา (Lease Number)', 'Lease Number')}
+                            <span style={{ fontSize: 11, color: C.sub, marginLeft: 6 }}>({t('สำหรับรายงาน CHOD', 'For CHOD Report')})</span>
+                        </label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            placeholder={t('เช่น CYA041-2025-0062 หรือ CYA041-สัญญา A2-250301-0009', 'e.g. CYA041-2025-0062')}
+                            maxLength={100}
+                            value={form.leaseNumber}
+                            onChange={e => setForm({ ...form, leaseNumber: e.target.value })}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">
+                            {t('VR Number / ชื่อห้องหรือผู้เช่า', 'VR Number')}
+                            <span style={{ fontSize: 11, color: C.sub, marginLeft: 6 }}>({t('เช่น CYA041-1101-W20-ชื่อผู้เช่า', 'e.g. CYA041-1101-W20-Tenant')})</span>
+                        </label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            placeholder={t('เช่น CYA041-1101 (STU)-W20-สิทธิ', 'e.g. CYA041-1101 (STU)-W20-สิทธิ')}
+                            maxLength={150}
+                            value={form.vrNumber}
+                            onChange={e => setForm({ ...form, vrNumber: e.target.value })}
+                        />
                     </div>
                 </div>
 

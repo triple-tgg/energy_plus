@@ -124,17 +124,20 @@ export class MetersService {
         }
 
         const el = normalizeSiteEl(data.siteEl);
+        const leaseNumberVal = optText(data.leaseNumber !== undefined ? data.leaseNumber : data.lease_number, 100);
+        const vrNumberVal = optText(data.vrNumber !== undefined ? data.vrNumber : data.vr_number, 150);
         const result = await query(
             `INSERT INTO meter (meter_code, meter_name, address, meter_brand_id, meter_type_id, meter_sub_type_id, loop_id,
        site_id, building_id, zone_id, is_active, ip_address, port_number, room_code, room_name,
        phase, circuit, floor, status, parent_meter_id, site_el, created_by, created_on,
-       redis_datatype, multiply, external_meter_id, ip_converter)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW(),$23,COALESCE($24,1),$25,$26) RETURNING *`,
+       redis_datatype, multiply, external_meter_id, ip_converter, lease_number, vr_number)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW(),$23,COALESCE($24,1),$25,$26,$27,$28) RETURNING *`,
             [data.meterCode, data.meterName, data.address || el.address, data.meterBrandId, data.meterTypeId, data.meterSubTypeId || null, data.loopId,
             data.siteId, data.buildingId, data.zoneId, data.isActive ?? true, data.ipAddress, data.portNumber,
             data.roomCode, data.roomName, data.phase, data.circuit, data.floor,
             data.status || 'Manual', data.parentMeterId || null, el.siteEl, data.createdBy,
-            el.datatype, optNumber(data.multiply), optText(data.externalMeterId, 50), optText(data.ipConverter, 255)]
+            el.datatype, optNumber(data.multiply), optText(data.externalMeterId, 50), optText(data.ipConverter, 255),
+            leaseNumberVal, vrNumberVal]
         );
         await refreshMeterSubscriptions();
         return result.rows[0];
@@ -144,6 +147,12 @@ export class MetersService {
         // No quota check here: an existing meter already consumes quota whether active or not
 
         const el = normalizeSiteEl(data.siteEl);
+        const leaseNumberProvided = data.leaseNumber !== undefined || data.lease_number !== undefined;
+        const leaseNumberVal = optText(data.leaseNumber !== undefined ? data.leaseNumber : data.lease_number, 100);
+
+        const vrNumberProvided = data.vrNumber !== undefined || data.vr_number !== undefined;
+        const vrNumberVal = optText(data.vrNumber !== undefined ? data.vrNumber : data.vr_number, 150);
+
         const result = await query(
             `UPDATE meter SET meter_code=$1, meter_name=$2, address=$3, meter_brand_id=$4, meter_type_id=$5,
        meter_sub_type_id=$6, loop_id=$7, site_id=$8, building_id=$9, zone_id=$10, is_active=$11, ip_address=$12,
@@ -152,7 +161,10 @@ export class MetersService {
        site_el=COALESCE($22, site_el),
        redis_datatype=CASE WHEN $22::text IS NULL THEN redis_datatype ELSE $24 END,
        multiply=COALESCE($25, multiply), external_meter_id=COALESCE($26, external_meter_id),
-       ip_converter=COALESCE($27, ip_converter), last_modified_on=NOW()
+       ip_converter=COALESCE($27, ip_converter),
+       lease_number=CASE WHEN $28::boolean THEN $29 ELSE lease_number END,
+       vr_number=CASE WHEN $30::boolean THEN $31 ELSE vr_number END,
+       last_modified_on=NOW()
        WHERE meter_id=$23 RETURNING *`,
             [data.meterCode, data.meterName, data.address, data.meterBrandId, data.meterTypeId,
             data.meterSubTypeId || null, data.loopId,
@@ -160,7 +172,9 @@ export class MetersService {
             data.roomCode, data.roomName, data.phase, data.circuit,
             data.floor, data.status || 'Manual', data.parentMeterId || null, data.modifiedBy,
             el.siteEl, meterId, el.datatype,
-            optNumber(data.multiply), optText(data.externalMeterId, 50), optText(data.ipConverter, 255)]
+            optNumber(data.multiply), optText(data.externalMeterId, 50), optText(data.ipConverter, 255),
+            leaseNumberProvided, leaseNumberVal,
+            vrNumberProvided, vrNumberVal]
         );
         if (result.rows.length === 0) throw new AppError(404, 'NOT_FOUND', 'Meter not found');
         await refreshMeterSubscriptions();

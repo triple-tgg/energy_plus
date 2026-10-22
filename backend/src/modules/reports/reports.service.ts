@@ -977,5 +977,410 @@ export class ReportsService {
             billingPeriod: { startDate, endDate },
         };
     }
+
+    /**
+     * ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบ CHOD (ตามตัวอย่างใน PDF)
+     * Header: BATCH_NAME|LEASE_NUMBER|VR NUMBER|REP_STR_DATE|REP_END_DATE|USAGE|METER_FROM|METER_TO
+     * รองรับผลลัพธ์ทั้งรูปแบบ CSV (.csv) และ JSON
+     */
+    async getChodReport(queryParams: any) {
+        const {
+            siteId,
+            buildingId,
+            zoneId,
+            meterTypeId,
+            meterId,
+            search,
+            utilityType,
+            batchName = '',
+            delimiter = 'pipe',
+        } = queryParams;
+
+        const sep = (delimiter === 'comma' || delimiter === ',') ? ',' : '|';
+
+        const now = new Date();
+        let startDate = queryParams.startDate;
+        let endDate = queryParams.endDate;
+
+        if (!startDate || !endDate) {
+            let year = parseInt(queryParams.year, 10);
+            let month = parseInt(queryParams.month, 10);
+            if (!year || !month) {
+                // Default to previous month if available, or current month
+                const d = new Date(now.getFullYear(), now.getMonth(), 0);
+                year = d.getFullYear();
+                month = d.getMonth() + 1;
+            }
+            if (!startDate) {
+                startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            }
+            if (!endDate) {
+                const lastDay = new Date(year, month, 0).getDate();
+                endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            }
+        }
+
+        const repStartDate = formatChodDate(startDate);
+        const repEndDate = formatChodDate(endDate);
+
+        const params: any[] = [];
+        const meterFilters: string[] = ['m.is_active IS DISTINCT FROM false'];
+
+        const siteIds = parseSiteIds(siteId);
+        if (siteIds) {
+            params.push(siteIds);
+            meterFilters.push(`m.site_id = ANY($${params.length}::int[])`);
+        }
+        if (buildingId) {
+            params.push(parseInt(buildingId, 10));
+            meterFilters.push(`m.building_id = $${params.length}`);
+        }
+        if (zoneId) {
+            params.push(parseInt(zoneId, 10));
+            meterFilters.push(`m.zone_id = $${params.length}`);
+        }
+        if (meterTypeId) {
+            params.push(parseInt(meterTypeId, 10));
+            meterFilters.push(`m.meter_type_id = $${params.length}`);
+        }
+        if (meterId) {
+            params.push(parseInt(meterId, 10));
+            meterFilters.push(`m.meter_id = $${params.length}`);
+        }
+
+        // Utility type filter: electric (ELE) vs water (WATER) vs all
+        const uType = String(utilityType || queryParams.type || '').toLowerCase().trim();
+        if (uType === 'electric' || uType === 'ele' || uType === 'power') {
+            meterFilters.push(`(
+                (mt.meter_type_name ILIKE '%power%' OR mt.meter_type_name ILIKE '%ele%')
+                OR m.meter_name ILIKE '%-E%'
+                OR m.meter_code ILIKE '%-E%'
+                OR COALESCE(m.vr_number, '') ILIKE '%-E%'
+            )`);
+        } else if (uType === 'water' || uType === 'wtr') {
+            meterFilters.push(`(
+                (mt.meter_type_name ILIKE '%water%' OR mt.meter_type_name ILIKE '%wtr%')
+                OR m.meter_name ILIKE '%-W%'
+                OR m.meter_code ILIKE '%-W%'
+                OR COALESCE(m.vr_number, '') ILIKE '%-W%'
+            )`);
+        }
+
+        if (search) {
+            params.push(`%${String(search).trim()}%`);
+            meterFilters.push(`(
+                m.meter_code ILIKE $${params.length}
+                OR m.meter_name ILIKE $${params.length}
+                OR COALESCE(m.lease_number, '') ILIKE $${params.length}
+                OR COALESCE(m.vr_number, '') ILIKE $${params.length}
+                OR COALESCE(m.room_code, '') ILIKE $${params.length}
+                OR COALESCE(m.room_name, '') ILIKE $${params.length}
+            )`);
+        }
+
+        params.push(startDate);
+        const startParam = params.length;
+        params.push(endDate);
+        const endParam = params.length;
+
+        const sql = `
+            WITH mapped AS (
+                SELECT r.id, r.channel, r.site_id, r.address_id, r.received_at, r.import_kwhr,
+                       COALESCE(rmm.meter_id, fallback_meter.meter_id) AS mapped_meter_id
+                FROM meter_data_realtime r
+                LEFT JOIN realtime_meter_map rmm
+                  ON rmm.realtime_site_id = r.site_id
+                 AND rmm.realtime_address_id = r.address_id
+                 AND rmm.is_active = true
+                 AND (rmm.channel IS NULL OR rmm.channel = r.channel)
+                LEFT JOIN meter fallback_meter
+                 ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
+                 AND rmm.id IS NULL
+                WHERE r.received_at >= (($${startParam}::date - 60)::timestamp AT TIME ZONE 'Asia/Bangkok')
+                  AND r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+            ),
+            meter_scope AS (
+                SELECT m.meter_id, m.meter_code, m.meter_name,
+                       m.building_id, m.zone_id, m.site_id, m.floor,
+                       m.room_code, m.room_name, m.meter_group,
+                       COALESCE(m.lease_number, m.room_code, m.meter_group, '') AS lease_number,
+                       COALESCE(m.vr_number, m.meter_name, m.meter_code) AS vr_number,
+                       b.building_name, s.site_name, mt.meter_type_name
+                FROM meter m
+                LEFT JOIN meter_type mt ON mt.meter_type_id = m.meter_type_id
+                LEFT JOIN buildings b ON b.building_id = m.building_id
+                LEFT JOIN sites s ON s.site_id = m.site_id
+                WHERE ${meterFilters.join(' AND ')}
+            ),
+            start_points_before AS (
+                SELECT DISTINCT ON (m.meter_id)
+                    m.meter_id, r.received_at AS start_date, r.import_kwhr AS start_reading
+                FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
+                WHERE r.received_at <= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+                ORDER BY m.meter_id, r.received_at DESC, r.id DESC
+            ),
+            start_points_first AS (
+                SELECT DISTINCT ON (m.meter_id)
+                    m.meter_id, r.received_at AS start_date, r.import_kwhr AS start_reading
+                FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
+                WHERE r.received_at >= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+                  AND r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+                ORDER BY m.meter_id, r.received_at ASC, r.id ASC
+            ),
+            end_points AS (
+                SELECT DISTINCT ON (m.meter_id)
+                    m.meter_id, r.received_at AS end_date, r.import_kwhr AS end_reading
+                FROM meter_scope m JOIN mapped r ON r.mapped_meter_id = m.meter_id
+                WHERE r.received_at < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+                ORDER BY m.meter_id, r.received_at DESC, r.id DESC
+            ),
+            actual_start AS (
+                SELECT DISTINCT ON (d.meter_id)
+                    d.meter_id, d.date_keep AS start_date, d.energy_kwh AS start_reading
+                FROM actual_meter_data d
+                JOIN meter_scope m ON m.meter_id = d.meter_id
+                WHERE d.date_keep <= ($${startParam}::date::timestamp AT TIME ZONE 'Asia/Bangkok')
+                ORDER BY d.meter_id, d.date_keep DESC, d.id DESC
+            ),
+            actual_end AS (
+                SELECT DISTINCT ON (d.meter_id)
+                    d.meter_id, d.date_keep AS end_date, d.energy_kwh AS end_reading
+                FROM actual_meter_data d
+                JOIN meter_scope m ON m.meter_id = d.meter_id
+                WHERE d.date_keep < (($${endParam}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')
+                ORDER BY d.meter_id, d.date_keep DESC, d.id DESC
+            )
+            SELECT
+                m.meter_id,
+                m.meter_code,
+                m.meter_name,
+                m.lease_number,
+                m.vr_number,
+                m.meter_type_name,
+                ROUND(COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0)::numeric, 0) AS meter_from,
+                ROUND(COALESCE(ep.end_reading, act_e.end_reading, spb.start_reading, act_s.start_reading, 0)::numeric, 0) AS meter_to,
+                GREATEST(
+                    ROUND(COALESCE(ep.end_reading, act_e.end_reading, 0)::numeric, 0) -
+                    ROUND(COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0)::numeric, 0),
+                    0
+                ) AS usage
+            FROM meter_scope m
+            LEFT JOIN end_points ep ON ep.meter_id = m.meter_id
+            LEFT JOIN actual_end act_e ON act_e.meter_id = m.meter_id
+            LEFT JOIN start_points_before spb ON spb.meter_id = m.meter_id
+            LEFT JOIN start_points_first spf ON spf.meter_id = m.meter_id
+            LEFT JOIN actual_start act_s ON act_s.meter_id = m.meter_id
+            ORDER BY m.lease_number ASC, m.vr_number ASC, m.meter_code ASC
+        `;
+
+        const result = await query(sql, params);
+
+        const data = result.rows.map((r: any) => {
+            const meterFrom = Number(r.meter_from || 0);
+            const meterTo = Number(r.meter_to || 0);
+            const usage = Number(r.usage != null ? r.usage : Math.max(0, meterTo - meterFrom));
+
+            return {
+                BATCH_NAME: batchName || '',
+                LEASE_NUMBER: r.lease_number || '',
+                'VR NUMBER': r.vr_number || r.meter_name || r.meter_code || '',
+                REP_STR_DATE: repStartDate,
+                REP_END_DATE: repEndDate,
+                USAGE: usage,
+                METER_FROM: meterFrom,
+                METER_TO: meterTo,
+                // Extra fields for API consumers
+                meter_id: r.meter_id,
+                meter_code: r.meter_code,
+                meter_name: r.meter_name,
+                meter_type: r.meter_type_name,
+            };
+        });
+
+        // Generate CSV string: If batchName is empty, omit BATCH_NAME column so rows start directly with LEASE_NUMBER without leading , or |
+        const hasBatchName = Boolean(batchName && String(batchName).trim().length > 0);
+        const headers = hasBatchName
+            ? ['BATCH_NAME', 'LEASE_NUMBER', 'VR NUMBER', 'REP_STR_DATE', 'REP_END_DATE', 'USAGE', 'METER_FROM', 'METER_TO']
+            : ['LEASE_NUMBER', 'VR NUMBER', 'REP_STR_DATE', 'REP_END_DATE', 'USAGE', 'METER_FROM', 'METER_TO'];
+
+        const csvRows = [headers.join(sep)];
+        for (const row of data) {
+            const leaseNo = row.LEASE_NUMBER || row.meter_code || '-';
+            const rowValues = hasBatchName
+                ? [
+                    row.BATCH_NAME,
+                    leaseNo,
+                    row['VR NUMBER'],
+                    row.REP_STR_DATE,
+                    row.REP_END_DATE,
+                    row.USAGE,
+                    row.METER_FROM,
+                    row.METER_TO,
+                  ]
+                : [
+                    leaseNo,
+                    row['VR NUMBER'],
+                    row.REP_STR_DATE,
+                    row.REP_END_DATE,
+                    row.USAGE,
+                    row.METER_FROM,
+                    row.METER_TO,
+                  ];
+            csvRows.push(formatChodCsvRow(rowValues, sep));
+        }
+
+        const csvString = csvRows.join('\r\n');
+        const filename = `chod_meter_readings_${uType || 'all'}_${startDate}_${endDate}.csv`;
+
+
+        const totalUsage = data.reduce((sum: number, item: any) => sum + item.USAGE, 0);
+
+        return {
+            data,
+            csv: csvString,
+            filename,
+            total: data.length,
+            page: 1,
+            limit: data.length,
+            summary: {
+                totalMeters: data.length,
+                totalUsage,
+                startDate,
+                endDate,
+                repStartDate,
+                repEndDate,
+                utilityType: uType || 'all',
+                delimiter: sep === '|' ? 'pipe' : 'comma',
+            },
+        };
+    }
+
+    /**
+     * ส่งออกรายงานทั่วไปเป็นไฟล์ CSV
+     */
+    async exportReportCsv(reportType: string, queryParams: any) {
+        if (reportType === 'chod' || reportType === 'chod-meter-readings') {
+            return this.getChodReport({ ...queryParams, format: 'csv' });
+        }
+        let result: any;
+        if (reportType === 'energy-consumption') {
+            result = await this.getEnergyConsumption({ ...queryParams, limit: 10000 });
+        } else if (reportType === 'energy-monthly') {
+            result = await this.getEnergyMonthlyReport({ ...queryParams, limit: 10000 });
+        } else if (reportType === 'tou') {
+            result = await this.getTouReport({ ...queryParams, limit: 10000 });
+        } else if (reportType === 'tou-monthly') {
+            result = await this.getTouMonthlyReport({ ...queryParams, limit: 10000 });
+        } else if (reportType === 'history') {
+            result = await this.getHistory({ ...queryParams, limit: 10000 });
+        } else if (reportType === 'comparison') {
+            result = await this.getComparison({ ...queryParams, limit: 10000 });
+        } else {
+            throw new Error(`Unsupported report type: ${reportType}`);
+        }
+
+        const rows = result.data || [];
+        if (rows.length === 0) {
+            return {
+                csv: 'No data',
+                filename: `${reportType}_export.csv`,
+            };
+        }
+        const headers = Object.keys(rows[0]);
+        const csvRows = [headers.join(',')];
+        for (const row of rows) {
+            csvRows.push(headers.map(h => {
+                const val = row[h];
+                if (val === null || val === undefined) return '';
+                const str = String(val);
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            }).join(','));
+        }
+
+        return {
+            csv: csvRows.join('\r\n'),
+            filename: `${reportType}_${queryParams.startDate || 'export'}.csv`,
+        };
+    }
+
+    /**
+     * ส่งออกรายงานทั่วไปเป็นไฟล์ Excel (.xlsx)
+     */
+    async exportReportExcel(reportType: string, queryParams: any) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const XLSX = require('xlsx');
+        let dataRows: any[] = [];
+        let filename = `${reportType}_report.xlsx`;
+
+        if (reportType === 'chod' || reportType === 'chod-meter-readings') {
+            const chodResult = await this.getChodReport({ ...queryParams, format: 'json' });
+            dataRows = chodResult.data.map((r: any) => ({
+                BATCH_NAME: r.BATCH_NAME,
+                LEASE_NUMBER: r.LEASE_NUMBER,
+                'VR NUMBER': r['VR NUMBER'],
+                REP_STR_DATE: r.REP_STR_DATE,
+                REP_END_DATE: r.REP_END_DATE,
+                USAGE: r.USAGE,
+                METER_FROM: r.METER_FROM,
+                METER_TO: r.METER_TO,
+            }));
+            filename = `chod_meter_readings_${queryParams.startDate || ''}.xlsx`;
+        } else if (reportType === 'energy-consumption') {
+            const res = await this.getEnergyConsumption({ ...queryParams, limit: 10000 });
+            dataRows = res.data;
+        } else if (reportType === 'energy-monthly') {
+            const res = await this.getEnergyMonthlyReport({ ...queryParams, limit: 10000 });
+            dataRows = res.data;
+        } else if (reportType === 'tou') {
+            const res = await this.getTouReport({ ...queryParams, limit: 10000 });
+            dataRows = res.data;
+        } else if (reportType === 'tou-monthly') {
+            const res = await this.getTouMonthlyReport({ ...queryParams, limit: 10000 });
+            dataRows = res.data;
+        } else if (reportType === 'history') {
+            const res = await this.getHistory({ ...queryParams, limit: 10000 });
+            dataRows = res.data;
+        }
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(dataRows);
+        XLSX.utils.book_append_sheet(wb, ws, 'Report');
+        const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        return { buffer, filename };
+    }
 }
+
+/**
+ * รูปแบบวันที่ตามตัวอย่างใน PDF: D-MMM-YY เช่น 1-Feb-26, 28-Feb-26, 31-Mar-26
+ */
+export function formatChodDate(dateInput: Date | string): string {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (!d || isNaN(d.getTime())) return '';
+    const day = d.getDate();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const year = String(d.getFullYear()).slice(-2);
+    return `${day}-${month}-${year}`;
+}
+
+/**
+ * ฟังก์ชันช่วยสร้างแถว CSV พร้อม escaping ตามมาตรฐาน
+ */
+export function formatChodCsvRow(values: (string | number | null | undefined)[], delimiter: string = '|'): string {
+    return values.map(val => {
+        if (val === null || val === undefined) return '';
+        const str = String(val);
+        if (delimiter === ',' && (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r'))) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        if (delimiter === '|' && (str.includes('|') || str.includes('\n') || str.includes('\r'))) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    }).join(delimiter);
+}
+
 
