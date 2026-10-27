@@ -326,5 +326,30 @@ export const swaggerDocument = {
                 responses: { 200: { description: 'List of export configs' } },
             },
         },
+        '/reports/chod-meter-readings': {
+            get: {
+                tags: ['Reports'],
+                summary: 'รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ CHOD (PDF Example: CSV / JSON)',
+                parameters: [
+                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-02-01' },
+                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-02-28' },
+                    { name: 'utilityType', in: 'query', schema: { type: 'string', enum: ['all', 'electric', 'water'], default: 'all' } },
+                    { name: 'format', in: 'query', schema: { type: 'string', enum: ['csv', 'json'], default: 'csv' } },
+                    { name: 'delimiter', in: 'query', schema: { type: 'string', enum: ['pipe', 'comma'], default: 'pipe' } },
+                    { name: 'batchName', in: 'query', schema: { type: 'string' } },
+                    { name: 'siteId', in: 'query', schema: { type: 'integer' } },
+                ],
+                responses: {
+                    200: {
+                        description: 'CSV file or JSON response according to CHOD specification',
+                        content: {
+                            'text/csv': { schema: { type: 'string', format: 'binary' } },
+                            'application/json': { schema: { type: 'object' } },
+                        },
+                    },
+                },
+            },
+        },
     },
 };
+

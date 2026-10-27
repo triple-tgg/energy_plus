@@ -151,6 +151,8 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS external_meter_id VARCHAR(50)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS ip_converter VARCHAR(255)`);
         await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS redis_datatype VARCHAR(30)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS lease_number VARCHAR(100)`);
+        await pool.query(`ALTER TABLE IF EXISTS meter ADD COLUMN IF NOT EXISTS vr_number VARCHAR(150)`);
 
         await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_th VARCHAR(200)`);
         await pool.query(`ALTER TABLE IF EXISTS sites ADD COLUMN IF NOT EXISTS site_name_en VARCHAR(200)`);

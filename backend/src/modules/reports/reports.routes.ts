@@ -10,9 +10,12 @@ const controller = new ReportsController();
 
 // ── Public Report API Documentation & Specification (No Auth Required) ──
 // 1. Beautiful Standalone Developer Guide Portal
-router.get('/docs', (_req, res) => {
+router.get('/docs', (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderReportDocsHtml('/api/v1'));
+    const host = req.get('host');
+    const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+    const origin = host ? `${protocol}://${host}` : '';
+    res.send(renderReportDocsHtml('/api/v1', origin));
 });
 
 // 2. OpenAPI 3.0 JSON Specification
@@ -42,4 +45,15 @@ router.post('/alarms/clear', requireRole('operator', 'admin'), controller.clearA
 router.delete('/alarms/clear', requireRole('operator', 'admin'), controller.clearAlarms);
 router.put('/alarms/:id/acknowledge', requireRole('operator', 'admin'), controller.acknowledgeAlarm);
 
+// ── รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ CHOD (PDF Example: CSV / JSON) ──
+router.get('/chod', controller.getChodReport);
+router.get('/chod-meter-readings', controller.getChodReport);
+router.get('/chod/export/csv', controller.getChodReportCsv);
+router.get('/chod-meter-readings/export/csv', controller.getChodReportCsv);
+
+// ── Generic File Export Routes (.csv and .xlsx) ──
+router.get('/:reportType/export/csv', controller.exportReportCsv);
+router.get('/:reportType/export/excel', controller.exportReportExcel);
+
 export default router;
+
