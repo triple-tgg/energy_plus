@@ -383,10 +383,10 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number | number
            AND rmm.is_active = true
         LEFT JOIN latest_readings lr
             ON (rmm.id IS NOT NULL AND lr.realtime_site_id = rmm.realtime_site_id AND lr.realtime_address_id = rmm.realtime_address_id)
-            OR (rmm.id IS NULL AND (lr.channel = m.site_el OR (lr.realtime_site_id::text = m.site_el::text AND lr.realtime_address_id::text = m.address::text)))
+            OR (rmm.id IS NULL AND (lr.channel = m.site_el::text OR (lr.realtime_site_id::text = m.site_el::text AND lr.realtime_address_id::text = m.address::text)))
         LEFT JOIN latest_nonzero_realtime lnr
             ON (rmm.id IS NOT NULL AND lnr.realtime_site_id = rmm.realtime_site_id AND lnr.realtime_address_id = rmm.realtime_address_id)
-            OR (rmm.id IS NULL AND (lnr.channel = m.site_el OR (lnr.realtime_site_id::text = m.site_el::text AND lnr.realtime_address_id::text = m.address::text)))
+            OR (rmm.id IS NULL AND (lnr.channel = m.site_el::text OR (lnr.realtime_site_id::text = m.site_el::text AND lnr.realtime_address_id::text = m.address::text)))
         LEFT JOIN latest_nonzero_actual lna
             ON lna.meter_id = m.meter_id
         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id
@@ -498,7 +498,7 @@ export const getRealtimeHistory = async (filters?: {
                AND rmm.is_active = true
                AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter m_fallback
-                ON (m_fallback.site_el = r.channel OR (m_fallback.site_el::text = r.site_id::text AND m_fallback.address::text = r.address_id::text))
+                ON (m_fallback.site_el::text = r.channel OR (m_fallback.site_el::text = r.site_id::text AND m_fallback.address::text = r.address_id::text))
                AND rmm.id IS NULL
             WHERE r.received_at >= NOW() - ($1 || ' minutes')::interval
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) IS NOT NULL
@@ -612,7 +612,7 @@ export const getMeterRealtimeHistory = async (filters: {
                AND rmm.is_active = true
                AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter m_fallback
-                ON (m_fallback.site_el = r.channel OR (m_fallback.site_el::text = r.site_id::text AND m_fallback.address::text = r.address_id::text))
+                ON (m_fallback.site_el::text = r.channel OR (m_fallback.site_el::text = r.site_id::text AND m_fallback.address::text = r.address_id::text))
                AND rmm.id IS NULL
             WHERE r.received_at >= NOW() - ($1 || ' minutes')::interval
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) = $2

@@ -121,10 +121,10 @@ export const ensureMeterMasterData = async (): Promise<void> => {
         for (const st of standardSubTypes) {
             await query(
                 `INSERT INTO meter_sub_type (meter_type_id, sub_type_name, sort_order, is_active)
-                 SELECT $1, $2, $3, true
+                 SELECT $1, $2::varchar, $3, true
                  WHERE NOT EXISTS (
                      SELECT 1 FROM meter_sub_type
-                     WHERE meter_type_id = $1 AND LOWER(sub_type_name) = LOWER($2)
+                     WHERE meter_type_id = $1 AND LOWER(sub_type_name) = LOWER($2::varchar)
                  )`,
                 [st.typeId, st.name, st.sortOrder]
             );
