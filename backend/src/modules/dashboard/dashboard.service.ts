@@ -74,9 +74,9 @@ export class DashboardService {
                     m.is_active,
                     m.meter_type_id,
                     m.meter_sub_type_id,
-                    COALESCE(rmm.realtime_site_id, CASE WHEN m.site_el ~ '^[0-9]+$' THEN m.site_el::int ELSE NULL END) AS target_site_id,
-                    COALESCE(rmm.realtime_address_id, CASE WHEN m.address ~ '^[0-9]+$' THEN m.address::int ELSE NULL END) AS target_address_id,
-                    COALESCE(rmm.channel, m.site_el) AS target_channel
+                    COALESCE(rmm.realtime_site_id, CASE WHEN m.site_el::text ~ '^[0-9]+$' THEN m.site_el::text::int ELSE NULL END) AS target_site_id,
+                    COALESCE(rmm.realtime_address_id, CASE WHEN m.address::text ~ '^[0-9]+$' THEN m.address::text::int ELSE NULL END) AS target_address_id,
+                    COALESCE(rmm.channel, m.site_el::text) AS target_channel
                 FROM meter m
                 LEFT JOIN realtime_meter_map rmm ON rmm.meter_id = m.meter_id AND rmm.is_active = true
                 ${meterFilter}
@@ -177,8 +177,8 @@ export class DashboardService {
         const trendSql = `WITH meter_targets AS (
                 SELECT
                     m.meter_id,
-                    COALESCE(rmm.realtime_site_id, CASE WHEN m.site_el ~ '^[0-9]+$' THEN m.site_el::int ELSE NULL END) AS realtime_site_id,
-                    COALESCE(rmm.realtime_address_id, CASE WHEN m.address ~ '^[0-9]+$' THEN m.address::int ELSE NULL END) AS realtime_address_id
+                    COALESCE(rmm.realtime_site_id, CASE WHEN m.site_el::text ~ '^[0-9]+$' THEN m.site_el::text::int ELSE NULL END) AS realtime_site_id,
+                    COALESCE(rmm.realtime_address_id, CASE WHEN m.address::text ~ '^[0-9]+$' THEN m.address::text::int ELSE NULL END) AS realtime_address_id
                 FROM meter m
                 LEFT JOIN realtime_meter_map rmm ON rmm.meter_id = m.meter_id AND rmm.is_active = true
                 WHERE m.is_active IS DISTINCT FROM false
@@ -567,7 +567,7 @@ export class DashboardService {
                  AND rmm.is_active = true
                  AND (rmm.channel IS NULL OR rmm.channel = r.channel)
                 LEFT JOIN meter fallback_meter
-                  ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
+                  ON (fallback_meter.site_el::text = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
                  AND rmm.id IS NULL
             ),
             scoped AS (
@@ -746,7 +746,7 @@ export class DashboardService {
              AND rmm.is_active = true
              AND (rmm.channel IS NULL OR rmm.channel = r.channel)
             LEFT JOIN meter fallback_meter
-              ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
+              ON (fallback_meter.site_el::text = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
              AND rmm.id IS NULL
             WHERE ${dateFilters.join(' AND ')}
         `;
@@ -830,7 +830,7 @@ export class DashboardService {
               AND rmm.is_active = true
               AND (rmm.channel IS NULL OR rmm.channel = r.channel)
              LEFT JOIN meter fallback_meter
-               ON (fallback_meter.site_el = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
+               ON (fallback_meter.site_el::text = r.channel OR (fallback_meter.site_el::text = r.site_id::text AND fallback_meter.address::text = r.address_id::text))
               AND rmm.id IS NULL
              JOIN meter m ON m.meter_id = COALESCE(rmm.meter_id, fallback_meter.meter_id)
              JOIN sites s ON s.site_id = m.site_id

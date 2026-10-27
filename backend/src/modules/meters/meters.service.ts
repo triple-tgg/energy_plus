@@ -677,10 +677,10 @@ export class MetersService {
                     if (!existingId && meterSiteEl) {
                         const existing = await client.query(
                             `SELECT meter_id FROM meter
-                             WHERE (site_el = $1 OR site_el = $2)
-                               AND (POSITION('_' IN site_el) > 0 OR $3::text IS NULL OR address = $3::text)
+                             WHERE (site_el::text = $1::text OR site_el::text = $2::text)
+                               AND (POSITION('_' IN site_el::text) > 0 OR $3::text IS NULL OR address::text = $3::text)
                                AND (site_id = $4 OR LOWER(TRIM(COALESCE(site, ''))) = LOWER(TRIM($5)))
-                             ORDER BY (site_el = $1) DESC LIMIT 1`,
+                             ORDER BY (site_el::text = $1::text) DESC LIMIT 1`,
                             [meterSiteEl, rawSiteEl ?? meterSiteEl, modbusAddr, siteId, siteName]
                         );
                         if (existing.rows.length > 0) {
