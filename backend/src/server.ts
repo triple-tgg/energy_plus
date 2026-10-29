@@ -44,7 +44,7 @@ app.get(`${API_PREFIX}/health`, async (req, res) => {
         const dbResult = await pool.query('SELECT NOW()');
         res.json(successResponse({
             status: redisStatus === 'connected' ? 'ok' : 'degraded',
-            version: process.env.APP_VERSION || require('../package.json').version || '1.0.4',
+            version: process.env.APP_VERSION || require('../package.json').version || '1.0.5',
             gitSha: process.env.GIT_SHA || 'unknown',
             timestamp: new Date().toISOString(),
             database: 'connected',
@@ -65,7 +65,7 @@ app.get(`${API_PREFIX}/health`, async (req, res) => {
 // Public version endpoint (no auth required)
 app.get(`${API_PREFIX}/version`, (_req, res) => {
     res.json(successResponse({
-        version: process.env.APP_VERSION || require('../package.json').version || '1.0.4',
+        version: process.env.APP_VERSION || require('../package.json').version || '1.0.5',
         gitSha: process.env.GIT_SHA || 'unknown',
     }));
 });

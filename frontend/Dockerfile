@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──
-FROM node:20-slim AS build
+FROM node:24.22.1-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts 2>/dev/null || npm install
@@ -12,7 +12,7 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 # ── Stage 2: Serve with lightweight Node server ──
-FROM node:20-slim AS production
+FROM node:24.22.1-slim AS production
 WORKDIR /app
 
 RUN npm install -g serve@14
