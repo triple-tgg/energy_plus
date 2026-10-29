@@ -9,7 +9,7 @@ export const reportOpenApiDocument: any = {
         description: `
 ### เอกสารข้อกำหนด API สำหรับการดึงข้อมูลรายงาน (Report API Specification)
 
-API ชุดนี้จัดทำขึ้นเพื่อให้ระบบภายนอก (Third-party System, ERP, BI Tools, ลูกค้า) สามารถเชื่อมต่อเพื่อดึงข้อมูลรายงานการใช้พลังงาน, ค่าไฟฟ้าตามอัตรา TOU, และข้อมูลดิบย้อนหลังของมิเตอร์ไปประมวลผลต่อได้
+API ชุดนี้จัดทำขึ้นเพื่อให้ระบบภายนอก (Third-party System, ERP, BI Tools, ลูกค้า) สามารถเชื่อมต่อเพื่อดึงข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า-น้ำ และข้อมูลดิบย้อนหลังของมิเตอร์ไปประมวลผลต่อได้
 
 ---
 ### 🔐 ขั้นตอนการยืนยันตัวตน (Authentication Guide)
@@ -53,49 +53,6 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                     limit: { type: 'integer', example: 10 },
                     total: { type: 'integer', example: 45 },
                     totalPages: { type: 'integer', example: 5 },
-                },
-            },
-            EnergyConsumptionItem: {
-                type: 'object',
-                properties: {
-                    meter_id: { type: 'integer', example: 101 },
-                    meter_code: { type: 'string', example: 'MTR-FL1-01' },
-                    meter_name: { type: 'string', example: 'Main Incomer 1' },
-                    building_name: { type: 'string', example: 'Building A' },
-                    zone_name: { type: 'string', example: 'Floor 1 Main' },
-                    project_name: { type: 'string', example: 'Bangkok Head Office' },
-                    first_reading: { type: 'number', example: 125430.50, description: 'เลขมิเตอร์ ณ วันเริ่มต้น (kWh)' },
-                    last_reading: { type: 'number', example: 128920.80, description: 'เลขมิเตอร์ ณ วันสิ้นสุด (kWh)' },
-                    diff_reading: { type: 'number', example: 3490.30, description: 'หน่วยการใช้ไฟฟ้าที่คำนวณได้ (kWh)' },
-                    total_kwh: { type: 'number', example: 3490.30, description: 'หน่วยรวม (kWh)' },
-                    multiplier: { type: 'number', example: 1.0 },
-                    peak_kw: { type: 'number', example: 145.20, description: 'Peak Demand สูงสุดในช่วงเวลา (kW)' },
-                    cost: { type: 'number', example: 15706.35, description: 'ประมาณการค่าไฟ (บาท)' },
-                },
-            },
-            TouReportItem: {
-                type: 'object',
-                properties: {
-                    meter_id: { type: 'integer', example: 101 },
-                    meter_code: { type: 'string', example: 'MTR-FL1-01' },
-                    customer_name: { type: 'string', example: 'Production Line 1' },
-                    site_name: { type: 'string', example: 'Factory 1' },
-                    building_name: { type: 'string', example: 'Building Main' },
-                    start_reading: { type: 'number', example: 50400.2 },
-                    end_reading: { type: 'number', example: 54100.8 },
-                    total_kwh: { type: 'number', example: 3700.6, description: 'หน่วยไฟฟ้ารวม (kWh)' },
-                    on_peak_kwh: { type: 'number', example: 2100.4, description: 'หน่วย On-Peak (จ.-ศ. 09:00 - 22:00)' },
-                    off_peak_kwh: { type: 'number', example: 1100.2, description: 'หน่วย Off-Peak (จ.-ศ. 22:00 - 09:00)' },
-                    holiday_kwh: { type: 'number', example: 500.0, description: 'หน่วยวันหยุด เสาร์-อาทิตย์ และวันหยุดนักขัตฤกษ์' },
-                    max_kw: { type: 'number', example: 185.50, description: 'Peak Demand สูงสุด (kW)' },
-                    on_peak_cost: { type: 'number', example: 12178.52 },
-                    off_peak_cost: { type: 'number', example: 2901.12 },
-                    holiday_cost: { type: 'number', example: 1318.45 },
-                    demand_cost: { type: 'number', example: 38955.00 },
-                    ft_cost: { type: 'number', example: 600.61 },
-                    service_charge: { type: 'number', example: 38.22 },
-                    vat_amount: { type: 'number', example: 3919.43 },
-                    total_cost: { type: 'number', example: 59911.35, description: 'รวมยอดค่าไฟฟ้าสุทธิ (บาท)' },
                 },
             },
             HistoryRecordItem: {
@@ -223,115 +180,6 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 },
             },
         },
-        '/reports/energy-consumption': {
-            get: {
-                tags: ['2. Energy Reports'],
-                summary: 'ดึงรายงานการใช้พลังงานรวม (Energy Consumption Report)',
-                description: 'ดึงข้อมูลหน่วยการใช้ไฟฟ้า (kWh), ค่าไฟ, Peak Demand และเลขมิเตอร์เริ่มต้น-สิ้นสุด ตามช่วงวันที่และเงื่อนไขที่กำหนด',
-                parameters: [
-                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-01', description: 'วันที่เริ่มต้น (YYYY-MM-DD)' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-31', description: 'วันที่สิ้นสุด (YYYY-MM-DD)' },
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' }, description: 'รหัสไซต์/สาขา (หากไม่ระบุจะดึงตามสิทธิ์ผู้ใช้งาน)' },
-                    { name: 'buildingId', in: 'query', schema: { type: 'integer' }, description: 'รหัสอาคาร' },
-                    { name: 'zoneId', in: 'query', schema: { type: 'integer' }, description: 'รหัสโซน' },
-                    { name: 'meterTypeId', in: 'query', schema: { type: 'integer' }, description: 'รหัสประเภทมิเตอร์ (เช่น ไฟฟ้า, น้ำ, แก๊ส)' },
-                    { name: 'meterId', in: 'query', schema: { type: 'integer' }, description: 'รหัสมิเตอร์เฉพาะตัว' },
-                    { name: 'search', in: 'query', schema: { type: 'string' }, description: 'คำค้นหารหัสหรือชื่อมิเตอร์' },
-                    { name: 'mdb', in: 'query', schema: { type: 'string', enum: ['exclude', 'only'] }, description: 'exclude: ไม่เอามิเตอร์ MDB, only: เอาเฉพาะมิเตอร์ MDB' },
-                    { name: 'page', in: 'query', schema: { type: 'integer', default: 1 }, description: 'หน้าปัจจุบัน' },
-                    { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 }, description: 'จำนวนรายการต่อหน้า (สูงสุด 1000)' },
-                ],
-                responses: {
-                    200: {
-                        description: 'ดึงข้อมูลสำเร็จ',
-                        content: {
-                            'application/json': {
-                                schema: {
-                                    type: 'object',
-                                    properties: {
-                                        success: { type: 'boolean', example: true },
-                                        data: {
-                                            type: 'array',
-                                            items: { $ref: '#/components/schemas/EnergyConsumptionItem' },
-                                        },
-                                        pagination: { $ref: '#/components/schemas/ApiResponsePagination' },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-        '/reports/tou': {
-            get: {
-                tags: ['2. Energy Reports'],
-                summary: 'ดึงรายงานค่าไฟฟ้าตามอัตรา TOU (Time of Use Report)',
-                description: 'คำนวณและสรุปหน่วยการใช้ไฟฟ้าแยกตามช่วงเวลา On-Peak, Off-Peak, Holiday และค่าไฟฟ้าสุทธิ (รวม Ft, Demand, ค่าบริการ และ VAT)',
-                parameters: [
-                    { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-01', description: 'วันที่เริ่มต้น (YYYY-MM-DD)' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-01-31', description: 'วันที่สิ้นสุด (YYYY-MM-DD)' },
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' }, description: 'รหัสไซต์' },
-                    { name: 'buildingId', in: 'query', schema: { type: 'integer' }, description: 'รหัสอาคาร' },
-                    { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-                    { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } },
-                ],
-                responses: {
-                    200: {
-                        description: 'ดึงข้อมูลสำเร็จ',
-                        content: {
-                            'application/json': {
-                                schema: {
-                                    type: 'object',
-                                    properties: {
-                                        success: { type: 'boolean', example: true },
-                                        data: {
-                                            type: 'array',
-                                            items: { $ref: '#/components/schemas/TouReportItem' },
-                                        },
-                                        pagination: { $ref: '#/components/schemas/ApiResponsePagination' },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-        '/reports/energy-monthly': {
-            get: {
-                tags: ['2. Energy Reports'],
-                summary: 'ดึงรายงานการใช้พลังงานและค่าไฟฟ้ารายเดือน (Monthly Energy Report)',
-                description: 'สรุปหน่วยการใช้ไฟฟ้าและค่าไฟฟ้ารายเดือนตลอดทั้งปี หรือเฉพาะเดือนที่ต้องการ',
-                parameters: [
-                    { name: 'year', in: 'query', schema: { type: 'integer' }, example: 2026, description: 'ปี ค.ศ. (เช่น 2026)' },
-                    { name: 'month', in: 'query', schema: { type: 'integer' }, example: 10, description: 'เดือน 1-12 (ไม่ระบุ = ดึงทุกเดือน)' },
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' }, description: 'รหัสไซต์' },
-                    { name: 'buildingId', in: 'query', schema: { type: 'integer' }, description: 'รหัสอาคาร' },
-                    { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-                    { name: 'limit', in: 'query', schema: { type: 'integer', default: 12 } },
-                ],
-                responses: {
-                    200: { description: 'ดึงข้อมูลสำเร็จ' },
-                },
-            },
-        },
-        '/reports/tou-monthly': {
-            get: {
-                tags: ['2. Energy Reports'],
-                summary: 'ดึงรายงาน TOU แยกรายเดือน (Monthly TOU Report)',
-                description: 'สรุปการใช้พลังงานและค่าไฟฟ้าแบบ Time-of-Use แยกเป็นรายเดือน',
-                parameters: [
-                    { name: 'year', in: 'query', schema: { type: 'integer' }, example: 2026 },
-                    { name: 'month', in: 'query', schema: { type: 'integer' }, example: 10 },
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' } },
-                    { name: 'buildingId', in: 'query', schema: { type: 'integer' } },
-                ],
-                responses: {
-                    200: { description: 'ดึงข้อมูลสำเร็จ' },
-                },
-            },
-        },
         '/reports/history': {
             get: {
                 tags: ['3. Raw & Historical Data'],
@@ -379,58 +227,9 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 responses: { 200: { description: 'ข้อมูลสรุปรายวัน' } },
             },
         },
-        '/reports/comparison': {
-            get: {
-                tags: ['4. Comparison & Alarms'],
-                summary: 'ดึงรายงานเปรียบเทียบการใช้พลังงาน (Comparison Report)',
-                parameters: [
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' } },
-                    { name: 'buildingId', in: 'query', schema: { type: 'integer' } },
-                    { name: 'periodType', in: 'query', schema: { type: 'string', enum: ['day', 'month', 'year'] }, example: 'month' },
-                ],
-                responses: { 200: { description: 'ข้อมูลเปรียบเทียบ' } },
-            },
-        },
-        '/reports/alarms': {
-            get: {
-                tags: ['4. Comparison & Alarms'],
-                summary: 'ดึงรายงานประวัติการแจ้งเตือน (Alarm History Report)',
-                parameters: [
-                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-01-01' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-01-31' },
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' } },
-                    { name: 'search', in: 'query', schema: { type: 'string' } },
-                    { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-                    { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
-                ],
-                responses: { 200: { description: 'รายการประวัติการแจ้งเตือน' } },
-            },
-        },
-        '/reports/{reportType}/export/excel': {
-            get: {
-                tags: ['5. File Exports'],
-                summary: 'ดาวน์โหลดรายงานเป็นไฟล์ Excel (.xlsx)',
-                parameters: [
-                    { name: 'reportType', in: 'path', required: true, schema: { type: 'string', enum: ['energy-consumption', 'energy-monthly', 'tou', 'tou-monthly', 'history'] }, example: 'energy-consumption' },
-                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-01-01' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-01-31' },
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' } },
-                ],
-                responses: {
-                    200: {
-                        description: 'ไฟล์ Excel (.xlsx)',
-                        content: {
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
-                                schema: { type: 'string', format: 'binary' },
-                            },
-                        },
-                    },
-                },
-            },
-        },
         '/reports/meter-readings': {
             get: {
-                tags: ['4. Meter Readings Export (CSV / JSON)'],
+                tags: ['2. Meter Readings Export (CSV / JSON)'],
                 summary: 'ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบมาตรฐาน (CSV / JSON)',
                 description: `
 เรียกดูและส่งออกข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า (เอกสารแนบ 1) และมิเตอร์น้ำ (เอกสารแนบ 2) ตามรูปแบบมาตรฐานสากล
@@ -518,7 +317,7 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
         },
         '/reports/meter-readings/export/csv': {
             get: {
-                tags: ['4. Meter Readings Export (CSV / JSON)'],
+                tags: ['2. Meter Readings Export (CSV / JSON)'],
                 summary: 'ดาวน์โหลดไฟล์ CSV สรุปหน่วยมิเตอร์โดยตรง (.csv)',
                 description: 'Endpoint สำหรับดาวน์โหลดไฟล์ .csv ที่จัดรูปแบบคอลัมน์มาตรฐานทันที',
                 parameters: [
@@ -527,28 +326,6 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                     { name: 'utilityType', in: 'query', schema: { type: 'string', enum: ['all', 'electric', 'water'], default: 'all' } },
                     { name: 'delimiter', in: 'query', schema: { type: 'string', enum: ['pipe', 'comma'], default: 'pipe' } },
                     { name: 'batchName', in: 'query', schema: { type: 'string' } },
-                    { name: 'siteId', in: 'query', schema: { type: 'integer' } },
-                ],
-                responses: {
-                    200: {
-                        description: 'ไฟล์ CSV (.csv)',
-                        content: {
-                            'text/csv': {
-                                schema: { type: 'string', format: 'binary' },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-        '/reports/{reportType}/export/csv': {
-            get: {
-                tags: ['5. File Exports'],
-                summary: 'ดาวน์โหลดรายงานทั่วไปเป็นไฟล์ CSV (.csv)',
-                parameters: [
-                    { name: 'reportType', in: 'path', required: true, schema: { type: 'string', enum: ['meter-readings', 'energy-consumption', 'energy-monthly', 'tou', 'tou-monthly', 'history', 'comparison'] }, example: 'meter-readings' },
-                    { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-02-01' },
-                    { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-02-28' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' } },
                 ],
                 responses: {
@@ -939,22 +716,9 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
             <a href="#meter-readings" class="nav-link"><span class="method-tag tag-get">GET</span> /meter-readings</a>
             <a href="#meter-readings-export-csv" class="nav-link"><span class="method-tag tag-get">GET</span> /meter-readings/export/csv</a>
 
-            <div class="nav-section-title">รายงานการใช้พลังงาน</div>
-            <a href="#energy-consumption" class="nav-link"><span class="method-tag tag-get">GET</span> /energy-consumption</a>
-            <a href="#tou" class="nav-link"><span class="method-tag tag-get">GET</span> /tou</a>
-            <a href="#energy-monthly" class="nav-link"><span class="method-tag tag-get">GET</span> /energy-monthly</a>
-            <a href="#tou-monthly" class="nav-link"><span class="method-tag tag-get">GET</span> /tou-monthly</a>
-
             <div class="nav-section-title">ข้อมูลดิบ & ย้อนหลัง</div>
             <a href="#history" class="nav-link"><span class="method-tag tag-get">GET</span> /history</a>
             <a href="#daily" class="nav-link"><span class="method-tag tag-get">GET</span> /meter-data/daily</a>
-
-            <div class="nav-section-title">การเปรียบเทียบ & แจ้งเตือน</div>
-            <a href="#comparison" class="nav-link"><span class="method-tag tag-get">GET</span> /comparison</a>
-            <a href="#alarms" class="nav-link"><span class="method-tag tag-get">GET</span> /alarms</a>
-
-            <div class="nav-section-title">ส่งออกไฟล์</div>
-            <a href="#export-excel" class="nav-link"><span class="method-tag tag-get">GET</span> /export/excel</a>
         </aside>
 
         <!-- Main Documentation Content -->
@@ -963,7 +727,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
             <div class="hero-banner">
                 <h1>คู่มือการเชื่อมต่อ Report API</h1>
                 <p>
-                    เอกสารข้อกำหนด API สำหรับให้ลูกค้าภายนอกหรือระบบอัตโนมัติ (Automated Data Pipeline, ERP, PowerBI) ดึงข้อมูลสรุปหน่วยการใช้ไฟฟ้า, ค่าไฟฟ้าอัตรา TOU, และ Log ข้อมูลย้อนหลัง
+                    เอกสารข้อกำหนด API สำหรับให้ลูกค้าภายนอกหรือระบบอัตโนมัติ (Automated Data Pipeline, ERP, PowerBI) ดึงข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า-น้ำ และ Log ข้อมูลย้อนหลัง
                 </p>
                 <div class="callout" style="margin-top: 16px;">
                     <strong>Base URL:</strong> <code>${serverOrigin}${baseUrl}</code><br>
@@ -1200,13 +964,6 @@ CYA041-สัญญา A2-250301-0009|CYA041-W20-Trendy wash|1-Mar-26|31-Mar-26|
 CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|130|1347|1477</div>
                 </div>
 
-|CYA041-2026-0014|CYA041-1103-W20-อัญชลี|1-Mar-26|31-Mar-26|2|197|199
-|CYA041-2025-0018|CYA041-1104 (STU)-W20-จตุพ|1-Mar-26|31-Mar-26|2|198|200
-|CYA041-2025-0025|CYA041-1105 (STU)-W20-นิมา|1-Mar-26|31-Mar-26|1|340|341
-|CYA041-สัญญา A2-250301-0009|CYA041-W20-Trendy wash|1-Mar-26|31-Mar-26|14|164|178
-|CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|130|1347|1477</div>
-                </div>
-
                 <!-- cURL Command: Download Electricity CSV -->
                 <div class="code-container">
                     <div class="code-header">
@@ -1235,233 +992,6 @@ CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|1
                 </div>
             </section>
 
-            <!-- 2. Energy Consumption Report -->
-            <section id="energy-consumption" class="endpoint-card">
-                <div class="card-header">
-
-                    <div class="endpoint-title">
-                        <span class="method-tag tag-get">GET</span>
-                        <span class="endpoint-path">${baseUrl}/reports/energy-consumption</span>
-                    </div>
-                    <span style="font-size: 12px; color: var(--accent-green);">Bearer Token Required</span>
-                </div>
-                <div class="endpoint-desc">
-                    ดึงรายงานหน่วยการใช้ไฟฟ้า (kWh), ค่าไฟ, เลขมิเตอร์เริ่มต้น-สิ้นสุด และ Peak Demand ตามช่วงวันที่กำหนด
-                </div>
-                <div class="params-section">
-                    <div class="section-label">Query Parameters</div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>พารามิเตอร์</th>
-                                <th>ประเภท</th>
-                                <th>สถานะ</th>
-                                <th>คำอธิบาย</th>
-                                <th>ตัวอย่าง</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><span class="param-name">startDate</span></td>
-                                <td><span class="param-type">string (date)</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td>วันที่เริ่มต้น (YYYY-MM-DD) ค่าเริ่มต้นคือวันนี้</td>
-                                <td><code>2026-01-01</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">endDate</span></td>
-                                <td><span class="param-type">string (date)</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td>วันที่สิ้นสุด (YYYY-MM-DD)</td>
-                                <td><code>2026-01-31</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">siteId</span></td>
-                                <td><span class="param-type">integer</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td>รหัสไซต์/สาขา (หากไม่ระบุ ระบบจะกรองตามสิทธิ์ของผู้ใช้)</td>
-                                <td><code>1</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">buildingId</span></td>
-                                <td><span class="param-type">integer</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td>รหัสอาคาร</td>
-                                <td><code>34</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">meterTypeId</span></td>
-                                <td><span class="param-type">integer</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td>รหัสประเภทมิเตอร์</td>
-                                <td><code>1</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">mdb</span></td>
-                                <td><span class="param-type">string</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td><code>exclude</code> (ไม่เอามิเตอร์ MDB), <code>only</code> (เฉพาะ MDB)</td>
-                                <td><code>exclude</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">page</span></td>
-                                <td><span class="param-type">integer</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td>ลำดับหน้า (เริ่มต้น 1)</td>
-                                <td><code>1</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">limit</span></td>
-                                <td><span class="param-type">integer</span></td>
-                                <td><span class="badge-opt">Optional</span></td>
-                                <td>จำนวนรายการต่อหน้า (เริ่มต้น 10, สูงสุด 1000)</td>
-                                <td><code>100</code></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>cURL Example</span>
-                        <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
-                    </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption?startDate=2026-01-01&endDate=2026-01-31&limit=100" \\
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
-                </div>
-                <div class="code-container">
-                    <div class="code-header"><span>Response (200 OK)</span></div>
-                    <div class="code-content">{
-  "success": true,
-  "data": [
-    {
-      "meter_id": 1,
-      "meter_code": "MTR-001",
-      "meter_name": "Main Transformer 1",
-      "building_name": "Building A",
-      "zone_name": "Floor 1",
-      "first_reading": 10000.00,
-      "last_reading": 12500.00,
-      "diff_reading": 2500.00,
-      "total_kwh": 2500.00,
-      "multiplier": 1.0,
-      "peak_kw": 150.00,
-      "cost": 10500.00
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 100,
-    "total": 1,
-    "totalPages": 1
-  }
-}</div>
-                </div>
-            </section>
-
-            <!-- 3. TOU Report -->
-            <section id="tou" class="endpoint-card">
-                <div class="card-header">
-                    <div class="endpoint-title">
-                        <span class="method-tag tag-get">GET</span>
-                        <span class="endpoint-path">${baseUrl}/reports/tou</span>
-                    </div>
-                    <span style="font-size: 12px; color: var(--accent-green);">Bearer Token Required</span>
-                </div>
-                <div class="endpoint-desc">
-                    ดึงรายงานวิเคราะห์ค่าไฟฟ้าตามอัตรา TOU (Time-of-Use) แยกหน่วย On-Peak, Off-Peak, Holiday และยอดคำนวณค่าไฟสุทธิ (รวม Demand, Ft, ภาษีมูลค่าเพิ่ม)
-                </div>
-                <div class="params-section">
-                    <div class="section-label">Query Parameters</div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>พารามิเตอร์</th>
-                                <th>ประเภท</th>
-                                <th>คำอธิบาย</th>
-                                <th>ตัวอย่าง</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><span class="param-name">startDate</span></td>
-                                <td><span class="param-type">string (date)</span></td>
-                                <td>วันที่เริ่มต้น (YYYY-MM-DD)</td>
-                                <td><code>2026-01-01</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">endDate</span></td>
-                                <td><span class="param-type">string (date)</span></td>
-                                <td>วันที่สิ้นสุด (YYYY-MM-DD)</td>
-                                <td><code>2026-01-31</code></td>
-                            </tr>
-                            <tr>
-                                <td><span class="param-name">siteId</span></td>
-                                <td><span class="param-type">integer</span></td>
-                                <td>รหัสไซต์ที่ต้องการดึง</td>
-                                <td><code>1</code></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>cURL Example</span>
-                        <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
-                    </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/tou?startDate=2026-01-01&endDate=2026-01-31" \\
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
-                </div>
-                <div class="code-container">
-                    <div class="code-header"><span>Response (200 OK)</span></div>
-                    <div class="code-content">{
-  "success": true,
-  "data": [
-    {
-      "meter_id": 1,
-      "meter_code": "MTR-001",
-      "customer_name": "Main Feeder 1",
-      "site_name": "Example Site A",
-      "total_kwh": 3000.00,
-      "on_peak_kwh": 1800.00,
-      "off_peak_kwh": 1200.00,
-      "holiday_kwh": 0.00,
-      "max_kw": 120.00,
-      "on_peak_cost": 9000.00,
-      "off_peak_cost": 3000.00,
-      "holiday_cost": 0.00,
-      "demand_cost": 15000.00,
-      "ft_cost": 500.00,
-      "service_charge": 38.00,
-      "vat_amount": 1927.66,
-      "total_cost": 29465.66
-    }
-  ]
-}</div>
-                </div>
-            </section>
-
-            <!-- 4. Monthly Reports -->
-            <section id="energy-monthly" class="endpoint-card">
-                <div class="card-header">
-                    <div class="endpoint-title">
-                        <span class="method-tag tag-get">GET</span>
-                        <span class="endpoint-path">${baseUrl}/reports/energy-monthly</span>
-                    </div>
-                    <span style="font-size: 12px; color: var(--accent-green);">Bearer Token Required</span>
-                </div>
-                <div class="endpoint-desc">
-                    ดึงรายงานการใช้พลังงานและค่าไฟฟ้ารายเดือนตลอดทั้งปี ระบุปี ค.ศ. (เช่น <code>year=2026</code>)
-                </div>
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>cURL Example</span>
-                        <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
-                    </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-monthly?year=2026&month=1" \\
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
-                </div>
-            </section>
-
             <!-- 5. Historical Raw Interval Logs -->
             <section id="history" class="endpoint-card">
                 <div class="card-header">
@@ -1481,30 +1011,6 @@ CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|1
                     </div>
                     <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/history?meterId=1&startDate=2026-01-01&endDate=2026-01-01&limit=50" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</div>
-                </div>
-            </section>
-
-            <!-- 6. Excel Export -->
-            <section id="export-excel" class="endpoint-card">
-                <div class="card-header">
-                    <div class="endpoint-title">
-                        <span class="method-tag tag-get">GET</span>
-                        <span class="endpoint-path">${baseUrl}/reports/{reportType}/export/excel</span>
-                    </div>
-                    <span style="font-size: 12px; color: var(--accent-green);">Binary File (.xlsx)</span>
-                </div>
-                <div class="endpoint-desc">
-                    ดาวน์โหลดรายงานที่จัดรูปแบบเป็นไฟล์ Microsoft Excel (.xlsx) โดยตรงผ่าน API<br>
-                    <strong>reportType ที่รองรับ:</strong> <code>energy-consumption</code>, <code>tou</code>, <code>energy-monthly</code>, <code>tou-monthly</code>, <code>history</code>
-                </div>
-                <div class="code-container">
-                    <div class="code-header">
-                        <span>cURL Example (Save to file)</span>
-                        <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
-                    </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/energy-consumption/export/excel?startDate=2026-01-01&endDate=2026-01-31" \\
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
-  -o "energy_report.xlsx"</div>
                 </div>
             </section>
         </main>
