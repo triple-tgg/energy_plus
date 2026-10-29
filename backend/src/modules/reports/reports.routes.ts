@@ -45,11 +45,9 @@ router.post('/alarms/clear', requireRole('operator', 'admin'), controller.clearA
 router.delete('/alarms/clear', requireRole('operator', 'admin'), controller.clearAlarms);
 router.put('/alarms/:id/acknowledge', requireRole('operator', 'admin'), controller.acknowledgeAlarm);
 
-// ── รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ CHOD (PDF Example: CSV / JSON) ──
-router.get('/chod', controller.getChodReport);
-router.get('/chod-meter-readings', controller.getChodReport);
-router.get('/chod/export/csv', controller.getChodReportCsv);
-router.get('/chod-meter-readings/export/csv', controller.getChodReportCsv);
+// ── รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ (Standard Meter Readings Export: CSV / JSON) ──
+router.get('/meter-readings', controller.getMeterReadingsReport);
+router.get('/meter-readings/export/csv', controller.getMeterReadingsReportCsv);
 
 // ── Generic File Export Routes (.csv and .xlsx) ──
 router.get('/:reportType/export/csv', controller.exportReportCsv);

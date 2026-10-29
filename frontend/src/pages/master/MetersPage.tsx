@@ -1214,15 +1214,15 @@ const MetersPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* ข้อมูลสัญญาเช่าและ VR Number (CHOD Integration) */}
+                {/* ข้อมูลสัญญาเช่าและ VR Number (Lease & VR Info) */}
                 <div style={{ marginBottom: 8, marginTop: 8, fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.accent, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    {t('ข้อมูลสัญญาเช่า (CHOD Integration)', 'LEASE & VR INFO (CHOD)')}
+                    {t('ข้อมูลสัญญาเช่าและ VR Number', 'LEASE & VR INFO')}
                 </div>
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">
                             {t('เลขที่สัญญา (Lease Number)', 'Lease Number')}
-                            <span style={{ fontSize: 11, color: C.sub, marginLeft: 6 }}>({t('สำหรับรายงาน CHOD', 'For CHOD Report')})</span>
+                            <span style={{ fontSize: 11, color: C.sub, marginLeft: 6 }}>({t('สำหรับรายงานสรุปมิเตอร์', 'For Meter Readings Report')})</span>
                         </label>
                         <input
                             type="text"
