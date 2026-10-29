@@ -5,7 +5,7 @@ export const reportOpenApiDocument: any = {
     openapi: '3.0.3',
     info: {
         title: 'EnergyPlus - Report Data Extraction API',
-        version: '1.0.3',
+        version: '1.0.4',
         description: `
 ### เอกสารข้อกำหนด API สำหรับการดึงข้อมูลรายงาน (Report API Specification)
 

@@ -326,10 +326,10 @@ export const swaggerDocument = {
                 responses: { 200: { description: 'List of export configs' } },
             },
         },
-        '/reports/chod-meter-readings': {
+        '/reports/meter-readings': {
             get: {
                 tags: ['Reports'],
-                summary: 'รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ CHOD (PDF Example: CSV / JSON)',
+                summary: 'รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ (Meter Readings Export: CSV / JSON)',
                 parameters: [
                     { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-02-01' },
                     { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-02-28' },
@@ -341,7 +341,7 @@ export const swaggerDocument = {
                 ],
                 responses: {
                     200: {
-                        description: 'CSV file or JSON response according to CHOD specification',
+                        description: 'CSV file or JSON response according to standard meter reading specification',
                         content: {
                             'text/csv': { schema: { type: 'string', format: 'binary' } },
                             'application/json': { schema: { type: 'object' } },

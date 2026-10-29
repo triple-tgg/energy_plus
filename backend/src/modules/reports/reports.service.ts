@@ -979,11 +979,11 @@ export class ReportsService {
     }
 
     /**
-     * ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบ CHOD (ตามตัวอย่างใน PDF)
+     * ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบมาตรฐาน (CSV / JSON)
      * Header: BATCH_NAME|LEASE_NUMBER|VR NUMBER|REP_STR_DATE|REP_END_DATE|USAGE|METER_FROM|METER_TO
      * รองรับผลลัพธ์ทั้งรูปแบบ CSV (.csv) และ JSON
      */
-    async getChodReport(queryParams: any) {
+    async getMeterReadingsReport(queryParams: any) {
         const {
             siteId,
             buildingId,
@@ -1020,8 +1020,8 @@ export class ReportsService {
             }
         }
 
-        const repStartDate = formatChodDate(startDate);
-        const repEndDate = formatChodDate(endDate);
+        const repStartDate = formatReadingDate(startDate);
+        const repEndDate = formatReadingDate(endDate);
 
         const params: any[] = [];
         const meterFilters: string[] = ['m.is_active IS DISTINCT FROM false'];
@@ -1198,7 +1198,7 @@ export class ReportsService {
         });
 
         // Generate CSV string:
-        // สำหรับรูปแบบ Pipe ('|'): แต่ละแถวจะขึ้นต้นด้วย '|' ตามตัวอย่างฟอร์แมต CHOD ใน PDF
+        // สำหรับรูปแบบ Pipe ('|'): แต่ละแถวจะขึ้นต้นด้วย '|' ตามตัวอย่างฟอร์แมตในสเปก
         // สำหรับรูปแบบ Comma (','): เป็นฟอร์แมต CSV มาตรฐาน ไม่ต้องมีคอมมานำหน้า
         const isPipe = sep === '|';
         const prefix = isPipe ? '|' : '';
@@ -1231,7 +1231,7 @@ export class ReportsService {
                     row.METER_FROM,
                     row.METER_TO,
                   ];
-            csvRows.push(prefix + formatChodCsvRow(rowValues, sep));
+            csvRows.push(prefix + formatCsvRow(rowValues, sep));
         }
 
         const csvString = csvRows.join('\r\n');
@@ -1264,8 +1264,8 @@ export class ReportsService {
      * ส่งออกรายงานทั่วไปเป็นไฟล์ CSV
      */
     async exportReportCsv(reportType: string, queryParams: any) {
-        if (reportType === 'chod' || reportType === 'chod-meter-readings' || reportType === 'meter-readings') {
-            return this.getChodReport({ ...queryParams, format: 'csv' });
+        if (reportType === 'meter-readings') {
+            return this.getMeterReadingsReport({ ...queryParams, format: 'csv' });
         }
         let result: any;
         if (reportType === 'energy-consumption') {
@@ -1320,9 +1320,9 @@ export class ReportsService {
         let dataRows: any[] = [];
         let filename = `${reportType}_report.xlsx`;
 
-        if (reportType === 'chod' || reportType === 'chod-meter-readings') {
-            const chodResult = await this.getChodReport({ ...queryParams, format: 'json' });
-            dataRows = chodResult.data.map((r: any) => ({
+        if (reportType === 'meter-readings') {
+            const meterReadingsResult = await this.getMeterReadingsReport({ ...queryParams, format: 'json' });
+            dataRows = meterReadingsResult.data.map((r: any) => ({
                 BATCH_NAME: r.BATCH_NAME,
                 LEASE_NUMBER: r.LEASE_NUMBER,
                 'VR NUMBER': r['VR NUMBER'],
@@ -1332,7 +1332,7 @@ export class ReportsService {
                 METER_FROM: r.METER_FROM,
                 METER_TO: r.METER_TO,
             }));
-            filename = `chod_meter_readings_${queryParams.startDate || ''}.xlsx`;
+            filename = `meter_readings_${queryParams.startDate || ''}.xlsx`;
         } else if (reportType === 'energy-consumption') {
             const res = await this.getEnergyConsumption({ ...queryParams, limit: 10000 });
             dataRows = res.data;
@@ -1359,9 +1359,9 @@ export class ReportsService {
 }
 
 /**
- * รูปแบบวันที่ตามตัวอย่างใน PDF: D-MMM-YY เช่น 1-Feb-26, 28-Feb-26, 31-Mar-26
+ * รูปแบบวันที่: D-MMM-YY เช่น 1-Feb-26, 28-Feb-26, 31-Mar-26
  */
-export function formatChodDate(dateInput: Date | string): string {
+export function formatReadingDate(dateInput: Date | string): string {
     const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
     if (!d || isNaN(d.getTime())) return '';
     const day = d.getDate();
@@ -1374,7 +1374,7 @@ export function formatChodDate(dateInput: Date | string): string {
 /**
  * ฟังก์ชันช่วยสร้างแถว CSV พร้อม escaping ตามมาตรฐาน
  */
-export function formatChodCsvRow(values: (string | number | null | undefined)[], delimiter: string = '|'): string {
+export function formatCsvRow(values: (string | number | null | undefined)[], delimiter: string = '|'): string {
     return values.map(val => {
         if (val === null || val === undefined) return '';
         const str = String(val);
