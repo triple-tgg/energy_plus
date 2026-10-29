@@ -232,7 +232,7 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 tags: ['2. Meter Readings Export (CSV / JSON)'],
                 summary: 'ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบมาตรฐาน (CSV / JSON)',
                 description: `
-เรียกดูและส่งออกข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า (เอกสารแนบ 1) และมิเตอร์น้ำ (เอกสารแนบ 2) ตามรูปแบบมาตรฐานสากล
+เรียกดูและส่งออกข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า และมิเตอร์น้ำ ตามรูปแบบมาตรฐานสากล
 - **Header คอลัมน์:** \`BATCH_NAME|LEASE_NUMBER|VR NUMBER|REP_STR_DATE|REP_END_DATE|USAGE|METER_FROM|METER_TO\`
 - **รูปแบบผลลัพธ์ (Output):**
   - \`format=csv\` (ค่าเริ่มต้น): ส่งคืนเป็นไฟล์ **CSV (.csv)** พร้อม Header UTF-8 BOM รองรับการเปิดด้วย Microsoft Excel โดยตัวอักษรภาษาไทยไม่เพี้ยน
@@ -241,8 +241,8 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
   - \`delimiter=pipe\` (หรือ \`|\`) ค่าเริ่มต้น คั่นด้วย Pipe (|)
   - \`delimiter=comma\` (หรือ \`,\`) สำหรับ CSV แบบ Comma Separated มาตรฐาน
 - **การกรองประเภทมิเตอร์ (utilityType):**
-  - \`utilityType=electric\` ดึงเฉพาะมิเตอร์ไฟฟ้า (เอกสารแนบ 1)
-  - \`utilityType=water\` ดึงเฉพาะมิเตอร์น้ำ (เอกสารแนบ 2)
+  - \`utilityType=electric\` ดึงเฉพาะมิเตอร์ไฟฟ้า
+  - \`utilityType=water\` ดึงเฉพาะมิเตอร์น้ำ
   - \`utilityType=all\` ดึงข้อมูลมิเตอร์ทั้งหมด
                 `,
                 parameters: [
@@ -254,7 +254,7 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                         name: 'utilityType',
                         in: 'query',
                         schema: { type: 'string', enum: ['all', 'electric', 'water'], default: 'all' },
-                        description: 'ประเภทมิเตอร์: electric (ไฟฟ้า เอกสารแนบ 1) หรือ water (น้ำ เอกสารแนบ 2)',
+                        description: 'ประเภทมิเตอร์: electric (ไฟฟ้า) หรือ water (น้ำ)',
                     },
                     {
                         name: 'format',
@@ -790,7 +790,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                 </div>
                 <div class="endpoint-desc">
                     <strong>รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ (Standard Meter Readings Export):</strong><br>
-                    เรียกดูและส่งออกข้อมูลมิเตอร์ไฟฟ้า (เอกสารแนบ 1) และมิเตอร์น้ำ (เอกสารแนบ 2) ตามรูปแบบมาตรฐาน ได้รับผลลัพธ์เป็นไฟล์ <strong>CSV (.csv)</strong> ที่มี UTF-8 BOM เปิดอ่านด้วย Microsoft Excel ได้ทันทีโดยภาษาไทยไม่เพี้ยน หรือเลือกดูเป็น JSON
+                    เรียกดูและส่งออกข้อมูลมิเตอร์ไฟฟ้า และมิเตอร์น้ำ ตามรูปแบบมาตรฐาน ได้รับผลลัพธ์เป็นไฟล์ <strong>CSV (.csv)</strong> ที่มี UTF-8 BOM เปิดอ่านด้วย Microsoft Excel ได้ทันทีโดยภาษาไทยไม่เพี้ยน หรือเลือกดูเป็น JSON
                 </div>
 
                 <div class="params-section">
@@ -824,7 +824,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                                 <td><span class="param-name">utilityType</span></td>
                                 <td><span class="param-type">string</span></td>
                                 <td><span class="badge-opt">Optional</span></td>
-                                <td>ประเภทมิเตอร์: <code>electric</code> (ไฟฟ้า เอกสารแนบ 1), <code>water</code> (น้ำ เอกสารแนบ 2), <code>all</code> (ทั้งหมด)</td>
+                                <td>ประเภทมิเตอร์: <code>electric</code> (ไฟฟ้า), <code>water</code> (น้ำ), <code>all</code> (ทั้งหมด)</td>
                                 <td>electric</td>
                             </tr>
                             <tr>
@@ -935,7 +935,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                 <!-- Sample CSV Box: Electricity -->
                 <div class="code-container" style="margin-top: 20px;">
                     <div class="code-header">
-                        <span>ตัวอย่างผลลัพธ์ CSV: มิเตอร์ไฟฟ้า (เอกสารแนบ 1)</span>
+                        <span>ตัวอย่างผลลัพธ์ CSV: มิเตอร์ไฟฟ้า</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
                     <div class="code-content">LEASE_NUMBER|VR NUMBER|REP_STR_DATE|REP_END_DATE|USAGE|METER_FROM|METER_TO
@@ -952,7 +952,7 @@ CYA041-2025-0025|CYA041-1105 (STU)-E5.71-นิมาด|1-Feb-26|28-Feb-26|74|8
                 <!-- Sample CSV Box: Water -->
                 <div class="code-container">
                     <div class="code-header">
-                        <span>ตัวอย่างผลลัพธ์ CSV: มิเตอร์น้ำ (เอกสารแนบ 2 - Pipe Delimited)</span>
+                        <span>ตัวอย่างผลลัพธ์ CSV: มิเตอร์น้ำ (Pipe Delimited)</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
                     <div class="code-content">LEASE_NUMBER|VR NUMBER|REP_STR_DATE|REP_END_DATE|USAGE|METER_FROM|METER_TO
@@ -967,7 +967,7 @@ CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|1
                 <!-- cURL Command: Download Electricity CSV -->
                 <div class="code-container">
                     <div class="code-header">
-                        <span>cURL: ดาวน์โหลดไฟล์ CSV มิเตอร์ไฟฟ้า (เอกสารแนบ 1)</span>
+                        <span>cURL: ดาวน์โหลดไฟล์ CSV มิเตอร์ไฟฟ้า</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
                     <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/meter-readings?startDate=2026-02-01&endDate=2026-02-28&utilityType=electric&format=csv" \\
@@ -978,7 +978,7 @@ CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|1
                 <!-- cURL Command: Download Water CSV -->
                 <div class="code-container">
                     <div class="code-header">
-                        <span>cURL: ดาวน์โหลดไฟล์ CSV มิเตอร์น้ำ (เอกสารแนบ 2)</span>
+                        <span>cURL: ดาวน์โหลดไฟล์ CSV มิเตอร์น้ำ</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
                     <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/meter-readings?startDate=2026-03-01&endDate=2026-03-31&utilityType=water&format=csv" \\
