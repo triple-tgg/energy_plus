@@ -1,5 +1,5 @@
 # ── Stage 1: Build Frontend ──
-FROM node:20-slim AS frontend-build
+FROM node:24.22.1-slim AS frontend-build
 WORKDIR /app/frontend
 
 # Accept build-time version args
@@ -16,7 +16,7 @@ ENV VITE_GIT_SHA=${GIT_SHA}
 RUN npm run build
 
 # ── Stage 2: Build Backend ──
-FROM node:20-slim AS backend-build
+FROM node:24.22.1-slim AS backend-build
 WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm ci --ignore-scripts 2>/dev/null || npm install
@@ -24,7 +24,7 @@ COPY backend/ ./
 RUN npx tsc
 
 # ── Stage 3: Production ──
-FROM node:20-slim AS production
+FROM node:24.22.1-slim AS production
 
 # Accept build-time version args for runtime env
 ARG APP_VERSION=dev

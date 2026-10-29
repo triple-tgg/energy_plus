@@ -1,6 +1,6 @@
 {
     "name": "energy-plus-frontend",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "EnergyPlus Frontend",
     "type": "module",
     "scripts": {
