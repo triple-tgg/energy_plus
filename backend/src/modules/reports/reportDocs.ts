@@ -838,14 +838,14 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                                 <td><span class="param-name">delimiter</span></td>
                                 <td><span class="param-type">string</span></td>
                                 <td><span class="badge-opt">Optional</span></td>
-                                <td>เครื่องหมายคั่นฟิลด์: <code>pipe</code> (<code>|</code> ตามตัวอย่างใน PDF หน้า 2) หรือ <code>comma</code> (<code>,</code>)</td>
+                                <td>เครื่องหมายคั่นฟิลด์: <code>pipe</code> (<code>|</code> - ค่าเริ่มต้น) หรือ <code>comma</code> (<code>,</code>)</td>
                                 <td>pipe</td>
                             </tr>
                             <tr>
                                 <td><span class="param-name">batchName</span></td>
                                 <td><span class="param-type">string</span></td>
                                 <td><span class="badge-opt">Optional</span></td>
-                                <td>ชื่อชุดข้อมูล BATCH_NAME (ค่าเริ่มต้นเป็นค่าว่าง <code>""</code> ตามตัวอย่างใน PDF)</td>
+                                <td>ชื่อชุดข้อมูล BATCH_NAME (ค่าเริ่มต้นเป็นค่าว่าง <code>""</code>)</td>
                                 <td></td>
                             </tr>
                             <tr>
@@ -868,7 +868,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                                 <th>ชื่อคอลัมน์</th>
                                 <th>ชนิดข้อมูล</th>
                                 <th>คำอธิบาย</th>
-                                <th>ตัวอย่างข้อมูลตาม PDF</th>
+                                <th>ตัวอย่างข้อมูล</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -876,7 +876,7 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                                 <td>1</td>
                                 <td><strong>BATCH_NAME</strong></td>
                                 <td>string</td>
-                                <td>ชื่อชุดข้อมูล (ตามตัวอย่างใน PDF เป็นค่าว่าง)</td>
+                                <td>ชื่อชุดข้อมูล (ค่าเริ่มต้นเป็นค่าว่าง)</td>
                                 <td><code></code></td>
                             </tr>
                             <tr>
