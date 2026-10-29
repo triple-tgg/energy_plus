@@ -121,9 +121,9 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                     energy_frequency: { type: 'number', example: 50.01 },
                 },
             },
-            ChodMeterReadingItem: {
+            MeterReadingExportItem: {
                 type: 'object',
-                description: 'รูปแบบแถวข้อมูลมิเตอร์ไฟฟ้า/น้ำ ตามข้อกำหนด CHOD (เอกสารแนบ 1 และ 2 ตามตัวอย่างใน PDF)',
+                description: 'รูปแบบแถวข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า/น้ำ (Standard Meter Readings Export Row)',
                 properties: {
                     BATCH_NAME: {
                         type: 'string',
@@ -428,22 +428,22 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 },
             },
         },
-        '/reports/chod-meter-readings': {
+        '/reports/meter-readings': {
             get: {
-                tags: ['4. CHOD Meter Integration (PDF)'],
-                summary: 'ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบ CHOD (CSV / JSON)',
+                tags: ['4. Meter Readings Export (CSV / JSON)'],
+                summary: 'ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบมาตรฐาน (CSV / JSON)',
                 description: `
-เรียกดูข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า (เอกสารแนบ 1) และมิเตอร์น้ำ (เอกสารแนบ 2) ตามรูปแบบ CHOD ตามตัวอย่างในไฟล์ PDF
+เรียกดูและส่งออกข้อมูลสรุปหน่วยมิเตอร์ไฟฟ้า (เอกสารแนบ 1) และมิเตอร์น้ำ (เอกสารแนบ 2) ตามรูปแบบมาตรฐานสากล
 - **Header คอลัมน์:** \`BATCH_NAME|LEASE_NUMBER|VR NUMBER|REP_STR_DATE|REP_END_DATE|USAGE|METER_FROM|METER_TO\`
 - **รูปแบบผลลัพธ์ (Output):**
   - \`format=csv\` (ค่าเริ่มต้น): ส่งคืนเป็นไฟล์ **CSV (.csv)** พร้อม Header UTF-8 BOM รองรับการเปิดด้วย Microsoft Excel โดยตัวอักษรภาษาไทยไม่เพี้ยน
   - \`format=json\`: ส่งคืนเป็น JSON Array
 - **คั่นข้อมูล (Delimiter):**
-  - \`delimiter=pipe\` (หรือ \`|\`) ค่าเริ่มต้นตามตัวอย่างใน PDF หน้า 2
+  - \`delimiter=pipe\` (หรือ \`|\`) ค่าเริ่มต้น คั่นด้วย Pipe (|)
   - \`delimiter=comma\` (หรือ \`,\`) สำหรับ CSV แบบ Comma Separated มาตรฐาน
 - **การกรองประเภทมิเตอร์ (utilityType):**
-  - \`utilityType=electric\` ดึงเฉพาะมิเตอร์ไฟฟ้า (เอกสารแนบ 1 เช่น -E5.71-, -E7-)
-  - \`utilityType=water\` ดึงเฉพาะมิเตอร์น้ำ (เอกสารแนบ 2 เช่น -W20-, -W-)
+  - \`utilityType=electric\` ดึงเฉพาะมิเตอร์ไฟฟ้า (เอกสารแนบ 1)
+  - \`utilityType=water\` ดึงเฉพาะมิเตอร์น้ำ (เอกสารแนบ 2)
   - \`utilityType=all\` ดึงข้อมูลมิเตอร์ทั้งหมด
                 `,
                 parameters: [
@@ -467,7 +467,7 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                         name: 'delimiter',
                         in: 'query',
                         schema: { type: 'string', enum: ['pipe', 'comma'], default: 'pipe' },
-                        description: 'เครื่องหมายคั่นฟิลด์: pipe (| ตามตัวอย่างใน PDF) หรือ comma (,)',
+                        description: 'เครื่องหมายคั่นฟิลด์: pipe (|) หรือ comma (,)',
                     },
                     { name: 'batchName', in: 'query', schema: { type: 'string' }, example: '', description: 'รหัสชุดข้อมูล BATCH_NAME (ค่าเริ่มต้นเป็นค่าว่าง)' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' }, description: 'รหัสโครงการ / Site ID' },
@@ -475,7 +475,7 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 ],
                 responses: {
                     200: {
-                        description: 'ไฟล์ CSV (.csv) หรือ JSON Array ตามรูปแบบ CHOD',
+                        description: 'ไฟล์ CSV (.csv) หรือ JSON Array ตามรูปแบบมาตรฐาน',
                         content: {
                             'text/csv': {
                                 schema: { type: 'string', format: 'binary' },
@@ -493,7 +493,7 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                                         success: { type: 'boolean', example: true },
                                         data: {
                                             type: 'array',
-                                            items: { $ref: '#/components/schemas/ChodMeterReadingItem' },
+                                            items: { $ref: '#/components/schemas/MeterReadingExportItem' },
                                         },
                                         summary: {
                                             type: 'object',
@@ -516,11 +516,11 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 },
             },
         },
-        '/reports/chod/export/csv': {
+        '/reports/meter-readings/export/csv': {
             get: {
-                tags: ['4. CHOD Meter Integration (PDF)'],
-                summary: 'ดาวน์โหลดไฟล์ CSV รูปแบบ CHOD โดยตรง (.csv)',
-                description: 'Endpoint สำหรับดาวน์โหลดไฟล์ .csv ที่จัดรูปแบบคอลัมน์ตรงตามตัวอย่างในเอกสารแนบ PDF ทันที',
+                tags: ['4. Meter Readings Export (CSV / JSON)'],
+                summary: 'ดาวน์โหลดไฟล์ CSV สรุปหน่วยมิเตอร์โดยตรง (.csv)',
+                description: 'Endpoint สำหรับดาวน์โหลดไฟล์ .csv ที่จัดรูปแบบคอลัมน์มาตรฐานทันที',
                 parameters: [
                     { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-02-01' },
                     { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-02-28' },
@@ -546,7 +546,7 @@ API ชุดนี้จัดทำขึ้นเพื่อให้ระ�
                 tags: ['5. File Exports'],
                 summary: 'ดาวน์โหลดรายงานทั่วไปเป็นไฟล์ CSV (.csv)',
                 parameters: [
-                    { name: 'reportType', in: 'path', required: true, schema: { type: 'string', enum: ['chod', 'energy-consumption', 'energy-monthly', 'tou', 'tou-monthly', 'history', 'comparison'] }, example: 'chod' },
+                    { name: 'reportType', in: 'path', required: true, schema: { type: 'string', enum: ['meter-readings', 'energy-consumption', 'energy-monthly', 'tou', 'tou-monthly', 'history', 'comparison'] }, example: 'meter-readings' },
                     { name: 'startDate', in: 'query', schema: { type: 'string' }, example: '2026-02-01' },
                     { name: 'endDate', in: 'query', schema: { type: 'string' }, example: '2026-02-28' },
                     { name: 'siteId', in: 'query', schema: { type: 'integer' } },
@@ -935,9 +935,9 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
             <div class="nav-section-title">เริ่มต้นใช้งาน</div>
             <a href="#auth" class="nav-link"><span class="method-tag tag-post">POST</span> /auth/login</a>
 
-            <div class="nav-section-title">รูปแบบมิเตอร์ไฟฟ้า-น้ำ CHOD (PDF)</div>
-            <a href="#chod-meter-readings" class="nav-link"><span class="method-tag tag-get">GET</span> /chod-meter-readings</a>
-            <a href="#chod-export-csv" class="nav-link"><span class="method-tag tag-get">GET</span> /chod/export/csv</a>
+            <div class="nav-section-title">รูปแบบมิเตอร์ไฟฟ้า-น้ำ (Meter Readings)</div>
+            <a href="#meter-readings" class="nav-link"><span class="method-tag tag-get">GET</span> /meter-readings</a>
+            <a href="#meter-readings-export-csv" class="nav-link"><span class="method-tag tag-get">GET</span> /meter-readings/export/csv</a>
 
             <div class="nav-section-title">รายงานการใช้พลังงาน</div>
             <a href="#energy-consumption" class="nav-link"><span class="method-tag tag-get">GET</span> /energy-consumption</a>
@@ -1015,18 +1015,18 @@ export const renderReportDocsHtml = (baseUrl: string = '/api/v1', origin?: strin
                 </div>
             </section>
 
-            <!-- CHOD Meter Readings (PDF Format) -->
-            <section id="chod-meter-readings" class="endpoint-card">
+            <!-- Standard Meter Readings Export -->
+            <section id="meter-readings" class="endpoint-card">
                 <div class="card-header">
                     <div class="endpoint-title">
                         <span class="method-tag tag-get">GET</span>
-                        <span class="endpoint-path">${baseUrl}/reports/chod-meter-readings</span>
+                        <span class="endpoint-path">${baseUrl}/reports/meter-readings</span>
                     </div>
                     <span style="font-size: 12px; color: var(--accent-green);">Bearer Token Required • CSV (.csv) & JSON</span>
                 </div>
                 <div class="endpoint-desc">
-                    <strong>รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ CHOD (ตามตัวอย่างในเอกสาร PDF):</strong><br>
-                    เรียกดูและส่งออกข้อมูลมิเตอร์ไฟฟ้า (เอกสารแนบ 1) และมิเตอร์น้ำ (เอกสารแนบ 2) ตามรูปแบบมาตรฐาน CHOD ได้รับผลลัพธ์เป็นไฟล์ <strong>CSV (.csv)</strong> ที่มี UTF-8 BOM เปิดอ่านด้วย Microsoft Excel ได้ทันทีโดยภาษาไทยไม่เพี้ยน หรือเลือกดูเป็น JSON
+                    <strong>รูปแบบการส่งข้อมูลมิเตอร์ไฟฟ้า_น้ำ (Standard Meter Readings Export):</strong><br>
+                    เรียกดูและส่งออกข้อมูลมิเตอร์ไฟฟ้า (เอกสารแนบ 1) และมิเตอร์น้ำ (เอกสารแนบ 2) ตามรูปแบบมาตรฐาน ได้รับผลลัพธ์เป็นไฟล์ <strong>CSV (.csv)</strong> ที่มี UTF-8 BOM เปิดอ่านด้วย Microsoft Excel ได้ทันทีโดยภาษาไทยไม่เพี้ยน หรือเลือกดูเป็น JSON
                 </div>
 
                 <div class="params-section">
@@ -1213,9 +1213,9 @@ CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|1
                         <span>cURL: ดาวน์โหลดไฟล์ CSV มิเตอร์ไฟฟ้า (เอกสารแนบ 1)</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/chod-meter-readings?startDate=2026-02-01&endDate=2026-02-28&utilityType=electric&format=csv" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/meter-readings?startDate=2026-02-01&endDate=2026-02-28&utilityType=electric&format=csv" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
-  -o "chod_electric_2026_02.csv"</div>
+  -o "meter_readings_electric_2026_02.csv"</div>
                 </div>
 
                 <!-- cURL Command: Download Water CSV -->
@@ -1224,14 +1224,14 @@ CYA041-สัญญา A2-250301-0009|CYA041-E7-Trendy wash|1-Mar-26|31-Mar-26|1
                         <span>cURL: ดาวน์โหลดไฟล์ CSV มิเตอร์น้ำ (เอกสารแนบ 2)</span>
                         <button class="btn-copy" onclick="copyToClipboard(this)">Copy</button>
                     </div>
-                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/chod-meter-readings?startDate=2026-03-01&endDate=2026-03-31&utilityType=water&format=csv" \\
+                    <div class="code-content">curl -X GET "${serverOrigin}${baseUrl}/reports/meter-readings?startDate=2026-03-01&endDate=2026-03-31&utilityType=water&format=csv" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
-  -o "chod_water_2026_03.csv"</div>
+  -o "meter_readings_water_2026_03.csv"</div>
                 </div>
 
                 <!-- Direct CSV Download Endpoint Alias -->
                 <div class="callout" style="margin-top: 16px;">
-                    💡 <strong>ทางเลือกสำหรับการดาวน์โหลดตรง (Direct Download):</strong> สามารถเรียกผ่าน <code>GET ${baseUrl}/reports/chod/export/csv?startDate=...&endDate=...</code> เพื่อดาวน์โหลดไฟล์ .csv ได้โดยตรง
+                    💡 <strong>ทางเลือกสำหรับการดาวน์โหลดตรง (Direct Download):</strong> สามารถเรียกผ่าน <code>GET ${baseUrl}/reports/meter-readings/export/csv?startDate=...&endDate=...</code> เพื่อดาวน์โหลดไฟล์ .csv ได้โดยตรง
                 </div>
             </section>
 

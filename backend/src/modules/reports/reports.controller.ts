@@ -69,7 +69,21 @@ export class ReportsController {
     }
 
     /**
-     * ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบ CHOD (ตามตัวอย่างใน PDF)
+     * ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบมาตรฐาน (CSV / JSON)
+     */
+    getMeterReadingsReport = async (req: Request, res: Response, next: NextFunction) => {
+        return this.getChodReport(req, res, next);
+    };
+
+    /**
+     * ดาวน์โหลดไฟล์ CSV รูปแบบมาตรฐานโดยตรง
+     */
+    getMeterReadingsReportCsv = async (req: Request, res: Response, next: NextFunction) => {
+        return this.getChodReportCsv(req, res, next);
+    };
+
+    /**
+     * ดึงข้อมูลมิเตอร์ไฟฟ้า-น้ำ ตามรูปแบบมาตรฐาน (ตามตัวอย่างใน PDF)
      * รองรับ ?format=csv (ดาวน์โหลดไฟล์) และ ?format=json
      */
     async getChodReport(req: Request, res: Response, next: NextFunction) {
@@ -88,7 +102,7 @@ export class ReportsController {
     }
 
     /**
-     * ดาวน์โหลดไฟล์ CSV รูปแบบ CHOD โดยตรง
+     * ดาวน์โหลดไฟล์ CSV รูปแบบมาตรฐานโดยตรง
      */
     async getChodReportCsv(req: Request, res: Response, next: NextFunction) {
         try {
