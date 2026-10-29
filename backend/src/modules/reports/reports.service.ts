@@ -1235,7 +1235,7 @@ export class ReportsService {
         }
 
         const csvString = csvRows.join('\r\n');
-        const filename = `chod_meter_readings_${uType || 'all'}_${startDate}_${endDate}.csv`;
+        const filename = `meter_readings_${uType || 'all'}_${startDate}_${endDate}.csv`;
 
 
         const totalUsage = data.reduce((sum: number, item: any) => sum + item.USAGE, 0);
@@ -1264,7 +1264,7 @@ export class ReportsService {
      * ส่งออกรายงานทั่วไปเป็นไฟล์ CSV
      */
     async exportReportCsv(reportType: string, queryParams: any) {
-        if (reportType === 'chod' || reportType === 'chod-meter-readings') {
+        if (reportType === 'chod' || reportType === 'chod-meter-readings' || reportType === 'meter-readings') {
             return this.getChodReport({ ...queryParams, format: 'csv' });
         }
         let result: any;
