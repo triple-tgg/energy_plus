@@ -615,6 +615,8 @@ export async function migrateAndSeed(closePool: boolean = true) {
         image_name VARCHAR(255),
         image_url TEXT,
         position VARCHAR(100),
+        site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL,
+        building_id INTEGER REFERENCES buildings(building_id) ON DELETE SET NULL,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )

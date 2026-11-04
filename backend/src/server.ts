@@ -44,7 +44,7 @@ app.get(`${API_PREFIX}/health`, async (req, res) => {
         const dbResult = await pool.query('SELECT NOW()');
         res.json(successResponse({
             status: redisStatus === 'connected' ? 'ok' : 'degraded',
-            version: process.env.APP_VERSION || require('../package.json').version || '1.0.5',
+            version: process.env.APP_VERSION || require('../package.json').version || '1.0.6',
             gitSha: process.env.GIT_SHA || 'unknown',
             timestamp: new Date().toISOString(),
             database: 'connected',
@@ -65,7 +65,7 @@ app.get(`${API_PREFIX}/health`, async (req, res) => {
 // Public version endpoint (no auth required)
 app.get(`${API_PREFIX}/version`, (_req, res) => {
     res.json(successResponse({
-        version: process.env.APP_VERSION || require('../package.json').version || '1.0.5',
+        version: process.env.APP_VERSION || require('../package.json').version || '1.0.6',
         gitSha: process.env.GIT_SHA || 'unknown',
     }));
 });
@@ -171,6 +171,37 @@ const startServer = async () => {
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NOW()`);
         await pool.query(`ALTER TABLE IF EXISTS aggregation_job_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`);
 
+        // Layouts & Layout points schema resiliency
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS layouts (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                image_name VARCHAR(255),
+                image_url TEXT,
+                position VARCHAR(100),
+                site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL,
+                building_id INTEGER REFERENCES buildings(building_id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
+        await pool.query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL`);
+        await pool.query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS building_id INTEGER REFERENCES buildings(building_id) ON DELETE SET NULL`);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS layout_points (
+                id SERIAL PRIMARY KEY,
+                layout_id INTEGER REFERENCES layouts(id) ON DELETE CASCADE,
+                point_type VARCHAR(50) NOT NULL,
+                label VARCHAR(200),
+                x_percent DECIMAL(8,4) NOT NULL,
+                y_percent DECIMAL(8,4) NOT NULL,
+                meter_id INTEGER REFERENCES meter(meter_id),
+                config JSONB DEFAULT \x27{}\x27,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
     } catch (e: any) {
         console.warn('⚠️  Schema patch (meter columns) skipped:', e.message);
     }
