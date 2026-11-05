@@ -187,6 +187,7 @@ const LayoutSettingsPage: React.FC = () => {
 
     // Enhanced points management state
     const [sidebarTab, setSidebarTab] = useState<'available' | 'placed'>('available');
+    const [meterScopeFilter, setMeterScopeFilter] = useState<'all' | 'building'>('all');
     const [pointSearch, setPointSearch] = useState('');
     const [meterSearch, setMeterSearch] = useState('');
     const [pointFilterType, setPointFilterType] = useState<string>('all');
@@ -278,7 +279,7 @@ const LayoutSettingsPage: React.FC = () => {
         try {
             const [ptRes, mRes] = await Promise.all([
                 layoutsApi.getPoints(row.id),
-                metersApi.getAll({ limit: 500, activeOnly: true }),
+                metersApi.getAll({ all: true }),
             ]);
             const raw = ptRes.data.data || [];
             setPoints(raw.map(parsePoint));
@@ -468,16 +469,16 @@ const LayoutSettingsPage: React.FC = () => {
     // Available meters that are not yet placed on this layout
     const availableMeters = useMemo(() => {
         const placedMeterIds = new Set(points.map(p => p.meter_id).filter(Boolean));
+        // All unplaced meters in the entire system
         let list = meters.filter((m: any) => !placedMeterIds.has(Number(m.meter_id)));
 
-        // Optionally scope to layout's site/building if assigned
-        if (editorLayout?.site_id) {
-            const siteMatches = list.filter((m: any) => Number(m.site_id) === Number(editorLayout.site_id));
-            if (siteMatches.length > 0) list = siteMatches;
-        }
-        if (editorLayout?.building_id) {
-            const bldMatches = list.filter((m: any) => Number(m.building_id) === Number(editorLayout.building_id));
-            if (bldMatches.length > 0) list = bldMatches;
+        // Filter by scope if user explicitly selects 'building' and layout has site/building assigned
+        if (meterScopeFilter === 'building') {
+            if (editorLayout?.building_id) {
+                list = list.filter((m: any) => Number(m.building_id) === Number(editorLayout.building_id));
+            } else if (editorLayout?.site_id) {
+                list = list.filter((m: any) => Number(m.site_id) === Number(editorLayout.site_id));
+            }
         }
 
         // Search filter
@@ -486,11 +487,27 @@ const LayoutSettingsPage: React.FC = () => {
             list = list.filter((m: any) =>
                 (m.meter_name || '').toLowerCase().includes(q) ||
                 (m.meter_code || '').toLowerCase().includes(q) ||
-                String(m.meter_id).includes(q)
+                String(m.meter_id).includes(q) ||
+                (m.building_name || '').toLowerCase().includes(q) ||
+                (m.site_name || '').toLowerCase().includes(q)
             );
         }
         return list;
-    }, [meters, points, editorLayout, meterSearch]);
+    }, [meters, points, editorLayout, meterScopeFilter, meterSearch]);
+
+    // Add Blank (Unlinked) Point handler
+    const handleAddBlankPoint = () => {
+        const newPoint: LayoutPoint = {
+            point_type: '1',
+            label: `Point ${points.length + 1}`,
+            x_percent: 50,
+            y_percent: 50,
+            meter_id: null,
+        };
+        setPoints(prev => [...prev, newPoint]);
+        setEditingPoint(points.length);
+        setSuccessMsg(t('สร้างจุดเปล่าสำเร็จ สามารถเลือกลิงก์มิเตอร์ภายหลังได้', 'Blank point created'));
+    };
 
     // Handler when user drops a dragged meter onto canvas or clicks "+ วาง"
     const handleDropMeterOnCanvas = (meter: any, xPercent: number, yPercent: number) => {
@@ -957,8 +974,50 @@ const LayoutSettingsPage: React.FC = () => {
                                 ) : sidebarTab === "available" ? (
                                     /* 2. AVAILABLE METERS TAB (DRAG & DROP TO CANVAS) */
                                     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                                        {/* Search Box */}
-                                        <div style={{ padding: "8px 12px", borderBottom: `1px solid ${C.line}`, background: C.panel }}>
+                                        {/* Search & Scope Filter Box */}
+                                        <div style={{ padding: "8px 12px", borderBottom: `1px solid ${C.line}`, background: C.panel, display: "flex", flexDirection: "column", gap: 6 }}>
+                                            {/* Scope selector & Add blank point button */}
+                                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                                                <div style={{ display: "inline-flex", flex: 1, background: C.panel2, borderRadius: 4, border: `1px solid ${C.line}`, padding: 1 }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMeterScopeFilter('all')}
+                                                        style={{
+                                                            flex: 1, border: "none", borderRadius: 3, padding: "3px 4px",
+                                                            fontFamily: MONO, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                                            background: meterScopeFilter === 'all' ? C.accent : "transparent",
+                                                            color: meterScopeFilter === 'all' ? "#fff" : C.sub,
+                                                        }}>
+                                                        {t('มิเตอร์ทั้งหมด', 'All Meters')}
+                                                    </button>
+                                                    {(editorLayout?.building_id || editorLayout?.site_id) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setMeterScopeFilter('building')}
+                                                            style={{
+                                                                flex: 1, border: "none", borderRadius: 3, padding: "3px 4px",
+                                                                fontFamily: MONO, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                                                background: meterScopeFilter === 'building' ? C.accent : "transparent",
+                                                                color: meterScopeFilter === 'building' ? "#fff" : C.sub,
+                                                            }}>
+                                                            {t('เฉพาะอาคารนี้', 'This Building')}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAddBlankPoint}
+                                                    style={{
+                                                        background: C.panel2, color: C.ink, border: `1px solid ${C.line}`,
+                                                        borderRadius: 4, padding: "3px 8px", fontFamily: MONO, fontSize: 10,
+                                                        fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                                                    }}
+                                                    title={t("สร้างจุดหมุดเปล่าแล้วค่อยผูกมิเตอร์ภายหลัง", "Create blank unlinked point")}>
+                                                    + {t("สร้างจุดเปล่า", "Blank Point")}
+                                                </button>
+                                            </div>
+
+                                            {/* Search input */}
                                             <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                                                 <Search size={13} color={C.sub} style={{ position: "absolute", left: 9 }} />
                                                 <input
@@ -978,7 +1037,7 @@ const LayoutSettingsPage: React.FC = () => {
                                                     </button>
                                                 )}
                                             </div>
-                                            <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginTop: 5 }}>
+                                            <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.sub }}>
                                                 {t('🖱️ ลากมิเตอร์ไปวางบนรูป หรือคลิก "+ วาง"', '🖱️ Drag to image or click "+ Place"')}
                                             </div>
                                         </div>
@@ -986,9 +1045,25 @@ const LayoutSettingsPage: React.FC = () => {
                                         {/* List of Available Meters */}
                                         <div style={{ flex: 1, overflowY: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                                             {availableMeters.length === 0 ? (
-                                                <div style={{ textAlign: "center", padding: "40px 12px", color: C.sub, fontFamily: MONO, fontSize: 11 }}>
-                                                    <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.5 }}>🎉</div>
-                                                    <div>{t("นำมิเตอร์ทั้งหมดวางบนแผนผังครบแล้ว", "All meters are placed on layout!")}</div>
+                                                <div style={{ textAlign: "center", padding: "30px 12px", color: C.sub, fontFamily: MONO, fontSize: 11 }}>
+                                                    <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.6 }}>🔍</div>
+                                                    <div style={{ fontWeight: 700, color: C.ink, marginBottom: 4 }}>
+                                                        {meterSearch || meterScopeFilter === 'building' ? t("ไม่พบมิเตอร์ตามเงื่อนไข", "No meters found") : t("มิเตอร์ทั้งหมดถูกวางบนผังแล้ว", "All meters are placed!")}
+                                                    </div>
+                                                    <div style={{ fontSize: 10, color: C.sub, marginBottom: 10 }}>
+                                                        {points.length > 0 ? t(`มีมิเตอร์วางบนผังแล้ว ${points.length} จุด (ดูได้ที่แท็บ "จุดบนผัง")`, `${points.length} meters placed. Check "Placed Points" tab`) : t("ยังไม่มีมิเตอร์ในระบบ", "No meters in system")}
+                                                    </div>
+                                                    {meterScopeFilter === 'building' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setMeterScopeFilter('all')}
+                                                            style={{
+                                                                padding: "4px 10px", fontSize: 10, fontFamily: MONO,
+                                                                background: C.accent, color: "#fff", border: "none", borderRadius: 4, cursor: "pointer",
+                                                            }}>
+                                                            {t("สลับดูมิเตอร์ทั้งหมดในระบบ", "Show all meters in system")}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 availableMeters.map((m: any) => {

@@ -54,7 +54,15 @@ const optNumber = (value: unknown): number | null => {
 
 export class MetersService {
     async getMeters(queryParams: any) {
-        const { page, limit, offset } = parsePagination(queryParams);
+        // Limit is dynamically capped by the active License quota
+        const maxLicenseMeters = await licenseService.getMaxMeters();
+        let { page, limit, offset } = parsePagination(queryParams, 10, maxLicenseMeters);
+
+        if (queryParams.all === true || queryParams.all === 'true' || queryParams.limit === 'all' || queryParams.limit === '-1') {
+            limit = maxLicenseMeters;
+            offset = 0;
+            page = 1;
+        }
         const { siteId, buildingId, zoneId, meterTypeId, search } = queryParams;
         let whereClause = 'WHERE 1=1';
         const params: any[] = [];
@@ -90,7 +98,7 @@ export class MetersService {
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
             params
         );
-        return { data: result.rows, total, page, limit };
+        return { data: result.rows, total, page, limit, licenseQuota: maxLicenseMeters };
     }
 
     async getMeterById(meterId: number) {
