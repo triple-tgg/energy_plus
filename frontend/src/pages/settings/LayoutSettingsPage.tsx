@@ -6,6 +6,7 @@ import { layoutsApi, metersApi } from '../../api/client';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Search, ZoomIn, ZoomOut, RotateCcw, Filter, Eye, EyeOff, Layers, CheckCircle2, AlertCircle } from 'lucide-react';
+import { STANDARD_METER_TYPES, resolveMeterType, renderMeterTypeIcon } from '../../config/meterTypes';
 
 /* ═══════════════════════════════════════════════════════════════
    Types & Constants
@@ -34,51 +35,34 @@ interface LayoutPoint {
 
 const emptyForm: LayoutForm = { name: '', imageName: '', position: '', siteId: '', buildingId: '', imageFile: null };
 
-const POINT_TYPES = [
-    { key: 'power', labelTh: 'ไฟฟ้า (Power)', labelEn: 'Power', icon: 'fa fa-bolt', color: '#F59E0B', emoji: '⚡' },
-    { key: 'water', labelTh: 'น้ำ (Water)', labelEn: 'Water', icon: 'fa fa-tint', color: '#3B82F6', emoji: '💧' },
-    { key: 'gas', labelTh: 'แก๊ส (Gas)', labelEn: 'Gas', icon: 'fa fa-fire', color: '#EF4444', emoji: '🔥' },
-    { key: 'mdb', labelTh: 'MDB', labelEn: 'MDB', icon: 'fa fa-plug', color: '#8B5CF6', emoji: '🔌' },
-    { key: 'temp', labelTh: 'อุณหภูมิ (Temp)', labelEn: 'Temperature', icon: 'fa fa-thermometer-half', color: '#F43F5E', emoji: '🌡️' },
-    { key: 'humidity', labelTh: 'ความชื้น (Humidity)', labelEn: 'Humidity', icon: 'fa fa-smog', color: '#14B8A6', emoji: '🌫️' },
-];
+const POINT_TYPES = STANDARD_METER_TYPES.map(t => ({
+    key: String(t.id),
+    labelTh: t.labelTh,
+    labelEn: t.labelEn,
+    icon: t.icon,
+    color: t.color,
+    emoji: t.emoji,
+}));
 
-/** Resolve layout point type details safely with backward compatibility */
+/** Resolve layout point type details safely with unified Master Data */
 const getPointTypeInfo = (type: string | null | undefined) => {
-    let key = type || 'power';
-    if (key === 'meter') key = 'power';
-    if (key === 'sensor') key = 'water';
-    if (key === 'gen') key = 'gas';
-    if (key === 'ups') key = 'mdb';
-    if (key === 'temperature') key = 'temp';
-    if (key === 'hum') key = 'humidity';
-    return POINT_TYPES.find(t => t.key === key) || POINT_TYPES[0];
+    if (!type) return { key: '1', ...STANDARD_METER_TYPES[0] };
+    if (type === 'power' || type === 'meter') return { key: '1', ...STANDARD_METER_TYPES[0] };
+    if (type === 'water' || type === 'sensor') return { key: '2', ...STANDARD_METER_TYPES[1] };
+    if (type === 'gas' || type === 'gen') return { key: '7', ...STANDARD_METER_TYPES[6] };
+    if (type === 'mdb' || type === 'ups') return { key: '1', ...STANDARD_METER_TYPES[0] };
+    if (type === 'temp' || type === 'temperature') return { key: '4', ...STANDARD_METER_TYPES[3] };
+    if (type === 'humidity' || type === 'hum') return { key: '4', ...STANDARD_METER_TYPES[3] };
+
+    const resolved = resolveMeterType(Number(type));
+    return { key: String(resolved.id), ...resolved };
 };
 
-/** Automatically determine point_type from meter properties */
+/** Automatically determine point_type from meter properties using unified Master Data */
 const determinePointTypeFromMeter = (meter: any): string => {
-    if (!meter) return 'power';
-    const typeName = (meter.meter_type_name || '').toLowerCase();
-    const meterName = (meter.meter_name || '').toLowerCase();
-    const code = (meter.meter_code || '').toLowerCase();
-    const typeId = Number(meter.meter_type_id);
-
-    if (typeId === 2 || typeName.includes('น้ำ') || typeName.includes('water') || meterName.includes('น้ำ') || meterName.includes('water')) {
-        return 'water';
-    }
-    if (typeId === 3 || typeName.includes('แก๊ส') || typeName.includes('gas') || meterName.includes('แก๊ส') || meterName.includes('gas')) {
-        return 'gas';
-    }
-    if (typeId === 4 || typeName.includes('mdb') || meterName.includes('mdb') || code.includes('mdb')) {
-        return 'mdb';
-    }
-    if (typeId === 12 || typeName.includes('temp') || typeName.includes('อุณหภูมิ') || meterName.includes('temp') || meterName.includes('อุณหภูมิ')) {
-        return 'temp';
-    }
-    if (typeId === 11 || typeName.includes('hum') || typeName.includes('ความชื้น') || meterName.includes('hum') || meterName.includes('ความชื้น')) {
-        return 'humidity';
-    }
-    return 'power';
+    if (!meter) return '1';
+    const resolved = resolveMeterType(meter.meter_type_id, meter.meter_type_name || meter.meter_name);
+    return String(resolved.id);
 };
 
 
