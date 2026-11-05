@@ -267,7 +267,7 @@ const LayoutViewPage: React.FC = () => {
             try {
                 const [layoutRes, meterRes, sitesRes, buildingsRes, zonesRes] = await Promise.all([
                     layoutsApi.getAll({ limit: 100 }),
-                    metersApi.getAll({ limit: 500 }),
+                    metersApi.getAll({ all: true }),
                     sitesApi.getAll({ limit: 100, activeOnly: true }),
                     sitesApi.getAllBuildings({ limit: 200, activeOnly: true }),
                     sitesApi.getZones({ limit: 500 }),

@@ -10,6 +10,26 @@ import {
 import { generateLicense } from '../../utils/license-generator';
 
 export class LicenseService {
+    private cachedMaxMeters: { value: number; timestamp: number } | null = null;
+
+    /**
+     * Get max meters allowed by current active license
+     */
+    async getMaxMeters(): Promise<number> {
+        const now = Date.now();
+        if (this.cachedMaxMeters && (now - this.cachedMaxMeters.timestamp < 30000)) {
+            return this.cachedMaxMeters.value;
+        }
+        try {
+            const record = await this.getCurrentLicenseRecord();
+            const val = Number(record?.max_meters) || LICENSE_CONFIG.DEFAULT_FALLBACK_METERS;
+            this.cachedMaxMeters = { value: val, timestamp: now };
+            return val;
+        } catch {
+            return 3000;
+        }
+    }
+
     /**
      * Decode and verify cryptographic digital signature of a License Token
      */
@@ -130,6 +150,7 @@ export class LicenseService {
      * Activate a new cryptographic license key
      */
     async activateLicense(tokenString: string, userId?: number): Promise<LicenseStatusResult> {
+        this.cachedMaxMeters = null;
         const payload = this.verifyLicenseToken(tokenString);
 
         await this.ensureTableExists();

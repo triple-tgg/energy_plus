@@ -74,7 +74,7 @@ const AlarmConfigsPage: React.FC = () => {
     const fetchLookups = useCallback(async () => {
         try {
             const [mRes, evRes, gRes] = await Promise.all([
-                metersApi.getAll({ limit: 200 }),
+                metersApi.getAll({ all: true }),
                 metersApi.getEnergyValues(),
                 alarmsApi.getGroups({ limit: 100 }),
             ]);
