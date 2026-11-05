@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { alarmsApi, layoutsApi, meterDataApi, metersApi, realtimeApi, sitesApi } from '../../api/client';
 import { LayoutGrid, ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, X, Search, ChevronRight, ChevronLeft, Play, Pause, Repeat, Timer, Filter } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { STANDARD_METER_TYPES, resolveMeterType, renderMeterTypeIcon } from '../../config/meterTypes';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
@@ -25,89 +26,36 @@ export const STATUS_TYPES: Record<string, { color: string; bg: string; border: s
     inactive: { color: '#6B7280', bg: 'rgba(107, 114, 128, 0.15)', border: '#6B7280', labelTh: 'ไม่ใช้งาน', labelEn: 'Inactive', icon: '⚪' },
 };
 
-const POINT_TYPES: Record<string, { icon: string; faIcon: string; labelTh: string; labelEn: string }> = {
-    power: { icon: '⚡', faIcon: 'fa fa-bolt', labelTh: 'ไฟฟ้า', labelEn: 'Power' },
-    water: { icon: '💧', faIcon: 'fa fa-tint', labelTh: 'น้ำ', labelEn: 'Water' },
-    gas: { icon: '🔥', faIcon: 'fa fa-fire', labelTh: 'แก๊ส', labelEn: 'Gas' },
-    mdb: { icon: '🔌', faIcon: 'fa fa-plug', labelTh: 'MDB', labelEn: 'MDB' },
-    temp: { icon: '🌡️', faIcon: 'fa fa-thermometer-half', labelTh: 'อุณหภูมิ', labelEn: 'Temp' },
-    humidity: { icon: '🌫️', faIcon: 'fa fa-smog', labelTh: 'ความชื้น', labelEn: 'Humidity' },
-    
-    // Fallback for old layout points stored in DB
-    meter: { icon: '⚡', faIcon: 'fa fa-bolt', labelTh: 'ไฟฟ้า', labelEn: 'Power' },
-    sensor: { icon: '💧', faIcon: 'fa fa-tint', labelTh: 'น้ำ', labelEn: 'Water' },
-    gen: { icon: '🔥', faIcon: 'fa fa-fire', labelTh: 'แก๊ส', labelEn: 'Gas' },
-    ups: { icon: '🔌', faIcon: 'fa fa-plug', labelTh: 'MDB', labelEn: 'MDB' },
-    temperature: { icon: '🌡️', faIcon: 'fa fa-thermometer-half', labelTh: 'อุณหภูมิ', labelEn: 'Temp' },
-    hum: { icon: '🌫️', faIcon: 'fa fa-smog', labelTh: 'ความชื้น', labelEn: 'Humidity' },
-};
+const POINT_TYPES: Record<string, { icon: string; faIcon: string; labelTh: string; labelEn: string; color: string }> = (() => {
+    const map: Record<string, { icon: string; faIcon: string; labelTh: string; labelEn: string; color: string }> = {};
+    STANDARD_METER_TYPES.forEach(t => {
+        map[String(t.id)] = { icon: t.emoji, faIcon: t.icon, labelTh: t.labelTh, labelEn: t.labelEn, color: t.color };
+    });
+    map['power'] = map['1'];
+    map['meter'] = map['1'];
+    map['water'] = map['2'];
+    map['sensor'] = map['2'];
+    map['gas'] = map['7'];
+    map['gen'] = map['7'];
+    map['mdb'] = map['1'];
+    map['ups'] = map['1'];
+    map['temp'] = map['4'];
+    map['temperature'] = map['4'];
+    map['humidity'] = map['4'];
+    map['hum'] = map['4'];
+    return map;
+})();
 
-/** Meter type definitions: meter_type_id → display info (FA class from DB) */
-const METER_TYPES: Record<number, { faIcon: string; labelTh: string; labelEn: string }> = {
-    1: { faIcon: 'fa fa-bolt', labelTh: 'Power', labelEn: 'Power' },
-    2: { faIcon: 'fa fa-tint', labelTh: 'Water', labelEn: 'Water' },
-    3: { faIcon: 'fa fa-fire', labelTh: 'Gas', labelEn: 'Gas' },
-    4: { faIcon: 'fa fa-plug', labelTh: 'MDB', labelEn: 'MDB' },
-    11: { faIcon: 'fa fa-smog', labelTh: 'Humidity', labelEn: 'Humidity' },
-    12: { faIcon: 'fa fa-thermometer-half', labelTh: 'Temperature', labelEn: 'Temperature' },
-};
-
-const DEFAULT_TYPE = { faIcon: 'fa fa-chart-bar', color: '#6B7280', labelTh: 'อื่นๆ', labelEn: 'Other' };
-
-/** Get meter type info — dynamically categorizes types based on name/id for Power/Water/Gas/MDB/Temp/Humidity matching */
+/** Get meter type info — unified with 8 standard Master Data types */
 const getMeterTypeInfo = (typeId: number, iconName?: string, typeName?: string) => {
-    const name = (typeName || '').toLowerCase();
-    let category = 'power';
-    let color = '#F59E0B';
-    let label = 'Power';
-    let faIcon = iconName || 'fa fa-bolt';
-    
-    if (name.includes('น้ำ') || name.includes('water')) {
-        category = 'water';
-        color = '#3B82F6';
-        label = 'Water';
-        faIcon = iconName || 'fa fa-tint';
-    } else if (name.includes('แก๊ส') || name.includes('gas') || name.includes('fire')) {
-        category = 'gas';
-        color = '#EF4444';
-        label = 'Gas';
-        faIcon = iconName || 'fa fa-fire';
-    } else if (name.includes('mdb') || name.includes('plug')) {
-        category = 'mdb';
-        color = '#8B5CF6';
-        label = 'MDB';
-        faIcon = iconName || 'fa fa-plug';
-    } else if (name.includes('temp') || name.includes('อุณหภูมิ')) {
-        category = 'temp';
-        color = '#F43F5E';
-        label = 'Temp';
-        faIcon = iconName || 'fa fa-thermometer-half';
-    } else if (name.includes('hum') || name.includes('ความชื้น')) {
-        category = 'humidity';
-        color = '#14B8A6';
-        label = 'Humidity';
-        faIcon = iconName || 'fa fa-smog';
-    } else if (name.includes('ele') || name.includes('volt') || name.includes('amp') || name.includes('power')) {
-        category = 'power';
-        color = '#F59E0B';
-        label = 'Power';
-        faIcon = iconName || 'fa fa-bolt';
-    } else {
-        // Fallback matching by typeId
-        if (typeId === 2) {
-            category = 'water'; color = '#3B82F6'; label = 'Water'; faIcon = iconName || 'fa fa-tint';
-        } else if (typeId === 3) {
-            category = 'gas'; color = '#EF4444'; label = 'Gas'; faIcon = iconName || 'fa fa-fire';
-        } else if (typeId === 4 || typeId === 8) {
-            category = 'mdb'; color = '#8B5CF6'; label = 'MDB'; faIcon = iconName || 'fa fa-plug';
-        } else if (typeId === 11) {
-            category = 'humidity'; color = '#14B8A6'; label = 'Humidity'; faIcon = iconName || 'fa fa-smog';
-        } else if (typeId === 12) {
-            category = 'temp'; color = '#F43F5E'; label = 'Temp'; faIcon = iconName || 'fa fa-thermometer-half';
-        }
-    }
-    
-    return { category, color, labelTh: label, labelEn: label, faIcon };
+    const resolved = resolveMeterType(typeId, typeName);
+    return {
+        category: String(resolved.id),
+        color: resolved.color,
+        labelTh: resolved.labelTh,
+        labelEn: resolved.labelEn,
+        faIcon: iconName || resolved.icon,
+    };
 };
 
 /** Render icon — supports FA class names */
@@ -1186,7 +1134,9 @@ const LayoutViewPage: React.FC = () => {
                             {/* Row 2: Types */}
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap' }}>
                                 <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>{t('ประเภท:', 'Types:')}</span>
-                                {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb', 'temp', 'humidity'].includes(k)).map(([key, info]) => {
+                                {STANDARD_METER_TYPES.map((mt) => {
+                                    const key = String(mt.id);
+                                    const info = { faIcon: mt.icon, labelEn: mt.labelEn, labelTh: mt.labelTh, icon: mt.emoji };
                                     const isActive = activeLegendFilter === key;
                                     const count = typeCounts[key] || 0;
                                     return (
@@ -1413,22 +1363,26 @@ const LayoutViewPage: React.FC = () => {
                                             }}>
                                             {t('ทั้งหมด', 'ALL')}
                                         </button>
-                                        {Object.entries(POINT_TYPES).filter(([k]) => ['power', 'water', 'gas', 'mdb', 'temp', 'humidity'].includes(k)).map(([key, info]) => (
-                                            <button
-                                                key={key}
-                                                onClick={() => setMeterTypeFilter(meterTypeFilter === key ? null : key)}
-                                                style={{
-                                                    padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
-                                                    fontFamily: MONO, fontSize: 9, fontWeight: 700,
-                                                    background: meterTypeFilter === key ? C.panel2 : 'transparent',
-                                                    color: meterTypeFilter === key ? C.ink : C.sub,
-                                                    border: `1px solid ${meterTypeFilter === key ? C.ink : C.line}`,
-                                                    transition: 'all 0.15s',
-                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                                                }}>
-                                                {renderMeterIcon(info.faIcon, 9)} {info.labelEn}
-                                            </button>
-                                        ))}
+                                        {STANDARD_METER_TYPES.map((mt) => {
+                                            const key = String(mt.id);
+                                            const info = { faIcon: mt.icon, labelEn: mt.labelEn };
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => setMeterTypeFilter(meterTypeFilter === key ? null : key)}
+                                                    style={{
+                                                        padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
+                                                        fontFamily: MONO, fontSize: 9, fontWeight: 700,
+                                                        background: meterTypeFilter === key ? C.panel2 : 'transparent',
+                                                        color: meterTypeFilter === key ? C.ink : C.sub,
+                                                        border: `1px solid ${meterTypeFilter === key ? C.ink : C.line}`,
+                                                        transition: 'all 0.15s',
+                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                    }}>
+                                                    {renderMeterIcon(info.faIcon, 9)} {info.labelEn}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
 
                                     {/* Search */}
