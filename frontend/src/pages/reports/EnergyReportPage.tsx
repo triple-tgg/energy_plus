@@ -112,15 +112,15 @@ const EnergyReportPage: React.FC = () => {
         { key: 'site_code', title: t('รหัสห้อง', 'Room Code') },
         {
             key: 'start_reading', title: t('เลขก่อนหน้า', 'Prev Reading'),
-            render: (v: number) => v != null ? <span style={{ fontFamily: MONO }}>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</span> : '—',
+            render: (v: number) => v != null ? <span style={{ fontFamily: MONO }}>{Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span> : '—',
         },
         {
             key: 'end_reading', title: t('เลขล่าสุด', 'Latest Reading'),
-            render: (v: number) => v != null ? <span style={{ fontFamily: MONO }}>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</span> : '—',
+            render: (v: number) => v != null ? <span style={{ fontFamily: MONO }}>{Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span> : '—',
         },
         {
             key: 'units_used', title: t('หน่วยที่ใช้ (kWh)', 'Units Used (kWh)'),
-            render: (v: number) => v != null ? <strong style={{ fontFamily: MONO }}>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong> : '—',
+            render: (v: number) => v != null ? <strong style={{ fontFamily: MONO }}>{Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</strong> : '—',
         },
         {
             key: 'energy_amount', title: t('ค่าพลังงาน (บาท)', 'Energy (THB)'),
@@ -271,11 +271,11 @@ const EnergyReportPage: React.FC = () => {
                                                 <span>{t('ค่าไฟฟ้า ประเภท 1.2', 'Electricity Charge (Type 1.2)')}</span>
                                             </div>
                                             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>
-                                                {t('มิเตอร์ No.', 'Meter No.')} {selectedInvoice.meter_code} ({selectedInvoice.start_reading} - {selectedInvoice.end_reading})
+                                                {t('มิเตอร์ No.', 'Meter No.')} {selectedInvoice.meter_code} ({Number(selectedInvoice.start_reading || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} - {Number(selectedInvoice.end_reading || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })})
                                             </div>
                                         </td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right' }}>—</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.units_used || 0).toFixed(2)} kWh</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.units_used || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh</td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right' }}>—</td>
                                     </tr>
 
@@ -288,7 +288,7 @@ const EnergyReportPage: React.FC = () => {
                                                     <div>{t(`200 หน่วยแรก (1-${selectedInvoice.tier1_limit || 200})`, `First 200 units (1-${selectedInvoice.tier1_limit || 200})`)}</div>
                                                 </td>
                                                 <td style={{ padding: '6px 10px', textAlign: 'right' }}>฿{Number(selectedInvoice.tier1_rate || 3).toFixed(2)}</td>
-                                                <td style={{ padding: '6px 10px', textAlign: 'right' }}>{Number(selectedInvoice.tier1_units || 0).toFixed(2)}</td>
+                                                <td style={{ padding: '6px 10px', textAlign: 'right' }}>{Number(selectedInvoice.tier1_units || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                                                 <td style={{ padding: '6px 10px', textAlign: 'right' }}>
                                                     ฿{Number(selectedInvoice.tier1_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </td>
@@ -301,7 +301,7 @@ const EnergyReportPage: React.FC = () => {
                                                     <div>{t(`หน่วยต่อไป (${Number(selectedInvoice.tier1_limit || 200) + 1}-xxx)`, `Next units (${Number(selectedInvoice.tier1_limit || 200) + 1}-xxx)`)}</div>
                                                 </td>
                                                 <td style={{ padding: '6px 10px', textAlign: 'right' }}>฿{Number(selectedInvoice.tier2_rate || 4.22).toFixed(2)}</td>
-                                                <td style={{ padding: '6px 10px', textAlign: 'right' }}>{Number(selectedInvoice.tier2_units || 0).toFixed(2)}</td>
+                                                <td style={{ padding: '6px 10px', textAlign: 'right' }}>{Number(selectedInvoice.tier2_units || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                                                 <td style={{ padding: '6px 10px', textAlign: 'right' }}>
                                                     ฿{Number(selectedInvoice.tier2_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </td>
@@ -312,7 +312,7 @@ const EnergyReportPage: React.FC = () => {
                                             <td style={{ padding: '6px 10px', color: 'var(--text-muted)', paddingLeft: 20 }}>1.1</td>
                                             <td style={{ padding: '6px 10px' }}>{t('อัตราคงที่ต่อหน่วย (Flat Rate)', 'Flat Rate')}</td>
                                             <td style={{ padding: '6px 10px', textAlign: 'right' }}>฿{Number(selectedInvoice.unit_price || 4.15).toFixed(2)}</td>
-                                            <td style={{ padding: '6px 10px', textAlign: 'right' }}>{Number(selectedInvoice.units_used || 0).toFixed(2)}</td>
+                                            <td style={{ padding: '6px 10px', textAlign: 'right' }}>{Number(selectedInvoice.units_used || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                                             <td style={{ padding: '6px 10px', textAlign: 'right' }}>
                                                 ฿{Number(selectedInvoice.energy_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </td>

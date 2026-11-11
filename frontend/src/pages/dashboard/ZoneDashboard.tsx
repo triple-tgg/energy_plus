@@ -572,7 +572,7 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                                             <td style={{ ...tdx(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
                                             <td style={{ ...tdx(), textAlign: 'center', color: md.color, fontSize: 10 }}>{md.label}</td>
                                             {/* Energy */}
-                                            <td style={{ ...sepTd(), fontWeight: 700 }}>{d(it.kwh)}</td>
+                                            <td style={{ ...sepTd(), fontWeight: 700 }}>{d(it.kwh, 3)}</td>
                                             <td style={tdx()}>{d(m.kw_3ph)}</td>
                                             <td style={tdx()}>{d(m.kw1)}</td>
                                             <td style={tdx()}>{d(m.kw2)}</td>
@@ -600,9 +600,9 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                                             <td style={tdx()}>{d(m.il2)}</td>
                                             <td style={tdx()}>{d(m.il3)}</td>
                                             {/* PF */}
-                                            <td style={sepTd()}>{d(m.pf1)}</td>
-                                            <td style={tdx()}>{d(m.pf2)}</td>
-                                            <td style={tdx()}>{d(m.pf3)}</td>
+                                            <td style={sepTd()}>{d(m.pf1, 3)}</td>
+                                            <td style={tdx()}>{d(m.pf2, 3)}</td>
+                                            <td style={tdx()}>{d(m.pf3, 3)}</td>
                                             {/* Hz & Age */}
                                             <td style={sepTd()}>{d(m.hz)}</td>
                                             <td style={{ ...tdx(), color: C.sub, fontSize: 10 }} title={off || ago === null ? undefined : `${ago}s`}>{off ? '—' : formatAge(ago)}</td>

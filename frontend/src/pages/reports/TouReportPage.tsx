@@ -120,7 +120,7 @@ const TouReportPage: React.FC = () => {
         {
             key: 'units_used',
             title: t('หน่วยรวม (kWh)', 'Total kWh'),
-            render: (v: number) => <strong style={{ fontFamily: MONO }}>{Number(v || 0).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong>,
+            render: (v: number) => <strong style={{ fontFamily: MONO }}>{Number(v || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</strong>,
         },
         {
             key: 'on_peak_amount',
@@ -128,7 +128,7 @@ const TouReportPage: React.FC = () => {
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontFamily: MONO, color: '#f59e0b', fontWeight: 600 }}>฿{Number(r.on_peak_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.on_peak_kwh || 0).toFixed(2)} kWh</div>
+                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.on_peak_kwh || 0).toFixed(3)} kWh</div>
                 </div>
             ),
         },
@@ -138,7 +138,7 @@ const TouReportPage: React.FC = () => {
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontFamily: MONO, color: '#10b981', fontWeight: 600 }}>฿{Number(r.off_peak_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.off_peak_kwh || 0).toFixed(2)} kWh</div>
+                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.off_peak_kwh || 0).toFixed(3)} kWh</div>
                 </div>
             ),
         },
@@ -284,7 +284,7 @@ const TouReportPage: React.FC = () => {
                                     {currentFilters.startDate} — {currentFilters.endDate}
                                 </div>
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                                    {t('หน่วยรวม:', 'Total Energy:')} <strong>{Number(selectedInvoice.units_used || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWh</strong>
+                                    {t('หน่วยรวม:', 'Total Energy:')} <strong>{Number(selectedInvoice.units_used || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh</strong>
                                 </div>
                             </div>
                         </div>
@@ -310,7 +310,7 @@ const TouReportPage: React.FC = () => {
                                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('(09.00 - 22.00 น. จันทร์ - ศุกร์)', '(09:00 - 22:00 Mon - Fri)')}</div>
                                         </td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right' }}>฿{Number(selectedInvoice.on_peak_rate || 0).toFixed(2)}</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.on_peak_kwh || 0).toFixed(2)} kWh</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.on_peak_kwh || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh</td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>
                                             ฿{Number(selectedInvoice.on_peak_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
@@ -324,7 +324,7 @@ const TouReportPage: React.FC = () => {
                                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('(22.00 - 09.00 น. จันทร์ - ศุกร์ + วันหยุดราชการ)', '(22:00 - 09:00 Mon - Fri + Weekends/Holidays)')}</div>
                                         </td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right' }}>฿{Number(selectedInvoice.off_peak_rate || 0).toFixed(2)}</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.off_peak_kwh || 0).toFixed(2)} kWh</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.off_peak_kwh || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh</td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>
                                             ฿{Number(selectedInvoice.off_peak_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
@@ -382,7 +382,7 @@ const TouReportPage: React.FC = () => {
                                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t(`อัตรา ${Number(selectedInvoice.ft_rate || 0).toFixed(2)} ฿/หน่วย × หน่วยไฟฟ้ารวม`, `Rate ${Number(selectedInvoice.ft_rate || 0).toFixed(2)} ฿/kWh × Total kWh`)}</div>
                                         </td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right' }}>฿{Number(selectedInvoice.ft_rate || 0).toFixed(2)}</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.units_used || 0).toFixed(2)} kWh</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>{Number(selectedInvoice.units_used || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh</td>
                                         <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>
                                             ฿{Number(selectedInvoice.ft_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>

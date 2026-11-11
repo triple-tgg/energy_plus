@@ -1489,7 +1489,7 @@ const LayoutViewPage: React.FC = () => {
                                                                 whiteSpace: 'nowrap', flexShrink: 0,
                                                             }}>
                                                                 {hasCurrentKwh && Number.isFinite(currentKwh)
-                                                                    ? `${currentKwh.toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWh`
+                                                                    ? `${currentKwh.toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh`
                                                                     : '— kWh'}
                                                             </span>
                                                         </div>
@@ -1625,7 +1625,10 @@ const LayoutViewPage: React.FC = () => {
                                                                     padding: '8px 18px', textAlign: 'right',
                                                                     color: C.ink, fontWeight: 500,
                                                                 }}>
-                                                                    {isNaN(numVal) ? val : numVal.toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                    {isNaN(numVal) ? val : numVal.toLocaleString(language === 'th' ? 'th-TH' : 'en-US', {
+                                                                        minimumFractionDigits: (field.key === 'energy_kwh' || field.key.includes('pf')) ? 3 : 2,
+                                                                        maximumFractionDigits: (field.key === 'energy_kwh' || field.key.includes('pf')) ? 3 : 2,
+                                                                    })}
                                                                     {field.unit && <span style={{ color: C.sub, fontSize: 10, marginLeft: 4 }}>{field.unit}</span>}
                                                                 </td>
                                                             </tr>

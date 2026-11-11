@@ -98,7 +98,7 @@ const HistoryReportPage: React.FC = () => {
 
     const numCol = (key: string, title: string, digits = 2) => ({
         key, title,
-        render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: digits }) : '—',
+        render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: digits, maximumFractionDigits: digits }) : '—',
     });
 
     const columns = [
@@ -108,8 +108,8 @@ const HistoryReportPage: React.FC = () => {
         },
         { key: 'meter_code', title: t('รหัสมิเตอร์', 'Meter Code') },
         { key: 'meter_name', title: t('ชื่อมิเตอร์', 'Meter Name') },
-        numCol('kwh_used', t('หน่วยที่ใช้ (kWh)', 'Daily Used (kWh)')),
-        numCol('kwh', t('เลขสะสม (kWh)', 'Acc. kWh')),
+        numCol('kwh_used', t('หน่วยที่ใช้ (kWh)', 'Daily Used (kWh)'), 3),
+        numCol('kwh', t('เลขสะสม (kWh)', 'Acc. kWh'), 3),
         numCol('max_kw', t('Peak kW', 'Peak kW')),
         numCol('kw', t('Avg kW', 'Avg kW')),
         numCol('kva', 'Avg kVA'),

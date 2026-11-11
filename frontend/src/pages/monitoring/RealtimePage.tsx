@@ -742,7 +742,7 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
                     </div>
                     <div style={{ fontFamily: MONO }}>
                         <div style={{ fontSize: 9.5, color: C.sub, textTransform: 'uppercase' }}>{t('พลังงานสะสม', 'Total Energy')}</div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: C.green }}>{latestKwh.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span style={{ fontSize: 10, color: C.sub }}>kWh</span></div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: C.green }}>{latestKwh.toLocaleString([], { minimumFractionDigits: 3, maximumFractionDigits: 3 })} <span style={{ fontSize: 10, color: C.sub }}>kWh</span></div>
                     </div>
                 </div>
             </div>
@@ -1245,7 +1245,7 @@ const RealtimePage: React.FC = () => {
                         <BatteryCharging size={20} style={{ color: C.green }} />
                     </div>
                     <h3 style={{ fontSize: '24px', fontWeight: 800, fontFamily: MONO, margin: '10px 0 4px 0', color: C.green }}>
-                        {totalEnergy.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kWh
+                        {totalEnergy.toLocaleString([], { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh
                     </h3>
                     <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
                         {t('พลังงานไฟฟ้าสะสมรวมทุกมิเตอร์', 'ACCUMULATED ENERGY ACROSS METERS')}
@@ -1745,7 +1745,7 @@ const RealtimePage: React.FC = () => {
                                                 {m.hz > 0 ? m.hz.toFixed(1) : '0.0'}
                                             </td>
                                             <td style={{ padding: '14px 8px', fontWeight: 600 }}>
-                                                {m.import_kwhr > 0 ? m.import_kwhr.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0.0'}
+                                                {m.import_kwhr > 0 ? m.import_kwhr.toLocaleString([], { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '0.000'}
                                             </td>
                                             <td style={{ padding: '14px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
                                                 {(() => {

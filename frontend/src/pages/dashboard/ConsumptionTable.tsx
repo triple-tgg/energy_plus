@@ -104,11 +104,11 @@ const ConsumptionTable: React.FC = () => {
         },
         {
             key: 'kwh', title: 'KWh',
-            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong> : '—',
+            render: (v: number) => v != null ? <strong>{Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</strong> : '—',
         },
         {
             key: 'consumption', title: t('การใช้ไฟ (kWh)', 'Consumption (kWh)'),
-            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
+            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—',
         },
     ];
 

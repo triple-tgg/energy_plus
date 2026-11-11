@@ -121,7 +121,7 @@ const TouMonthlyReportPage: React.FC = () => {
         {
             key: 'units_used',
             title: t('หน่วยรวม (kWh)', 'Total kWh'),
-            render: (v: number) => <strong style={{ fontFamily: MONO }}>{Number(v || 0).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 })}</strong>,
+            render: (v: number) => <strong style={{ fontFamily: MONO }}>{Number(v || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</strong>,
         },
         {
             key: 'on_peak_amount',
@@ -129,7 +129,7 @@ const TouMonthlyReportPage: React.FC = () => {
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontFamily: MONO, color: '#f59e0b', fontWeight: 600 }}>฿{Number(r.on_peak_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.on_peak_kwh || 0).toFixed(2)} kWh</div>
+                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.on_peak_kwh || 0).toFixed(3)} kWh</div>
                 </div>
             ),
         },
@@ -139,7 +139,7 @@ const TouMonthlyReportPage: React.FC = () => {
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontFamily: MONO, color: '#10b981', fontWeight: 600 }}>฿{Number(r.off_peak_amount || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.off_peak_kwh || 0).toFixed(2)} kWh</div>
+                    <div style={{ fontSize: 10, color: C.sub }}>{Number(r.off_peak_kwh || 0).toFixed(3)} kWh</div>
                 </div>
             ),
         },
@@ -299,19 +299,19 @@ const TouMonthlyReportPage: React.FC = () => {
                             <div style={{ background: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('หน่วย On-Peak', 'On-Peak Units')}</div>
                                 <div style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO, color: '#f59e0b', marginTop: 2 }}>
-                                    {Number(selectedInvoice.on_peak_kwh || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: 10 }}>kWh</span>
+                                    {Number(selectedInvoice.on_peak_kwh || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} <span style={{ fontSize: 10 }}>kWh</span>
                                 </div>
                             </div>
                             <div style={{ background: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('หน่วย Off-Peak', 'Off-Peak Units')}</div>
                                 <div style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO, color: '#10b981', marginTop: 2 }}>
-                                    {Number(selectedInvoice.off_peak_kwh || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: 10 }}>kWh</span>
+                                    {Number(selectedInvoice.off_peak_kwh || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} <span style={{ fontSize: 10 }}>kWh</span>
                                 </div>
                             </div>
                             <div style={{ background: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('หน่วยไฟฟ้ารวม', 'Total Units')}</div>
                                 <div style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO, color: C.accent, marginTop: 2 }}>
-                                    {Number(selectedInvoice.units_used || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: 10 }}>kWh</span>
+                                    {Number(selectedInvoice.units_used || 0).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 })} <span style={{ fontSize: 10 }}>kWh</span>
                                 </div>
                             </div>
                             <div style={{ background: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
@@ -335,19 +335,19 @@ const TouMonthlyReportPage: React.FC = () => {
                             <tbody>
                                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                     <td style={{ padding: '8px 10px' }}>{t('ค่าพลังงานไฟฟ้า On-Peak (จ.-ศ. 09:00 - 22:00)', 'On-Peak Energy Charge')}</td>
-                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.on_peak_kwh || 0).toFixed(2)} kWh</td>
+                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.on_peak_kwh || 0).toFixed(3)} kWh</td>
                                     <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>฿{Number(selectedInvoice.on_peak_rate || 5.7982).toFixed(4)}</td>
                                     <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO, color: '#f59e0b', fontWeight: 600 }}>฿{Number(selectedInvoice.on_peak_amount || 0).toFixed(2)}</td>
                                 </tr>
                                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                     <td style={{ padding: '8px 10px' }}>{t('ค่าพลังงานไฟฟ้า Off-Peak (นอกเวลา & ส.-อา.)', 'Off-Peak Energy Charge')}</td>
-                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.off_peak_kwh || 0).toFixed(2)} kWh</td>
+                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.off_peak_kwh || 0).toFixed(3)} kWh</td>
                                     <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>฿{Number(selectedInvoice.off_peak_rate || 2.6369).toFixed(4)}</td>
                                     <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO, color: '#10b981', fontWeight: 600 }}>฿{Number(selectedInvoice.off_peak_amount || 0).toFixed(2)}</td>
                                 </tr>
                                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(245,158,11,0.03)' }}>
                                     <td style={{ padding: '8px 10px', fontWeight: 600 }}>{t('รวมค่าพลังงานไฟฟ้า (Energy Charge Subtotal)', 'Energy Charge Subtotal')}</td>
-                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.units_used || 0).toFixed(2)} kWh</td>
+                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.units_used || 0).toFixed(3)} kWh</td>
                                     <td></td>
                                     <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO, fontWeight: 600 }}>฿{Number(selectedInvoice.energy_amount || 0).toFixed(2)}</td>
                                 </tr>
@@ -378,7 +378,7 @@ const TouMonthlyReportPage: React.FC = () => {
                                     <td style={{ padding: '8px 10px' }}>
                                         {t('ค่าไฟฟ้าผันแปร Ft (', 'Fuel Adjustment Charge Ft (')}{Number(selectedInvoice.ft_rate || 0).toFixed(4)} {t('บาท/หน่วย)', 'THB/Unit)')}
                                     </td>
-                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.units_used || 0).toFixed(2)} kWh</td>
+                                    <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>{Number(selectedInvoice.units_used || 0).toFixed(3)} kWh</td>
                                     <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>฿{Number(selectedInvoice.ft_rate || 0).toFixed(4)}</td>
                                     <td style={{ textAlign: 'right', padding: '8px 10px', fontFamily: MONO }}>฿{Number(selectedInvoice.ft_amount || 0).toFixed(2)}</td>
                                 </tr>

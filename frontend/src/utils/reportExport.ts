@@ -3,10 +3,10 @@ import * as XLSX from 'xlsx';
 export type ReportExportFormat = 'excel' | 'csv';
 
 /**
- * Format all numeric data cells in the worksheet to 2 decimal places:
- * - cell.v: rounded to 2 decimals
- * - cell.z: '#,##0.00' (Excel format pattern with thousand separator and 2 decimal places)
- * - cell.w: '1234.50' (formatted string used by CSV and text displays)
+ * Format numeric data cells in the worksheet:
+ * - Integer columns: '0'
+ * - Meter readings, units, usage, consumption, PF: 3 decimal places ('#,##0.000')
+ * - Monetary amounts (THB / บาท), rates, percentages: 2 decimal places ('#,##0.00')
  */
 export const applyTwoDecimalFormat = (worksheet: any): void => {
     if (!worksheet || !worksheet['!ref']) return;
@@ -17,7 +17,10 @@ export const applyTwoDecimalFormat = (worksheet: any): void => {
         const header = headerCell ? String(headerCell.v || '').trim().toLowerCase() : '';
 
         // Columns that should stay as integers (not currency / energy measurements)
-        const isIntegerOnlyCol = /^(id|meter_id|building_id|zone_id|site_id|year|ปี|floor|ชั้น|ลำดับ|no\.?)$/i.test(header);
+        const isIntegerOnlyCol = /^(id|meter_id|building_id|zone_id|site_id|year|ปี|floor|ชั้น|ลำดับ|no\.?|readings_count|รอบอ่าน)/i.test(header);
+
+        // Columns for meter readings and usage/consumption: 3 decimal places
+        const isThreeDecimalCol = /(reading|เลขมิเตอร์|เลขก่อน|เลขล่าสุด|เลขต้น|เลขปลาย|หน่วย|unit|kwh|usage|consumption|การใช้ไฟ|เดือนก่อน|เดือนปัจจุบัน|prev_month|current_month|prev_units|current_units|acc\.|pf\d?|pwl\d?)/i.test(header);
 
         for (let R = range.s.r + 1; R <= range.e.r; ++R) {
             const addr = XLSX.utils.encode_cell({ r: R, c: C });
@@ -28,6 +31,11 @@ export const applyTwoDecimalFormat = (worksheet: any): void => {
                 if (isIntegerOnlyCol) {
                     cell.z = '0';
                     cell.w = String(Math.round(cell.v));
+                } else if (isThreeDecimalCol) {
+                    const rounded = Math.round((cell.v + Number.EPSILON) * 1000) / 1000;
+                    cell.v = rounded;
+                    cell.z = '#,##0.000';
+                    cell.w = rounded.toFixed(3);
                 } else {
                     const rounded = Math.round((cell.v + Number.EPSILON) * 100) / 100;
                     cell.v = rounded;
@@ -38,11 +46,19 @@ export const applyTwoDecimalFormat = (worksheet: any): void => {
                 const isCodeOrText = /(code|รหัส|name|ชื่อ|date|วันที่|time|เวลา|เดือนที่|month|status|สถานะ)/i.test(header);
                 if (!isCodeOrText && cell.v.trim() !== '' && !isNaN(Number(cell.v))) {
                     const num = Number(cell.v);
-                    const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
-                    cell.t = 'n';
-                    cell.v = rounded;
-                    cell.z = '#,##0.00';
-                    cell.w = rounded.toFixed(2);
+                    if (isThreeDecimalCol) {
+                        const rounded = Math.round((num + Number.EPSILON) * 1000) / 1000;
+                        cell.t = 'n';
+                        cell.v = rounded;
+                        cell.z = '#,##0.000';
+                        cell.w = rounded.toFixed(3);
+                    } else {
+                        const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+                        cell.t = 'n';
+                        cell.v = rounded;
+                        cell.z = '#,##0.00';
+                        cell.w = rounded.toFixed(2);
+                    }
                 }
             }
         }

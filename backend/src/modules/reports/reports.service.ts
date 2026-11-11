@@ -193,8 +193,8 @@ export class ReportsService {
                 to_char((d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, 'YYYY-MM-DD') AS timestamp,
                 to_char((d.date_keep AT TIME ZONE 'Asia/Bangkok')::date, 'YYYY-MM-DD') AS date,
                 m.meter_id, m.meter_code, m.meter_name,
-                ROUND(GREATEST(COALESCE(MAX(d.energy_kwh) - MIN(d.energy_kwh), 0), 0)::numeric, 2) AS kwh_used,
-                ROUND(COALESCE(MAX(d.energy_kwh), 0)::numeric, 2) AS kwh,
+                ROUND(GREATEST(COALESCE(MAX(d.energy_kwh) - MIN(d.energy_kwh), 0), 0)::numeric, 3) AS kwh_used,
+                ROUND(COALESCE(MAX(d.energy_kwh), 0)::numeric, 3) AS kwh,
                 ROUND(COALESCE(MAX(d.energy_kw), 0)::numeric, 2) AS max_kw,
                 ROUND(COALESCE(AVG(d.energy_kw), 0)::numeric, 2) AS kw,
                 ROUND(COALESCE(AVG(d.energy_kva), 0)::numeric, 2) AS kva,
@@ -1157,11 +1157,11 @@ export class ReportsService {
                 m.lease_number,
                 m.vr_number,
                 m.meter_type_name,
-                ROUND(COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0)::numeric, 0) AS meter_from,
-                ROUND(COALESCE(ep.end_reading, act_e.end_reading, spb.start_reading, act_s.start_reading, 0)::numeric, 0) AS meter_to,
+                ROUND(COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0)::numeric, 3) AS meter_from,
+                ROUND(COALESCE(ep.end_reading, act_e.end_reading, spb.start_reading, act_s.start_reading, 0)::numeric, 3) AS meter_to,
                 GREATEST(
-                    ROUND(COALESCE(ep.end_reading, act_e.end_reading, 0)::numeric, 0) -
-                    ROUND(COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0)::numeric, 0),
+                    ROUND(COALESCE(ep.end_reading, act_e.end_reading, 0)::numeric, 3) -
+                    ROUND(COALESCE(spb.start_reading, act_s.start_reading, spf.start_reading, ep.end_reading, act_e.end_reading, 0)::numeric, 3),
                     0
                 ) AS usage
             FROM meter_scope m
@@ -1368,7 +1368,8 @@ export class ReportsService {
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const headerCell = ws[XLSX.utils.encode_cell({ r: range.s.r, c: C })];
                 const header = headerCell ? String(headerCell.v || '').trim().toLowerCase() : '';
-                const isIntegerCol = /^(id|meter_id|building_id|zone_id|site_id|year|ปี|floor|ชั้น|ลำดับ|no\.?)$/i.test(header);
+                const isIntegerCol = /^(id|meter_id|building_id|zone_id|site_id|year|ปี|floor|ชั้น|ลำดับ|no\.?|readings_count|รอบอ่าน)/i.test(header);
+                const isThreeDecimalCol = /(reading|meter_from|meter_to|usage|kwh|หน่วย|เลข|unit|consumption|การใช้ไฟ|เดือนก่อน|เดือนปัจจุบัน|prev_month|current_month|prev_units|current_units|acc\.|pf\d?|pwl\d?)/i.test(header);
 
                 for (let R = range.s.r + 1; R <= range.e.r; ++R) {
                     const addr = XLSX.utils.encode_cell({ r: R, c: C });
@@ -1378,6 +1379,10 @@ export class ReportsService {
                     if (cell.t === 'n' && typeof cell.v === 'number') {
                         if (isIntegerCol) {
                             cell.z = '0';
+                        } else if (isThreeDecimalCol) {
+                            cell.v = Math.round((cell.v + Number.EPSILON) * 1000) / 1000;
+                            cell.z = '#,##0.000';
+                            cell.w = cell.v.toFixed(3);
                         } else {
                             cell.v = Math.round((cell.v + Number.EPSILON) * 100) / 100;
                             cell.z = '#,##0.00';

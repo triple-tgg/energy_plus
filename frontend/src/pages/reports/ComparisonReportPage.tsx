@@ -92,19 +92,19 @@ const ComparisonReportPage: React.FC = () => {
         { key: 'room_name', title: t('ชื่อห้อง', 'Room Name') },
         {
             key: 'prev_month', title: t('เดือนก่อนหน้า (1)', 'Previous Month (1)'),
-            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—',
         },
         {
             key: 'prev_units', title: t('หน่วยที่ใช้ (1)', 'Units Used (1)'),
-            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—',
         },
         {
             key: 'current_month', title: t('เดือนปัจจุบัน (2)', 'Current Month (2)'),
-            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—',
         },
         {
             key: 'current_units', title: t('หน่วยที่ใช้ (2)', 'Units Used (2)'),
-            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—',
         },
         {
             key: 'diff_percent', title: t('% เปรียบเทียบ', '% Change'),
