@@ -62,7 +62,20 @@ const ComparisonReportPage: React.FC = () => {
             const rows = await fetchAllReportRows((exportPage, exportLimit) =>
                 reportsApi.getComparison({ ...currentFilters, page: exportPage, limit: exportLimit })
             );
-            const exportRows = rows.map(({ meter_id, ...row }: any) => row);
+            const exportRows = rows.map((r: any) => ({
+                [t('รหัสมิเตอร์', 'Meter Code')]: r.meter_code,
+                [t('ชื่อลูกค้า', 'Customer Name')]: r.customer_name,
+                [t('อาคาร', 'Building')]: r.building_name,
+                [t('ชั้น', 'Floor')]: r.floor,
+                [t('โซน', 'Zone')]: r.zone_name,
+                [t('รหัสห้อง', 'Room Code')]: r.room_code,
+                [t('ชื่อห้อง', 'Room Name')]: r.room_name,
+                [t('เดือนก่อนหน้า (1)', 'Previous Month (1)')]: Number(r.prev_month != null ? r.prev_month : 0),
+                [t('หน่วยที่ใช้ (1)', 'Units Used (1)')]: Number(r.prev_units != null ? r.prev_units : 0),
+                [t('เดือนปัจจุบัน (2)', 'Current Month (2)')]: Number(r.current_month != null ? r.current_month : 0),
+                [t('หน่วยที่ใช้ (2)', 'Units Used (2)')]: Number(r.current_units != null ? r.current_units : 0),
+                [t('% เปรียบเทียบ', '% Change')]: Number(r.diff_percent != null ? r.diff_percent : 0),
+            }));
             exportReport(exportRows, `comparison_${currentFilters.year}-${String(currentFilters.month).padStart(2, '0')}`, 'Comparison', format);
         } catch (err) {
             alert(t('การส่งออกข้อมูลล้มเหลว', 'Export failed'));
@@ -79,19 +92,19 @@ const ComparisonReportPage: React.FC = () => {
         { key: 'room_name', title: t('ชื่อห้อง', 'Room Name') },
         {
             key: 'prev_month', title: t('เดือนก่อนหน้า (1)', 'Previous Month (1)'),
-            render: (v: string) => v || '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'prev_units', title: t('หน่วยที่ใช้ (1)', 'Units Used (1)'),
-            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'current_month', title: t('เดือนปัจจุบัน (2)', 'Current Month (2)'),
-            render: (v: string) => v || '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'current_units', title: t('หน่วยที่ใช้ (2)', 'Units Used (2)'),
-            render: (v: number) => v != null ? Number(v).toLocaleString(t('th-TH', 'en-US'), { maximumFractionDigits: 2 }) : '—',
+            render: (v: any) => v != null && v !== '' && !isNaN(Number(v)) ? Number(v).toLocaleString(t('th-TH', 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
         },
         {
             key: 'diff_percent', title: t('% เปรียบเทียบ', '% Change'),

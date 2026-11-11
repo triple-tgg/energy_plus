@@ -1295,8 +1295,14 @@ export class ReportsService {
         const csvRows = [headers.join(',')];
         for (const row of rows) {
             csvRows.push(headers.map(h => {
-                const val = row[h];
+                let val = row[h];
                 if (val === null || val === undefined) return '';
+                if (typeof val === 'number') {
+                    const isInt = /^(id|meter_id|building_id|zone_id|site_id|year|floor|no)$/i.test(h);
+                    if (!isInt) {
+                        val = (Math.round((val + Number.EPSILON) * 100) / 100).toFixed(2);
+                    }
+                }
                 const str = String(val);
                 if (str.includes(',') || str.includes('"') || str.includes('\n')) {
                     return `"${str.replace(/"/g, '""')}"`;
@@ -1348,10 +1354,39 @@ export class ReportsService {
         } else if (reportType === 'history') {
             const res = await this.getHistory({ ...queryParams, limit: 10000 });
             dataRows = res.data;
+        } else if (reportType === 'comparison') {
+            const res = await this.getComparison({ ...queryParams, limit: 10000 });
+            dataRows = res.data;
         }
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(dataRows);
+
+        // Apply 2-decimal formatting to all numeric cells in worksheet
+        if (ws && ws['!ref']) {
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const headerCell = ws[XLSX.utils.encode_cell({ r: range.s.r, c: C })];
+                const header = headerCell ? String(headerCell.v || '').trim().toLowerCase() : '';
+                const isIntegerCol = /^(id|meter_id|building_id|zone_id|site_id|year|ปี|floor|ชั้น|ลำดับ|no\.?)$/i.test(header);
+
+                for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                    const cell = ws[addr];
+                    if (!cell) continue;
+
+                    if (cell.t === 'n' && typeof cell.v === 'number') {
+                        if (isIntegerCol) {
+                            cell.z = '0';
+                        } else {
+                            cell.v = Math.round((cell.v + Number.EPSILON) * 100) / 100;
+                            cell.z = '#,##0.00';
+                            cell.w = cell.v.toFixed(2);
+                        }
+                    }
+                }
+            }
+        }
         XLSX.utils.book_append_sheet(wb, ws, 'Report');
         const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
         return { buffer, filename };

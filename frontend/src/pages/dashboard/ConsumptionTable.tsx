@@ -83,8 +83,8 @@ const ConsumptionTable: React.FC = () => {
                 [t('อาคาร', 'Building')]: row.building_name,
                 [t('โซน', 'Zone')]: row.zone_name,
                 [t('วันที่', 'Date')]: row.date,
-                KWh: row.kwh,
-                [t('การใช้ไฟ (kWh)', 'Consumption (kWh)')]: row.consumption,
+                KWh: Number(row.kwh != null ? row.kwh : 0),
+                [t('การใช้ไฟ (kWh)', 'Consumption (kWh)')]: Number(row.consumption != null ? row.consumption : 0),
             }));
             exportReport(exportRows, `consumption_${today}`, 'Consumption', format);
         } catch (err) {
