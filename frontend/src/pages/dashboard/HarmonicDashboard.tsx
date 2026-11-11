@@ -75,12 +75,12 @@ interface Snapshot { bucketStart: string; phases: Array<Array<number | null>> }
 const fmt = (v: number | null | undefined, digits = 2) =>
     v === null || v === undefined || Number.isNaN(v) ? '–' : Number(v).toFixed(digits);
 const fmtTime = (iso?: string | null) =>
-    iso ? new Date(iso).toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '–';
+    iso ? new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '–';
 const fmtAxisTime = (iso: string, hours: number) => {
     const d = new Date(iso);
     return hours > 24
-        ? d.toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-        : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        ? d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
 };
 const sourceKey = (s: { site_id: number; address_id: number }) => `${s.site_id}_${s.address_id}`;
 const unwrap = (res: any) => res?.data?.data ?? res?.data;
@@ -366,7 +366,7 @@ const HarmonicDashboard: React.FC = () => {
                             ))}
                             <div style={{ flex: 1 }} />
                             <span style={{ fontSize: 10, color: C.sub, fontFamily: MONO }}>
-                                <Clock size={11} style={{ verticalAlign: 'middle' }} /> {t('ดึงข้อมูล', 'fetched')} {lastFetch ? lastFetch.toLocaleTimeString('th-TH') : '–'}
+                                <Clock size={11} style={{ verticalAlign: 'middle' }} /> {t('ดึงข้อมูล', 'fetched')} {lastFetch ? lastFetch.toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }) : '–'}
                             </span>
                         </div>
 

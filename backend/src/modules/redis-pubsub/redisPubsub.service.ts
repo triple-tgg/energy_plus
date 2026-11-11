@@ -320,6 +320,31 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number | number
                OR COALESCE(r.hz,0) > 0 OR COALESCE(r.import_kwhr,0) > 0
             ORDER BY r.site_id, r.address_id, r.device_datetime DESC
         ),
+        latest_actual AS (
+            SELECT DISTINCT ON (d.meter_id)
+                d.meter_id,
+                d.date_keep,
+                d.energy_kwh,
+                d.energy_kw,
+                d.energy_kva,
+                d.energy_kvar,
+                d.energy_frequency,
+                d.energy_volt_p1,
+                d.energy_volt_p2,
+                d.energy_volt_p3,
+                d.energy_volt_l1,
+                d.energy_volt_l2,
+                d.energy_volt_l3,
+                d.energy_amp1,
+                d.energy_amp2,
+                d.energy_amp3,
+                d.energy_pf1,
+                d.energy_pf2,
+                d.energy_pf3,
+                d.status
+            FROM actual_meter_data d
+            ORDER BY d.meter_id, d.date_keep DESC
+        ),
         latest_nonzero_actual AS (
             SELECT DISTINCT ON (d.meter_id)
                 d.meter_id,
@@ -341,42 +366,51 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number | number
             b.building_name,
             z.zone_name,
             lr.id, lr.channel, lr.device, lr.code, lr.type,
-            lr.vl1, lr.vl2, lr.vl3, lr.vl12, lr.vl23, lr.vl31,
-            lr.il1, lr.il2, lr.il3,
-            lr.kw1, lr.kw2, lr.kw3, lr.kw_3ph,
-            lr.kvar1, lr.kvar2, lr.kvar3, lr.kvar_3ph,
-            lr.kva1, lr.kva2, lr.kva3, lr.kva_3ph,
-            lr.pf1, lr.pf2, lr.pf3,
-            lr.hz, lr.import_kwhr,
-            lr.device_datetime, lr.received_at,
-            COALESCE(
-                CASE WHEN (
-                    COALESCE(lr.vl1,0) > 0 OR COALESCE(lr.vl2,0) > 0 OR COALESCE(lr.vl3,0) > 0
-                    OR COALESCE(lr.il1,0) > 0 OR COALESCE(lr.il2,0) > 0 OR COALESCE(lr.il3,0) > 0
-                    OR COALESCE(lr.kw_3ph,0) > 0 OR COALESCE(lr.kva_3ph,0) > 0
-                    OR COALESCE(lr.hz,0) > 0 OR COALESCE(lr.import_kwhr,0) > 0
-                ) THEN lr.device_datetime
-                ELSE lnr.last_nonzero_datetime
-                END,
-                lna.last_actual_nonzero_datetime
-            ) AS last_nonzero_datetime,
-            COALESCE(
-                CASE WHEN (
-                    COALESCE(lr.vl1,0) > 0 OR COALESCE(lr.vl2,0) > 0 OR COALESCE(lr.vl3,0) > 0
-                    OR COALESCE(lr.il1,0) > 0 OR COALESCE(lr.il2,0) > 0 OR COALESCE(lr.il3,0) > 0
-                    OR COALESCE(lr.kw_3ph,0) > 0 OR COALESCE(lr.kva_3ph,0) > 0
-                    OR COALESCE(lr.hz,0) > 0 OR COALESCE(lr.import_kwhr,0) > 0
-                ) THEN lr.received_at
-                ELSE lnr.last_nonzero_received_at
-                END,
-                lna.last_actual_nonzero_datetime
-            ) AS last_nonzero_received_at,
-            CASE WHEN COALESCE(lr.vl1,0)=0 AND COALESCE(lr.vl2,0)=0 AND COALESCE(lr.vl3,0)=0
-                  AND COALESCE(lr.il1,0)=0 AND COALESCE(lr.il2,0)=0 AND COALESCE(lr.il3,0)=0
-                  AND COALESCE(lr.kw_3ph,0)=0 AND COALESCE(lr.kva_3ph,0)=0
-                  AND COALESCE(lr.hz,0)=0 AND COALESCE(lr.import_kwhr,0)=0
-                 THEN true ELSE false
-            END AS is_all_zero
+            COALESCE(la.energy_volt_p1, lr.vl1, 0) AS vl1,
+            COALESCE(la.energy_volt_p2, lr.vl2, 0) AS vl2,
+            COALESCE(la.energy_volt_p3, lr.vl3, 0) AS vl3,
+            COALESCE(la.energy_volt_l1, lr.vl12, 0) AS vl12,
+            COALESCE(la.energy_volt_l2, lr.vl23, 0) AS vl23,
+            COALESCE(la.energy_volt_l3, lr.vl31, 0) AS vl31,
+            COALESCE(la.energy_amp1, lr.il1, 0) AS il1,
+            COALESCE(la.energy_amp2, lr.il2, 0) AS il2,
+            COALESCE(la.energy_amp3, lr.il3, 0) AS il3,
+            COALESCE(lr.kw1, 0) AS kw1,
+            COALESCE(lr.kw2, 0) AS kw2,
+            COALESCE(lr.kw3, 0) AS kw3,
+            COALESCE(la.energy_kw, lr.kw_3ph, 0) AS kw_3ph,
+            COALESCE(lr.kvar1, 0) AS kvar1,
+            COALESCE(lr.kvar2, 0) AS kvar2,
+            COALESCE(lr.kvar3, 0) AS kvar3,
+            COALESCE(la.energy_kvar, lr.kvar_3ph, 0) AS kvar_3ph,
+            COALESCE(lr.kva1, 0) AS kva1,
+            COALESCE(lr.kva2, 0) AS kva2,
+            COALESCE(lr.kva3, 0) AS kva3,
+            COALESCE(la.energy_kva, lr.kva_3ph, 0) AS kva_3ph,
+            COALESCE(la.energy_pf1, lr.pf1, 0) AS pf1,
+            COALESCE(la.energy_pf2, lr.pf2, 0) AS pf2,
+            COALESCE(la.energy_pf3, lr.pf3, 0) AS pf3,
+            COALESCE(la.energy_frequency, lr.hz, 0) AS hz,
+            COALESCE(la.energy_kwh, lr.import_kwhr, 0) AS import_kwhr,
+            COALESCE(la.date_keep, lr.device_datetime, lr.received_at) AS device_datetime,
+            COALESCE(la.date_keep, lr.received_at, lr.device_datetime) AS received_at,
+            COALESCE(la.date_keep, lnr.last_nonzero_datetime, lna.last_actual_nonzero_datetime, lr.device_datetime) AS last_nonzero_datetime,
+            COALESCE(la.date_keep, lnr.last_nonzero_received_at, lna.last_actual_nonzero_datetime, lr.received_at) AS last_nonzero_received_at,
+            CASE WHEN (
+                COALESCE(la.energy_volt_p1, lr.vl1, 0) = 0 AND COALESCE(la.energy_volt_p2, lr.vl2, 0) = 0 AND COALESCE(la.energy_volt_p3, lr.vl3, 0) = 0
+                AND COALESCE(la.energy_amp1, lr.il1, 0) = 0 AND COALESCE(la.energy_amp2, lr.il2, 0) = 0 AND COALESCE(la.energy_amp3, lr.il3, 0) = 0
+                AND COALESCE(la.energy_kw, lr.kw_3ph, 0) = 0 AND COALESCE(la.energy_kva, lr.kva_3ph, 0) = 0
+                AND COALESCE(la.energy_frequency, lr.hz, 0) = 0 AND COALESCE(la.energy_kwh, lr.import_kwhr, 0) = 0
+            ) THEN true ELSE false
+            END AS is_all_zero,
+            CASE
+                WHEN la.meter_id IS NOT NULL THEN '15min'
+                WHEN lr.id IS NOT NULL THEN 'realtime'
+                ELSE 'none'
+            END AS data_source,
+            CASE WHEN (lr.received_at >= NOW() - INTERVAL '2 minutes' OR lr.device_datetime >= NOW() - INTERVAL '2 minutes') THEN true ELSE false END AS is_online_stream,
+            lr.received_at AS realtime_received_at,
+            la.date_keep AS actual_date_keep
         FROM meter m
         LEFT JOIN realtime_meter_map rmm
             ON rmm.meter_id = m.meter_id
@@ -387,6 +421,8 @@ export const getLatestRealtimeData = async (filters?: { siteId?: number | number
         LEFT JOIN latest_nonzero_realtime lnr
             ON (rmm.id IS NOT NULL AND lnr.realtime_site_id = rmm.realtime_site_id AND lnr.realtime_address_id = rmm.realtime_address_id)
             OR (rmm.id IS NULL AND (lnr.channel = m.site_el::text OR (lnr.realtime_site_id::text = m.site_el::text AND lnr.realtime_address_id::text = m.address::text)))
+        LEFT JOIN latest_actual la
+            ON la.meter_id = m.meter_id
         LEFT JOIN latest_nonzero_actual lna
             ON lna.meter_id = m.meter_id
         LEFT JOIN meter_type mt ON m.meter_type_id = mt.meter_type_id

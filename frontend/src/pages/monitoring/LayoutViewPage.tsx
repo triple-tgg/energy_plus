@@ -1599,7 +1599,7 @@ const LayoutViewPage: React.FC = () => {
                                             )}
                                             {meterData.date_keep && (
                                                 <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
-                                                    🕐 {new Date(typeof meterData.date_keep === 'string' ? meterData.date_keep.replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '') : meterData.date_keep).toLocaleString(language === 'th' ? 'th-TH' : 'en-US')}
+                                                    🕐 {new Date(meterData.date_keep).toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: 'Asia/Bangkok' })}
                                                 </div>
                                             )}
                                         </div>

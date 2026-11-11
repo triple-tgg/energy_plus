@@ -67,6 +67,10 @@ interface RealtimeMeterData {
     received_at: string;
     last_nonzero_datetime?: string;
     last_nonzero_received_at?: string;
+    data_source?: 'realtime' | '15min' | 'none';
+    is_online_stream?: boolean;
+    realtime_received_at?: string;
+    actual_date_keep?: string;
 }
 
 interface ChartDataPoint {
@@ -177,11 +181,18 @@ const REALTIME_STALE_MS = 120000;
 export const getMeterRealtimeStatus = (m: RealtimeMeterData, now = Date.now()): RealtimeStatus => {
     if (m.is_active === false || m.meter_status === 'disabled') return 'inactive';
 
-    const receivedAt = m.received_at ? new Date(m.received_at).getTime() : 0;
-    const deviceTime = m.device_datetime ? new Date(m.device_datetime.replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '')).getTime() : 0;
-    const latestTime = Math.max(receivedAt, deviceTime);
+    // Check if there is an active realtime stream or recent 15-minute summary reading
+    const realtimeAt = m.realtime_received_at ? new Date(m.realtime_received_at).getTime() : 0;
+    const isStreamActive = m.is_online_stream === true || (realtimeAt > 0 && (now - realtimeAt <= REALTIME_STALE_MS));
 
-    if (latestTime === 0 || (now - latestTime > REALTIME_STALE_MS)) {
+    const fifteenMinAt = (m.actual_date_keep || m.received_at || m.device_datetime)
+        ? new Date(m.actual_date_keep || m.received_at || m.device_datetime).getTime()
+        : 0;
+    // 15-minute summary is considered active if received within 45 minutes (approx 3 intervals)
+    const isFifteenMinActive = fifteenMinAt > 0 && (now - fifteenMinAt <= 45 * 60 * 1000);
+
+    const isConnected = isStreamActive || isFifteenMinActive;
+    if (!isConnected) {
         return 'offline'; // No Signal
     }
 
@@ -211,31 +222,40 @@ export const getRealtimeStatusInfo = (status: RealtimeStatus | string) => {
     }
 };
 
-/** Format device_datetime from DB — DB stores Bangkok time but PG sends as UTC.
- *  Strip timezone suffix so JS treats it as local time (no double +7 offset). */
-const formatDeviceTime = (dt: string | null | undefined, mode: 'time' | 'full' | 'auto' = 'auto'): string => {
+const TIMEZONE_TH = 'Asia/Bangkok';
+
+/** Format device_datetime / received_at to Thai time (Asia/Bangkok, UTC+7). */
+const formatDeviceTime = (dt: string | number | null | undefined, mode: 'time' | 'full' | 'auto' = 'auto'): string => {
     if (!dt) return '—';
     try {
-        // Strip Z, +00, +07 etc. so JS treats as local time (already Bangkok)
-        const stripped = dt.replace(/[Z]$/i, '').replace(/[+-]\d{2}:\d{2}$/, '').replace(/[+-]\d{4}$/, '');
-        const d = new Date(stripped);
+        let d: Date;
+        if (typeof dt === 'number') {
+            d = new Date(dt);
+        } else {
+            const str = String(dt).trim();
+            d = new Date(str);
+            if (isNaN(d.getTime())) {
+                d = new Date(str.replace(' ', 'T'));
+            }
+        }
         if (isNaN(d.getTime())) return '—';
+
         if (mode === 'full') {
-            return d.toLocaleString('th-TH');
+            return d.toLocaleString('th-TH', { timeZone: TIMEZONE_TH, hour12: false });
         }
         if (mode === 'time') {
-            return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return d.toLocaleTimeString('th-TH', { timeZone: TIMEZONE_TH, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
         }
-        // 'auto': If date is today, show HH:mm:ss. If older, show DD/MM HH:mm:ss
-        const now = new Date();
-        const isSameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-        if (isSameDay) {
-            return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        // 'auto': If date is today in Bangkok, show HH:mm:ss. If older, show DD/MM HH:mm:ss
+        const todayBangkok = new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE_TH, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+        const dateBangkok = new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE_TH, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+        const timeBangkok = d.toLocaleTimeString('th-TH', { timeZone: TIMEZONE_TH, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+        if (todayBangkok === dateBangkok) {
+            return timeBangkok;
         }
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const time = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        return `${day}/${month} ${time}`;
+        const [y, m, day] = dateBangkok.split('-');
+        return `${day}/${m} ${timeBangkok}`;
     } catch { return '—'; }
 };
 
@@ -289,7 +309,7 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
             const res = await realtimeApi.getMeterHistory({ meterId: meter.meter_id, minutes });
             if (res.data?.success && Array.isArray(res.data.data)) {
                 setHistoryData(res.data.data);
-                setLastSync(new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'));
+                setLastSync(new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: TIMEZONE_TH }));
             }
         } catch (err) {
             console.error('Failed to fetch meter history:', err);
@@ -804,7 +824,7 @@ const RealtimePage: React.FC = () => {
             const rows = res.data?.data || [];
             setAlerts(rows.map((row: any) => ({
                 id: String(row.id),
-                time: new Date(row.occurred_at).toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US'),
+                time: new Date(row.occurred_at).toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: TIMEZONE_TH }),
                 msg: row.message,
                 type: /high|critical|danger/i.test(String(row.alarm_type || '')) ? 'danger' : 'warning',
             })));
@@ -845,7 +865,7 @@ const RealtimePage: React.FC = () => {
                 setMeters(processedMeters);
                 setDbSyncStatus('active');
                 setInitialLoading(false);
-                setLastFetchTime(new Date().toLocaleTimeString());
+                setLastFetchTime(new Date().toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: TIMEZONE_TH }));
 
                 // Flash detection
                 let hasUpdates = false;
@@ -895,7 +915,7 @@ const RealtimePage: React.FC = () => {
                 const bucketMap = new Map<string, ChartDataPoint>();
 
                 rows.forEach((row: any) => {
-                    const time = row.time || (row.t ? new Date(String(row.t).replace(/[Z]$/i, '')).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '—');
+                    const time = row.time || (row.t ? new Date(row.t).toLocaleTimeString('th-TH', { timeZone: TIMEZONE_TH, hour: '2-digit', minute: '2-digit' }) : '—');
                     const label = row.meter_name || row.meter_code || `M${row.meter_id}`;
 
                     if (!bucketMap.has(time)) {
@@ -1687,17 +1707,26 @@ const RealtimePage: React.FC = () => {
                                                     const fullTimeStr = formatDeviceTime(m.device_datetime || m.received_at, 'full');
                                                     const nonZeroTimeStr = formatDeviceTime(m.last_nonzero_datetime || m.last_nonzero_received_at, 'auto');
                                                     const fullNonZeroTimeStr = formatDeviceTime(m.last_nonzero_datetime || m.last_nonzero_received_at, 'full');
+                                                    const effectiveTimeStr = timeStr !== '—' ? timeStr : nonZeroTimeStr;
+                                                    const effectiveFullStr = fullTimeStr !== '—' ? fullTimeStr : fullNonZeroTimeStr;
 
                                                     if (status === 'zero') {
                                                         const hasNonZero = nonZeroTimeStr !== '—';
+                                                        const displayTime = hasNonZero ? nonZeroTimeStr : (timeStr !== '—' ? timeStr : '—');
+                                                        const displayFull = hasNonZero ? fullNonZeroTimeStr : (fullTimeStr !== '—' ? fullTimeStr : '');
                                                         return (
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                                                 <span
-                                                                    title={`${t('เวลาล่าสุดที่ได้รับข้อมูลที่ไม่ใช่ค่าศูนย์', 'Last non-zero reading timestamp')}: ${hasNonZero ? fullNonZeroTimeStr : t('ไม่มีข้อมูลที่ไม่ใช่ศูนย์ก่อนหน้า', 'No prior non-zero reading')}`}
+                                                                    title={`${t('เวลาล่าสุดที่ได้รับข้อมูลที่ไม่ใช่ค่าศูนย์', 'Last non-zero reading timestamp')}: ${displayFull || t('ไม่มีข้อมูลที่ไม่ใช่ศูนย์ก่อนหน้า', 'No prior non-zero reading')}`}
                                                                     style={{ color: '#F59E0B', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                                                                 >
                                                                     <Clock size={11} />
-                                                                    {hasNonZero ? nonZeroTimeStr : '—'}
+                                                                    {displayTime}
+                                                                    {m.data_source === '15min' && (
+                                                                        <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: 2, background: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', fontWeight: 700 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
+                                                                            15M
+                                                                        </span>
+                                                                    )}
                                                                 </span>
                                                                 {hasNonZero && timeStr !== '—' && timeStr !== nonZeroTimeStr && (
                                                                     <span style={{ fontSize: '9.5px', color: C.sub, opacity: 0.8 }} title={`${t('เวลาที่ได้รับข้อมูลล่าสุด (ค่า 0)', 'Latest 0 packet timestamp')}: ${fullTimeStr}`}>
@@ -1708,19 +1737,25 @@ const RealtimePage: React.FC = () => {
                                                         );
                                                     }
 
-                                                    if (timeStr === '—') {
-                                                        return <span style={{ color: C.sub, opacity: 0.6 }}>--:--:--</span>;
-                                                    }
                                                     if (status === 'offline') {
                                                         return (
                                                             <span
-                                                                title={`${t('เวลาล่าสุดที่ได้รับข้อมูลก่อนขาดการติดต่อ', 'Last received reading timestamp before disconnection')}: ${fullTimeStr}`}
+                                                                title={`${t('เวลาล่าสุดที่ได้รับข้อมูลก่อนขาดการติดต่อ', 'Last received reading timestamp before disconnection')}: ${effectiveFullStr}`}
                                                                 style={{ color: '#EF4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                                                             >
                                                                 <Clock size={11} />
-                                                                {timeStr}
+                                                                {effectiveTimeStr !== '—' ? effectiveTimeStr : '--:--:--'}
+                                                                {m.data_source === '15min' && (
+                                                                    <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: 2, background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', fontWeight: 700 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
+                                                                        15M
+                                                                    </span>
+                                                                )}
                                                             </span>
                                                         );
+                                                    }
+
+                                                    if (effectiveTimeStr === '—') {
+                                                        return <span style={{ color: C.sub, opacity: 0.6 }}>--:--:--</span>;
                                                     }
                                                     if (status === 'inactive') {
                                                         return (
@@ -1730,8 +1765,14 @@ const RealtimePage: React.FC = () => {
                                                         );
                                                     }
                                                     return (
-                                                        <span style={{ color: C.ink, fontWeight: 500 }} title={fullTimeStr}>
+                                                        <span style={{ color: C.ink, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }} title={fullTimeStr}>
+                                                            <Clock size={11} style={{ opacity: 0.6 }} />
                                                             {timeStr}
+                                                            {m.data_source === '15min' && (
+                                                                <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: 2, background: 'rgba(16, 185, 129, 0.15)', color: '#10B981', fontWeight: 700 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
+                                                                    15M
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     );
                                                 })()}
@@ -1857,15 +1898,18 @@ const RealtimePage: React.FC = () => {
                             )}
                             {(() => {
                                 const selStatus = getMeterRealtimeStatus(selectedMeter, now);
+                                const nonZeroTime = formatDeviceTime(selectedMeter.last_nonzero_datetime || selectedMeter.last_nonzero_received_at, 'full');
+                                const latestTime = formatDeviceTime(selectedMeter.device_datetime || selectedMeter.received_at, 'full');
                                 if (selStatus === 'zero') {
-                                    const nonZeroTime = formatDeviceTime(selectedMeter.last_nonzero_datetime || selectedMeter.last_nonzero_received_at, 'full');
-                                    const latestTime = formatDeviceTime(selectedMeter.device_datetime || selectedMeter.received_at, 'full');
                                     return (
                                         <div style={{ fontFamily: MONO, fontSize: 10, color: '#F59E0B', marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                                             <span title={t('เวลาล่าสุดที่ได้รับข้อมูลที่ไม่ใช่ค่าศูนย์', 'Last non-zero reading timestamp')}>
-                                                🕐 {t('ค่าก่อนหน้า', 'Last reading')}: {nonZeroTime !== '—' ? nonZeroTime : t('ไม่มีประวัติข้อมูล', 'No history')}
+                                                🕐 {t('ค่าก่อนหน้า', 'Last reading')}: {nonZeroTime !== '—' ? nonZeroTime : latestTime !== '—' ? latestTime : t('ไม่มีประวัติข้อมูล', 'No history')}
+                                                {selectedMeter.data_source === '15min' && (
+                                                    <span style={{ marginLeft: 4, padding: '1px 4px', borderRadius: 2, background: 'rgba(245, 158, 11, 0.15)', fontSize: 9, fontWeight: 700 }}>15M</span>
+                                                )}
                                             </span>
-                                            {latestTime !== '—' && (
+                                            {latestTime !== '—' && latestTime !== nonZeroTime && (
                                                 <span style={{ fontSize: '9px', color: C.sub }}>
                                                     ({t('ข้อมูล 0 ล่าสุด', 'Latest 0 packet')}: {latestTime})
                                                 </span>
@@ -1873,9 +1917,16 @@ const RealtimePage: React.FC = () => {
                                         </div>
                                     );
                                 }
+                                const badgeColor = selStatus === 'online' ? '#10B981' : selStatus === 'offline' ? '#EF4444' : C.sub;
+                                const badgeBg = selStatus === 'online' ? 'rgba(16, 185, 129, 0.12)' : selStatus === 'offline' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(107, 114, 128, 0.12)';
                                 return (
-                                    <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
-                                        🕐 {formatDeviceTime(selectedMeter.device_datetime || selectedMeter.received_at, 'full')}
+                                    <div style={{ fontFamily: MONO, fontSize: 10, color: selStatus === 'offline' ? '#EF4444' : selStatus === 'online' ? C.ink : C.sub, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        🕐 {latestTime !== '—' ? latestTime : nonZeroTime !== '—' ? nonZeroTime : '—'}
+                                        {selectedMeter.data_source === '15min' && (
+                                            <span style={{ padding: '1px 4px', borderRadius: 2, background: badgeBg, color: badgeColor, fontWeight: 700, fontSize: 9 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
+                                                15M
+                                            </span>
+                                        )}
                                     </div>
                                 );
                             })()}

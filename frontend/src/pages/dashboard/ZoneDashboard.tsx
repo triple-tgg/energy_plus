@@ -206,6 +206,18 @@ function latestAge(list: MeterData[], now: number): number | null {
     if (!active.length) return null;
     return Math.round((now - Math.max(...active.map((m) => m.received_at))) / 1000);
 }
+function formatAge(ago: number | null): string {
+    if (ago === null || ago === undefined || isNaN(ago)) return '—';
+    const sec = Math.max(0, ago);
+    const warn = sec > 30 ? '!' : '';
+    if (sec < 60) return `${sec}s${warn}`;
+    const m = Math.floor(sec / 60);
+    if (m < 60) return `${m}m${warn}`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h${warn}`;
+    const d = Math.floor(h / 24);
+    return `${d}d${warn}`;
+}
 const fmt = (v: number, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 /** ลดขนาดตัวเลขตามความยาว เพื่อให้ค่าหลายหลัก (10+ หลัก) ไม่ล้นกรอบการ์ด */
 const fitFontSize = (text: string, base: number) => {
@@ -593,7 +605,7 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                                             <td style={tdx()}>{d(m.pf3)}</td>
                                             {/* Hz & Age */}
                                             <td style={sepTd()}>{d(m.hz)}</td>
-                                            <td style={{ ...tdx(), color: C.sub, fontSize: 10 }}>{off ? '—' : ago > 30 ? `${ago}s!` : `${ago}s`}</td>
+                                            <td style={{ ...tdx(), color: C.sub, fontSize: 10 }} title={off || ago === null ? undefined : `${ago}s`}>{off ? '—' : formatAge(ago)}</td>
                                         </tr>
                                     );
                                 })}
@@ -689,7 +701,7 @@ function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
                         📍 {m.pathNames.map(p => formatNodeName(p, t)).join(' › ')}
                     </div>
                     <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub, marginLeft: 'auto' }}>
-                        🕐 {new Date(m.received_at).toLocaleString(t('th-TH', 'en-US'))}
+                        🕐 {new Date(m.received_at).toLocaleString(t('th-TH', 'en-US'), { timeZone: 'Asia/Bangkok' })}
                     </div>
                 </div>
 
@@ -1443,7 +1455,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.ink }}>
                         <StatusDot s="normal" size={8} pulse C={C} /> LIVE
                     </span>
-                    <span style={{ color: C.barSub, fontVariantNumeric: 'tabular-nums' }}>{new Date(now).toLocaleTimeString(t('th-TH', 'en-US'))}</span>
+                    <span style={{ color: C.barSub, fontVariantNumeric: 'tabular-nums' }}>{new Date(now).toLocaleTimeString(t('th-TH', 'en-US'), { timeZone: 'Asia/Bangkok' })}</span>
                 </div>
             </div>
 
@@ -1708,7 +1720,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                                                     : <StatusTally counts={it.counts} size={10} C={C} />}
                                                             </span>
                                                         </td>
-                                                        <td style={{ ...td(), textAlign: 'right', color: C.sub, fontFamily: MONO, fontSize: 10.5 }}>{ago === null ? '—' : ago > 30 ? `${ago}s!` : `${ago}s`}</td>
+                                                        <td style={{ ...td(), textAlign: 'right', color: C.sub, fontFamily: MONO, fontSize: 10.5 }} title={ago === null ? undefined : `${ago}s`}>{formatAge(ago)}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -1732,7 +1744,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                 kw: p.kw,
                                 kwh: p.kwh || 0,
                                 readings: p.readings || 0,
-                                t: new Date(p.t).toLocaleTimeString(t('th-TH', 'en-US'), { hour: '2-digit', minute: '2-digit' }),
+                                t: new Date(p.t).toLocaleTimeString(t('th-TH', 'en-US'), { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }),
                             }));
                             return (
                                 <div style={{ background: C.panel, border: `1px solid ${C.line}`, margin: '0 16px' }}>
