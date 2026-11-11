@@ -428,12 +428,6 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
                                         </span>
                                     );
                                 })()}
-                                <span style={{
-                                    fontSize: 9.5, fontWeight: 700, fontFamily: MONO, padding: '2px 7px',
-                                    background: `${C.accent}20`, color: C.accent, border: `1px solid ${C.accent}40`
-                                }}>
-                                    📊 {t('ข้อมูลสรุปทุก 15 นาที', '15-MIN INTERVAL SUMMARY')}
-                                </span>
                             </div>
                             <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.barSub, marginTop: 2 }}>
                                 {locationParts.length > 0 ? locationParts.join(' › ') : meter.site_name || '—'}
@@ -605,7 +599,7 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
                     {loading && historyData.length === 0 ? (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.sub, fontFamily: MONO, gap: 10 }}>
                             <RefreshCw size={20} className="spin" />
-                            <span>{t('กำลังโหลดข้อมูลสรุปทุก 15 นาที...', 'Loading 15-minute summary data...')}</span>
+                            <span>{t('กำลังโหลดข้อมูล...', 'Loading data...')}</span>
                         </div>
                     ) : activeMetricDefs.length === 0 ? (
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.sub, fontFamily: MONO, gap: 8 }}>
@@ -1722,11 +1716,6 @@ const RealtimePage: React.FC = () => {
                                                                 >
                                                                     <Clock size={11} />
                                                                     {displayTime}
-                                                                    {m.data_source === '15min' && (
-                                                                        <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: 2, background: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', fontWeight: 700 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
-                                                                            15M
-                                                                        </span>
-                                                                    )}
                                                                 </span>
                                                                 {hasNonZero && timeStr !== '—' && timeStr !== nonZeroTimeStr && (
                                                                     <span style={{ fontSize: '9.5px', color: C.sub, opacity: 0.8 }} title={`${t('เวลาที่ได้รับข้อมูลล่าสุด (ค่า 0)', 'Latest 0 packet timestamp')}: ${fullTimeStr}`}>
@@ -1745,11 +1734,6 @@ const RealtimePage: React.FC = () => {
                                                             >
                                                                 <Clock size={11} />
                                                                 {effectiveTimeStr !== '—' ? effectiveTimeStr : '--:--:--'}
-                                                                {m.data_source === '15min' && (
-                                                                    <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: 2, background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', fontWeight: 700 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
-                                                                        15M
-                                                                    </span>
-                                                                )}
                                                             </span>
                                                         );
                                                     }
@@ -1768,11 +1752,6 @@ const RealtimePage: React.FC = () => {
                                                         <span style={{ color: C.ink, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }} title={fullTimeStr}>
                                                             <Clock size={11} style={{ opacity: 0.6 }} />
                                                             {timeStr}
-                                                            {m.data_source === '15min' && (
-                                                                <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: 2, background: 'rgba(16, 185, 129, 0.15)', color: '#10B981', fontWeight: 700 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
-                                                                    15M
-                                                                </span>
-                                                            )}
                                                         </span>
                                                     );
                                                 })()}
@@ -1905,9 +1884,6 @@ const RealtimePage: React.FC = () => {
                                         <div style={{ fontFamily: MONO, fontSize: 10, color: '#F59E0B', marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                                             <span title={t('เวลาล่าสุดที่ได้รับข้อมูลที่ไม่ใช่ค่าศูนย์', 'Last non-zero reading timestamp')}>
                                                 🕐 {t('ค่าก่อนหน้า', 'Last reading')}: {nonZeroTime !== '—' ? nonZeroTime : latestTime !== '—' ? latestTime : t('ไม่มีประวัติข้อมูล', 'No history')}
-                                                {selectedMeter.data_source === '15min' && (
-                                                    <span style={{ marginLeft: 4, padding: '1px 4px', borderRadius: 2, background: 'rgba(245, 158, 11, 0.15)', fontSize: 9, fontWeight: 700 }}>15M</span>
-                                                )}
                                             </span>
                                             {latestTime !== '—' && latestTime !== nonZeroTime && (
                                                 <span style={{ fontSize: '9px', color: C.sub }}>
@@ -1917,16 +1893,9 @@ const RealtimePage: React.FC = () => {
                                         </div>
                                     );
                                 }
-                                const badgeColor = selStatus === 'online' ? '#10B981' : selStatus === 'offline' ? '#EF4444' : C.sub;
-                                const badgeBg = selStatus === 'online' ? 'rgba(16, 185, 129, 0.12)' : selStatus === 'offline' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(107, 114, 128, 0.12)';
                                 return (
                                     <div style={{ fontFamily: MONO, fontSize: 10, color: selStatus === 'offline' ? '#EF4444' : selStatus === 'online' ? C.ink : C.sub, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
                                         🕐 {latestTime !== '—' ? latestTime : nonZeroTime !== '—' ? nonZeroTime : '—'}
-                                        {selectedMeter.data_source === '15min' && (
-                                            <span style={{ padding: '1px 4px', borderRadius: 2, background: badgeBg, color: badgeColor, fontWeight: 700, fontSize: 9 }} title={t('ข้อมูลจากสรุป 15 นาที', '15-min summary data')}>
-                                                15M
-                                            </span>
-                                        )}
                                     </div>
                                 );
                             })()}
