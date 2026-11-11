@@ -33,6 +33,7 @@ router.delete('/loops/:id', authenticate, requireRole('admin'), c.deleteLoop);
 router.get('/', authenticate, enforceSiteAccess, c.getMeters);
 router.post('/', authenticate, requireRole('admin'), c.createMeter);
 router.get('/:id', authenticate, enforceMeterSiteAccess, c.getMeterById);
+router.get('/:id/recent-readings', authenticate, enforceMeterSiteAccess, c.getRecentReadings);
 router.put('/:id', authenticate, requireRole('admin'), c.updateMeter);
 router.post('/:id/manual-reading', authenticate, requireRole('operator', 'admin'), enforceMeterSiteAccess, c.addManualReading);
 router.delete('/:id', authenticate, requireRole('admin'), c.deleteMeter);

@@ -6,6 +6,7 @@ import { metersApi, sitesApi, licenseApi } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { AlertTriangle, History, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
@@ -129,6 +130,8 @@ const MetersPage: React.FC = () => {
     const [manualValue, setManualValue] = useState('');
     const [manualSaving, setManualSaving] = useState(false);
     const [manualError, setManualError] = useState('');
+    const [recentReadings, setRecentReadings] = useState<any[]>([]);
+    const [loadingRecent, setLoadingRecent] = useState(false);
 
     // QR Code modal states
     const [showQrModal, setShowQrModal] = useState(false);
@@ -359,13 +362,31 @@ const MetersPage: React.FC = () => {
         setDeleting(false);
     };
 
+    const loadRecentReadings = async (meterId: number) => {
+        setLoadingRecent(true);
+        try {
+            const res = await metersApi.getRecentReadings(meterId, 6);
+            setRecentReadings(res.data.data || []);
+        } catch (err) {
+            console.error('Failed to load recent readings:', err);
+            setRecentReadings([]);
+        } finally {
+            setLoadingRecent(false);
+        }
+    };
+
     const handleOpenManualModal = (row: any) => {
         setSelectedMeterForManual(row);
         const todayStr = new Date().toLocaleDateString('en-CA');
         setManualDateKeep(todayStr);
-        setManualValue('0');
+        setManualValue('');
         setManualError('');
         setShowManualModal(true);
+        if (row?.meter_id) {
+            loadRecentReadings(row.meter_id);
+        } else {
+            setRecentReadings([]);
+        }
     };
 
     const handleOpenQrModal = (row: any) => {
@@ -542,8 +563,42 @@ const MetersPage: React.FC = () => {
             return;
         }
         if (manualValue.trim() === '') {
-            setManualError(t('กรุณากรอกค่าพลังงาน', 'Reading Value is required'));
+            setManualError(t('กรุณากรอกค่าพลังงาน/ค่าวัด', 'Reading Value is required'));
             return;
+        }
+
+        // Validate max 3 decimal places
+        const parts = manualValue.trim().split('.');
+        if (parts.length > 1 && parts[1].length > 3) {
+            setManualError(t('กรุณากรอกทศนิยมไม่เกิน 3 ตำแหน่งตามหน้ามิเตอร์จริง ห้ามปัดเศษ', 'Please enter at most 3 decimal places as read from the meter. Do NOT round.'));
+            return;
+        }
+
+        const numVal = parseFloat(manualValue);
+        if (isNaN(numVal) || numVal < 0) {
+            setManualError(t('กรุณากรอกค่าตัวเลขที่ถูกต้อง (ไม่ติดลบ)', 'Please enter a valid non-negative number'));
+            return;
+        }
+
+        // Check if value is less than previous reading
+        const latestRecorded = recentReadings[0]?.value != null ? Number(recentReadings[0].value) : null;
+        if (latestRecorded !== null) {
+            const diff = numVal - latestRecorded;
+            if (diff < 0 && diff >= -0.005) {
+                const confirmMsg = language === 'th'
+                    ? `⚠️ ค่าที่ป้อน (${numVal.toFixed(3)}) น้อยกว่าค่าบันทึกก่อนหน้า (${latestRecorded.toFixed(3)}) เล็กน้อย (${diff.toFixed(3)})\n\nอาจเกิดจากการปัดเศษ หากไม่มีการใช้ไฟหรือน้ำ แนะนำให้คีย์ค่าเท่ากับเดือนก่อนหน้า (${latestRecorded.toFixed(3)}) เพื่อป้องกันความผิดพลาดจากการลบค่า MAX\n\nต้องการยืนยันบันทึกค่านี้ใช่หรือไม่?`
+                    : `⚠️ Entered value (${numVal.toFixed(3)}) is slightly less than previous reading (${latestRecorded.toFixed(3)}) by ${diff.toFixed(3)}.\n\nAre you sure you want to save?`;
+                if (!window.confirm(confirmMsg)) {
+                    return;
+                }
+            } else if (diff < -0.005) {
+                const confirmMsg = language === 'th'
+                    ? `🔄 ตรวจพบเลขมิเตอร์ (${numVal.toFixed(3)}) น้อยกว่าครั้งก่อนหน้า (${latestRecorded.toFixed(3)})\n\nเป็นการครบรอบมิเตอร์ (Rollover) หรือไม่?\nหากไม่ใช่ กรุณาตรวจสอบเลขหน้าปัดอีกครั้ง\n\nต้องการยืนยันบันทึกใช่หรือไม่?`
+                    : `🔄 Entered reading (${numVal.toFixed(3)}) is less than previous (${latestRecorded.toFixed(3)}). Is this a meter rollover?\n\nConfirm to proceed?`;
+                if (!window.confirm(confirmMsg)) {
+                    return;
+                }
+            }
         }
         
         setManualSaving(true);
@@ -555,10 +610,12 @@ const MetersPage: React.FC = () => {
 
             await metersApi.addManualReading(selectedMeterForManual.meter_id, {
                 dateKeep: isoDateTime,
-                value: parseFloat(manualValue),
+                value: numVal,
             });
             setSuccessMsg(t('บันทึกข้อมูลสำเร็จ!', 'Data saved successfully!'));
             setShowManualModal(false);
+            setSelectedMeterForManual(null);
+            setRecentReadings([]);
         } catch (err: any) {
             setManualError(err.response?.data?.message || t('บันทึกข้อมูลล้มเหลว', 'Failed to save data'));
         }
@@ -1712,6 +1769,51 @@ const MetersPage: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Historical Readings (Previous 3 Months) */}
+                {selectedMeterForManual && (
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <label className="form-label" style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <History size={14} color={C.accent} />
+                                <span>{t('ประวัติการบันทึก 3 เดือนก่อนหน้า', 'Previous 3 Months History')}</span>
+                            </label>
+                            {loadingRecent && <span style={{ fontSize: 11, color: C.sub }}>{t('กำลังโหลด...', 'Loading...')}</span>}
+                        </div>
+                        {recentReadings.length === 0 ? (
+                            <div style={{ padding: '10px 14px', background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 12, color: C.sub, textAlign: 'center' }}>
+                                {loadingRecent ? t('กำลังโหลดข้อมูลประวัติ...', 'Loading history...') : t('ยังไม่มีประวัติการบันทึกก่อนหน้า', 'No previous history recorded')}
+                            </div>
+                        ) : (
+                            <div style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: 'hidden' }}>
+                                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', fontFamily: MONO }}>
+                                    <thead>
+                                        <tr style={{ background: C.panel2, borderBottom: `1px solid ${C.line}`, color: C.sub }}>
+                                            <th style={{ padding: '6px 10px', textAlign: 'left' }}>{t('วันที่บันทึก', 'Date')}</th>
+                                            <th style={{ padding: '6px 10px', textAlign: 'right' }}>{t('เลขมิเตอร์ที่จด', 'Reading')}</th>
+                                            <th style={{ padding: '6px 10px', textAlign: 'right' }}>{t('หน่วยที่ใช้', 'Usage')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {recentReadings.slice(0, 3).map((r, idx) => (
+                                            <tr key={r.id || idx} style={{ borderBottom: idx < Math.min(recentReadings.length, 3) - 1 ? `1px solid ${C.line}` : 'none' }}>
+                                                <td style={{ padding: '6px 10px', color: C.ink }}>
+                                                    {r.date_keep ? new Date(r.date_keep).toLocaleDateString(language === 'th' ? 'th-TH' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                                                </td>
+                                                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: C.ink }}>
+                                                    {Number(r.value || 0).toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                                                </td>
+                                                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: r.diff != null && r.diff < 0 ? 'var(--danger, #ef4444)' : 'var(--success, #10b981)' }}>
+                                                    {r.diff != null ? `${r.diff > 0 ? '+' : ''}${Number(r.diff).toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}` : '—'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="form-group" style={{ marginBottom: 16 }}>
                     <label className="form-label" style={{ fontWeight: 600 }}>{t('วันที่ทำรายการ', 'Transaction Date')} <span style={{ color: 'var(--danger)' }}>*</span></label>
                     <input type="date" className="form-control" value={manualDateKeep} onChange={e => setManualDateKeep(e.target.value)} />
@@ -1727,13 +1829,55 @@ const MetersPage: React.FC = () => {
                     </label>
                     <input
                         type="number"
-                        step="any"
+                        step="0.001"
                         className="form-control"
-                        placeholder="0"
+                        placeholder="0.000"
                         value={manualValue}
                         onChange={e => setManualValue(e.target.value)}
                         autoFocus
                     />
+                    {/* Guidance note */}
+                    <div style={{ fontSize: 11, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 4, padding: '6px 10px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                        <span>{t('ให้คีย์ทศนิยม 3 ตำแหน่งที่เห็นจากหน้ามิเตอร์เท่านั้น ห้ามปัดเศษขึ้นหรือลง (เพราะมีผลกับการคำนวณมิเตอร์ครบรอบ MAX)', 'Enter up to 3 decimals exactly as shown on the meter. Do NOT round up or down.')}</span>
+                    </div>
+
+                    {/* Live Diff Preview */}
+                    {(() => {
+                        const prevVal = recentReadings[0]?.value != null ? Number(recentReadings[0].value) : null;
+                        const num = parseFloat(manualValue);
+                        if (prevVal === null || isNaN(num) || manualValue.trim() === '') return null;
+                        const diff = num - prevVal;
+                        
+                        if (diff > 0) {
+                            return (
+                                <div style={{ fontSize: 12, color: '#15803d', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 4, padding: '6px 10px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <CheckCircle2 size={14} style={{ flexShrink: 0 }} />
+                                    <span>{t('ผลต่างรอบนี้', 'Current Usage')}: <strong>+{diff.toFixed(3)}</strong> (เลขก่อนหน้า: {prevVal.toFixed(3)})</span>
+                                </div>
+                            );
+                        } else if (diff === 0) {
+                            return (
+                                <div style={{ fontSize: 12, color: C.sub, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 4, padding: '6px 10px', marginTop: 6 }}>
+                                    <span>{t('ผลต่างรอบนี้: 0.000 (ไม่มีการใช้พลังงาน/น้ำ ค่าเท่ากับครั้งก่อน)', 'Usage: 0.000 (No usage, equal to previous reading)')}</span>
+                                </div>
+                            );
+                        } else if (diff >= -0.005) {
+                            return (
+                                <div style={{ fontSize: 12, color: '#b91c1c', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 4, padding: '6px 10px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                                    <span><strong>{t('คำเตือน', 'Warning')}:</strong> {t(`ค่าน้อยกว่าครั้งก่อนเล็กน้อย (${diff.toFixed(3)}) อาจเกิดจากการปัดเศษ หากไม่มีการใช้ ให้คีย์เท่ากับค่าเดิม (${prevVal.toFixed(3)})`, `Slightly less than previous (${diff.toFixed(3)}). If no usage, enter equal to previous (${prevVal.toFixed(3)}).`)}</span>
+                                </div>
+                            );
+                        } else {
+                            return (
+                                <div style={{ fontSize: 12, color: '#c2410c', background: '#ffedd5', border: '1px solid #fed7aa', borderRadius: 4, padding: '6px 10px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                                    <span><strong>{t('ตรวจพบเลขน้อยกว่าครั้งก่อน', 'Lower Reading Detected')}:</strong> {t(`ผลต่าง ${diff.toFixed(3)} (หากมิเตอร์ครบรอบ Rollover ระบบจะคำนวณตามสูตร MAX)`, `Diff: ${diff.toFixed(3)}. If rollover, MAX formula will be applied.`)}</span>
+                                </div>
+                            );
+                        }
+                    })()}
                 </div>
             </Modal>
 

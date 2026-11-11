@@ -22,6 +22,14 @@ export class MetersController {
     async addManualReading(req: AuthRequest, res: Response, next: NextFunction) {
         try { res.status(201).json(successResponse(await svc.addManualReading(parseInt(req.params.id), req.body), 'Manual reading recorded')); } catch (e) { next(e); }
     }
+    async getRecentReadings(req: Request, res: Response, next: NextFunction) {
+        try {
+            const limit = req.query.limit ? parseInt(req.query.limit as string) : 6;
+            res.json(successResponse(await svc.getRecentReadings(parseInt(req.params.id), limit)));
+        } catch (e) {
+            next(e);
+        }
+    }
     async deleteMeter(req: Request, res: Response, next: NextFunction) {
         try { await svc.deleteMeter(parseInt(req.params.id)); res.json(successResponse(null, 'Meter deleted')); } catch (e) { next(e); }
     }

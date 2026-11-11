@@ -91,6 +91,7 @@ export const metersApi = {
     delete: (id: number) => api.delete(`/meters/${id}`),
     importMeters: (data: any[]) => api.post('/meters/import', data),
     addManualReading: (id: number, data: { dateKeep: string; value: number }) => api.post(`/meters/${id}/manual-reading`, data),
+    getRecentReadings: (id: number, limit?: number) => api.get(`/meters/${id}/recent-readings`, { params: { limit } }),
     getBrands: (params?: any) => api.get('/meters/brands/list', { params }),
     createBrand: (data: any) => api.post('/meters/brands', data),
     updateBrand: (id: number, data: any) => api.put(`/meters/brands/${id}`, data),

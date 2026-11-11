@@ -922,4 +922,31 @@ export class MetersService {
         );
         return result.rows[0];
     }
+
+    async getRecentReadings(meterId: number, limit = 6) {
+        const meter = await this.getMeterById(meterId);
+        let valueColumn = 'energy_kwh';
+        if (meter.meter_type_id === 2) valueColumn = 'water_value';
+        else if (meter.meter_type_id === 3) valueColumn = 'gas_value';
+
+        const result = await query(
+            `SELECT id, date_keep, ${valueColumn} AS value, status, created_at
+             FROM actual_meter_data
+             WHERE meter_id = $1 AND ${valueColumn} IS NOT NULL
+             ORDER BY date_keep DESC, id DESC
+             LIMIT $2`,
+            [meterId, limit]
+        );
+        const rows = result.rows;
+        return rows.map((r, i) => {
+            const nextRow = rows[i + 1];
+            const diff = nextRow != null && nextRow.value != null
+                ? Number(r.value) - Number(nextRow.value)
+                : null;
+            return {
+                ...r,
+                diff: diff !== null ? Math.round((diff + Number.EPSILON) * 1000) / 1000 : null
+            };
+        });
+    }
 }
