@@ -270,11 +270,10 @@ const CATEGORY_TABS = [
 ];
 
 const TIME_RANGES = [
-    { minutes: 360, labelTh: '6 ชม. (24 จุด)', labelEn: '6h (24 pts)' },
-    { minutes: 720, labelTh: '12 ชม. (48 จุด)', labelEn: '12h (48 pts)' },
-    { minutes: 1440, labelTh: '24 ชม. (96 จุด)', labelEn: '24h (96 pts)' },
-    { minutes: 4320, labelTh: '3 วัน', labelEn: '3 Days' },
-    { minutes: 10080, labelTh: '7 วัน', labelEn: '7 Days' },
+    { minutes: 1440, labelTh: '24 ชม.', labelEn: '24hrs' },
+    { minutes: 10080, labelTh: '7 วัน', labelEn: '7days' },
+    { minutes: 43200, labelTh: '1 เดือน', labelEn: 'month' },
+    { minutes: 525600, labelTh: '1 ปี', labelEn: 'year' },
 ];
 
 interface MeterGraphModalProps {
@@ -617,6 +616,7 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
                                     <XAxis
                                         dataKey={minutes > 1440 ? 'full_time' : 'time'}
                                         stroke={C.sub}
+                                        minTickGap={24}
                                         style={{ fontSize: 10, fontFamily: MONO, fontWeight: 600 }}
                                     />
                                     <YAxis

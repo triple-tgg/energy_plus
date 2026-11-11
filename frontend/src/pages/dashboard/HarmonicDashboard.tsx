@@ -48,7 +48,12 @@ const LIMITS = {
 };
 
 const ORDERS = Array.from({ length: 32 }, (_, i) => i + 2); // H2..H33
-const HOURS_OPTIONS = [6, 24, 72, 168];
+const TIME_OPTIONS = [
+    { hours: 24, labelTh: '24 ชม.', labelEn: '24hrs' },
+    { hours: 168, labelTh: '7 วัน', labelEn: '7days' },
+    { hours: 720, labelTh: '1 เดือน', labelEn: 'month' },
+    { hours: 8760, labelTh: '1 ปี', labelEn: 'year' },
+];
 const LATEST_REFRESH_MS = 30_000;
 const HISTORY_REFRESH_MS = 5 * 60_000;
 const STALE_MS = 5 * 60_000;
@@ -78,7 +83,9 @@ const fmtTime = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '–';
 const fmtAxisTime = (iso: string, hours: number) => {
     const d = new Date(iso);
-    return hours > 24
+    return hours > 720
+        ? d.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short', year: '2-digit' })
+        : hours > 24
         ? d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
         : d.toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
 };
@@ -476,9 +483,9 @@ const HarmonicDashboard: React.FC = () => {
                         {/* Trends */}
                         <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                             <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub, letterSpacing: 1 }}>{t('ช่วงเวลา', 'RANGE')}</span>
-                            {HOURS_OPTIONS.map((h) => (
-                                <button key={h} id={`harmonic-range-${h}`} onClick={() => setHours(h)} style={pill(hours === h)}>
-                                    {h < 24 ? `${h}${t(' ชม.', 'h')}` : `${h / 24}${t(' วัน', 'd')}`}
+                            {TIME_OPTIONS.map((opt) => (
+                                <button key={opt.hours} id={`harmonic-range-${opt.hours}`} onClick={() => setHours(opt.hours)} style={pill(hours === opt.hours)}>
+                                    {t(opt.labelTh, opt.labelEn)}
                                 </button>
                             ))}
                         </div>

@@ -590,45 +590,123 @@ export const getMeterRealtimeHistory = async (filters: {
     const minutes = filters.minutes || 1440;
     const params: any[] = [minutes, filters.meterId];
 
-    // 1. Check actual_meter_data for official 15-minute summary intervals
-    const actualResult = await pool.query(
-        `SELECT
-            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
-            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
-            to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'DD/MM HH24:MI') AS full_time,
-            ROUND(COALESCE(d.energy_kw, 0)::numeric, 2)::float AS kw_3ph,
-            ROUND(COALESCE(d.energy_kva, 0)::numeric, 2)::float AS kva_3ph,
-            ROUND(COALESCE(d.energy_kvar, 0)::numeric, 2)::float AS kvar_3ph,
-            ROUND(COALESCE(d.energy_volt_p1, 0)::numeric, 1)::float AS vl1,
-            ROUND(COALESCE(d.energy_volt_p2, 0)::numeric, 1)::float AS vl2,
-            ROUND(COALESCE(d.energy_volt_p3, 0)::numeric, 1)::float AS vl3,
-            ROUND(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0)::numeric, 1)::float AS avg_voltage,
-            ROUND(COALESCE(d.energy_volt_l1, 0)::numeric, 1)::float AS vl12,
-            ROUND(COALESCE(d.energy_volt_l2, 0)::numeric, 1)::float AS vl23,
-            ROUND(COALESCE(d.energy_volt_l3, 0)::numeric, 1)::float AS vl31,
-            ROUND(COALESCE(d.energy_amp1, 0)::numeric, 2)::float AS il1,
-            ROUND(COALESCE(d.energy_amp2, 0)::numeric, 2)::float AS il2,
-            ROUND(COALESCE(d.energy_amp3, 0)::numeric, 2)::float AS il3,
-            ROUND(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0)::numeric, 2)::float AS avg_current,
-            ROUND(COALESCE(d.energy_pf1, 0)::numeric, 3)::float AS pf1,
-            ROUND(COALESCE(d.energy_pf2, 0)::numeric, 3)::float AS pf2,
-            ROUND(COALESCE(d.energy_pf3, 0)::numeric, 3)::float AS pf3,
-            ROUND(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0)::numeric, 3)::float AS avg_pf,
-            ROUND(COALESCE(d.energy_frequency, 0)::numeric, 2)::float AS hz,
-            ROUND(COALESCE(d.energy_kwh, 0)::numeric, 1)::float AS import_kwhr,
-            1 AS readings
-        FROM actual_meter_data d
-        WHERE d.meter_id = $2
-          AND d.date_keep >= NOW() - ($1 || ' minutes')::interval
-        ORDER BY d.date_keep ASC`,
-        params
-    );
+    // Determine aggregation level for actual_meter_data based on requested time range:
+    // - Year (> 30 days): daily aggregation (date_trunc('day'))
+    // - Month (> 7 days): hourly aggregation (date_trunc('hour'))
+    // - 24h & 7d: 15-minute intervals
+    let actualQuery: string;
+    let fallbackBucketSeconds = 900;
+
+    if (minutes > 43200) {
+        fallbackBucketSeconds = 86400; // 1 day
+        actualQuery = `
+            SELECT
+                to_char(date_trunc('day', d.date_keep AT TIME ZONE 'Asia/Bangkok'), 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+                to_char(date_trunc('day', d.date_keep AT TIME ZONE 'Asia/Bangkok'), 'DD/MM') AS time,
+                to_char(date_trunc('day', d.date_keep AT TIME ZONE 'Asia/Bangkok'), 'DD/MM/YY') AS full_time,
+                ROUND(AVG(COALESCE(d.energy_kw, 0))::numeric, 2)::float AS kw_3ph,
+                ROUND(AVG(COALESCE(d.energy_kva, 0))::numeric, 2)::float AS kva_3ph,
+                ROUND(AVG(COALESCE(d.energy_kvar, 0))::numeric, 2)::float AS kvar_3ph,
+                ROUND(AVG(COALESCE(d.energy_volt_p1, 0))::numeric, 1)::float AS vl1,
+                ROUND(AVG(COALESCE(d.energy_volt_p2, 0))::numeric, 1)::float AS vl2,
+                ROUND(AVG(COALESCE(d.energy_volt_p3, 0))::numeric, 1)::float AS vl3,
+                ROUND(AVG(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0))::numeric, 1)::float AS avg_voltage,
+                ROUND(AVG(COALESCE(d.energy_volt_l1, 0))::numeric, 1)::float AS vl12,
+                ROUND(AVG(COALESCE(d.energy_volt_l2, 0))::numeric, 1)::float AS vl23,
+                ROUND(AVG(COALESCE(d.energy_volt_l3, 0))::numeric, 1)::float AS vl31,
+                ROUND(AVG(COALESCE(d.energy_amp1, 0))::numeric, 2)::float AS il1,
+                ROUND(AVG(COALESCE(d.energy_amp2, 0))::numeric, 2)::float AS il2,
+                ROUND(AVG(COALESCE(d.energy_amp3, 0))::numeric, 2)::float AS il3,
+                ROUND(AVG(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0))::numeric, 2)::float AS avg_current,
+                ROUND(AVG(COALESCE(d.energy_pf1, 0))::numeric, 3)::float AS pf1,
+                ROUND(AVG(COALESCE(d.energy_pf2, 0))::numeric, 3)::float AS pf2,
+                ROUND(AVG(COALESCE(d.energy_pf3, 0))::numeric, 3)::float AS pf3,
+                ROUND(AVG(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0))::numeric, 3)::float AS avg_pf,
+                ROUND(AVG(COALESCE(d.energy_frequency, 0))::numeric, 2)::float AS hz,
+                ROUND(MAX(COALESCE(d.energy_kwh, 0))::numeric, 1)::float AS import_kwhr,
+                COUNT(*)::int AS readings
+            FROM actual_meter_data d
+            WHERE d.meter_id = $2
+              AND d.date_keep >= NOW() - ($1 || ' minutes')::interval
+            GROUP BY date_trunc('day', d.date_keep AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY date_trunc('day', d.date_keep AT TIME ZONE 'Asia/Bangkok') ASC
+        `;
+    } else if (minutes > 10080) {
+        fallbackBucketSeconds = 3600; // 1 hour
+        actualQuery = `
+            SELECT
+                to_char(date_trunc('hour', d.date_keep AT TIME ZONE 'Asia/Bangkok'), 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+                to_char(date_trunc('hour', d.date_keep AT TIME ZONE 'Asia/Bangkok'), 'DD/MM HH24:MI') AS time,
+                to_char(date_trunc('hour', d.date_keep AT TIME ZONE 'Asia/Bangkok'), 'DD/MM HH24:MI') AS full_time,
+                ROUND(AVG(COALESCE(d.energy_kw, 0))::numeric, 2)::float AS kw_3ph,
+                ROUND(AVG(COALESCE(d.energy_kva, 0))::numeric, 2)::float AS kva_3ph,
+                ROUND(AVG(COALESCE(d.energy_kvar, 0))::numeric, 2)::float AS kvar_3ph,
+                ROUND(AVG(COALESCE(d.energy_volt_p1, 0))::numeric, 1)::float AS vl1,
+                ROUND(AVG(COALESCE(d.energy_volt_p2, 0))::numeric, 1)::float AS vl2,
+                ROUND(AVG(COALESCE(d.energy_volt_p3, 0))::numeric, 1)::float AS vl3,
+                ROUND(AVG(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0))::numeric, 1)::float AS avg_voltage,
+                ROUND(AVG(COALESCE(d.energy_volt_l1, 0))::numeric, 1)::float AS vl12,
+                ROUND(AVG(COALESCE(d.energy_volt_l2, 0))::numeric, 1)::float AS vl23,
+                ROUND(AVG(COALESCE(d.energy_volt_l3, 0))::numeric, 1)::float AS vl31,
+                ROUND(AVG(COALESCE(d.energy_amp1, 0))::numeric, 2)::float AS il1,
+                ROUND(AVG(COALESCE(d.energy_amp2, 0))::numeric, 2)::float AS il2,
+                ROUND(AVG(COALESCE(d.energy_amp3, 0))::numeric, 2)::float AS il3,
+                ROUND(AVG(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0))::numeric, 2)::float AS avg_current,
+                ROUND(AVG(COALESCE(d.energy_pf1, 0))::numeric, 3)::float AS pf1,
+                ROUND(AVG(COALESCE(d.energy_pf2, 0))::numeric, 3)::float AS pf2,
+                ROUND(AVG(COALESCE(d.energy_pf3, 0))::numeric, 3)::float AS pf3,
+                ROUND(AVG(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0))::numeric, 3)::float AS avg_pf,
+                ROUND(AVG(COALESCE(d.energy_frequency, 0))::numeric, 2)::float AS hz,
+                ROUND(MAX(COALESCE(d.energy_kwh, 0))::numeric, 1)::float AS import_kwhr,
+                COUNT(*)::int AS readings
+            FROM actual_meter_data d
+            WHERE d.meter_id = $2
+              AND d.date_keep >= NOW() - ($1 || ' minutes')::interval
+            GROUP BY date_trunc('hour', d.date_keep AT TIME ZONE 'Asia/Bangkok')
+            ORDER BY date_trunc('hour', d.date_keep AT TIME ZONE 'Asia/Bangkok') ASC
+        `;
+    } else {
+        actualQuery = `
+            SELECT
+                to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+                to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
+                to_char(d.date_keep AT TIME ZONE 'Asia/Bangkok', 'DD/MM HH24:MI') AS full_time,
+                ROUND(COALESCE(d.energy_kw, 0)::numeric, 2)::float AS kw_3ph,
+                ROUND(COALESCE(d.energy_kva, 0)::numeric, 2)::float AS kva_3ph,
+                ROUND(COALESCE(d.energy_kvar, 0)::numeric, 2)::float AS kvar_3ph,
+                ROUND(COALESCE(d.energy_volt_p1, 0)::numeric, 1)::float AS vl1,
+                ROUND(COALESCE(d.energy_volt_p2, 0)::numeric, 1)::float AS vl2,
+                ROUND(COALESCE(d.energy_volt_p3, 0)::numeric, 1)::float AS vl3,
+                ROUND(((COALESCE(d.energy_volt_p1, 0) + COALESCE(d.energy_volt_p2, 0) + COALESCE(d.energy_volt_p3, 0)) / 3.0)::numeric, 1)::float AS avg_voltage,
+                ROUND(COALESCE(d.energy_volt_l1, 0)::numeric, 1)::float AS vl12,
+                ROUND(COALESCE(d.energy_volt_l2, 0)::numeric, 1)::float AS vl23,
+                ROUND(COALESCE(d.energy_volt_l3, 0)::numeric, 1)::float AS vl31,
+                ROUND(COALESCE(d.energy_amp1, 0)::numeric, 2)::float AS il1,
+                ROUND(COALESCE(d.energy_amp2, 0)::numeric, 2)::float AS il2,
+                ROUND(COALESCE(d.energy_amp3, 0)::numeric, 2)::float AS il3,
+                ROUND(((COALESCE(d.energy_amp1, 0) + COALESCE(d.energy_amp2, 0) + COALESCE(d.energy_amp3, 0)) / 3.0)::numeric, 2)::float AS avg_current,
+                ROUND(COALESCE(d.energy_pf1, 0)::numeric, 3)::float AS pf1,
+                ROUND(COALESCE(d.energy_pf2, 0)::numeric, 3)::float AS pf2,
+                ROUND(COALESCE(d.energy_pf3, 0)::numeric, 3)::float AS pf3,
+                ROUND(((COALESCE(d.energy_pf1, 0) + COALESCE(d.energy_pf2, 0) + COALESCE(d.energy_pf3, 0)) / 3.0)::numeric, 3)::float AS avg_pf,
+                ROUND(COALESCE(d.energy_frequency, 0)::numeric, 2)::float AS hz,
+                ROUND(COALESCE(d.energy_kwh, 0)::numeric, 1)::float AS import_kwhr,
+                1 AS readings
+            FROM actual_meter_data d
+            WHERE d.meter_id = $2
+              AND d.date_keep >= NOW() - ($1 || ' minutes')::interval
+            ORDER BY d.date_keep ASC
+        `;
+    }
+
+    // 1. Check actual_meter_data for official summary intervals
+    const actualResult = await pool.query(actualQuery, params);
 
     if (actualResult.rows.length > 0) {
         return actualResult.rows;
     }
 
-    // 2. Fallback: Aggregate readings into 15-minute summary intervals (900 seconds)
+    // 2. Fallback: Aggregate readings into summary intervals
     const fallbackResult = await pool.query(
         `WITH mapped_readings AS (
             SELECT
@@ -654,9 +732,9 @@ export const getMeterRealtimeHistory = async (filters: {
               AND COALESCE(rmm.meter_id, m_fallback.meter_id) = $2
         )
         SELECT
-            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)) AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
-            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)) AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
-            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)) AT TIME ZONE 'Asia/Bangkok', 'DD/MM HH24:MI') AS full_time,
+            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / ${fallbackBucketSeconds}) * ${fallbackBucketSeconds})) AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / ${fallbackBucketSeconds}) * ${fallbackBucketSeconds})) AT TIME ZONE 'Asia/Bangkok', 'HH24:MI') AS time,
+            to_char((to_timestamp(floor(extract(epoch from mr.received_at) / ${fallbackBucketSeconds}) * ${fallbackBucketSeconds})) AT TIME ZONE 'Asia/Bangkok', 'DD/MM HH24:MI') AS full_time,
             ROUND(AVG(mr.kw_3ph)::numeric, 2)::float AS kw_3ph,
             ROUND(AVG(mr.kw1)::numeric, 2)::float AS kw1,
             ROUND(AVG(mr.kw2)::numeric, 2)::float AS kw2,
@@ -688,7 +766,7 @@ export const getMeterRealtimeHistory = async (filters: {
             ROUND(MAX(mr.import_kwhr)::numeric, 1)::float AS import_kwhr,
             COUNT(*)::int AS readings
         FROM mapped_readings mr
-        GROUP BY to_timestamp(floor(extract(epoch from mr.received_at) / 900) * 900)
+        GROUP BY to_timestamp(floor(extract(epoch from mr.received_at) / ${fallbackBucketSeconds}) * ${fallbackBucketSeconds})
         ORDER BY t ASC`,
         params
     );

@@ -923,7 +923,7 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
                 : t('สัปดาห์ล่าสุด · จันทร์ − อาทิตย์', 'Last Week · Mon − Sun');
 
     const DIMS = [['overview', t('ภาพรวม', 'Overview')], ['branch', t('ตามไซต์', 'By Site')], ['building', t('ตามตึก', 'By Building')]];
-    const GRANS = [['year', t('รายปี', 'Yearly')], ['month', t('รายเดือน', 'Monthly')], ['week', t('รายสัปดาห์', 'Weekly')], ['day', t('รายวัน', 'Daily')]];
+    const GRANS = [['day', t('24 ชม.', '24hrs')], ['week', t('7 วัน', '7days')], ['month', t('1 เดือน', 'month')], ['year', t('1 ปี', 'year')]];
     const chip = (a: boolean): React.CSSProperties => ({
         fontFamily: MONO, fontSize: 11.5, letterSpacing: 0.3, padding: '6px 12px', border: `1px solid ${a ? C.accent : C.line}`,
         cursor: 'pointer', background: a ? C.accent : C.panel, color: a ? '#fff' : C.sub, marginRight: 6, marginBottom: 6,
