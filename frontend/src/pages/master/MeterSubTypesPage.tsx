@@ -133,7 +133,46 @@ const MeterSubTypesPage: React.FC = () => {
             key: 'meter_type_name', title: t('ประเภทหลัก', 'Parent Type'),
             render: (v: string) => v ? <span className="badge badge-info">{v}</span> : '—',
         },
-        { key: 'sub_type_name', title: t('ชื่อ Sub Type', 'Sub Type Name') },
+        {
+            key: 'sub_type_name',
+            title: t('ชื่อ Sub Type', 'Sub Type Name'),
+            render: (v: string, row: any) => {
+                const upper = String(v || '').trim().toUpperCase();
+                const isPower = Number(row.meter_type_id) === 1 || String(row.meter_type_name || '').toLowerCase() === 'power';
+                if (!isPower) return <strong>{v}</strong>;
+                if (upper === 'MDB') {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <strong style={{ color: '#c2410c' }}>{v}</strong>
+                            <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#ffedd5', color: '#c2410c', border: '1px solid #fdba74' }}>
+                                {t('ตู้เมนหลัก (Main Distribution Board)', 'Main Distribution Board')}
+                            </span>
+                        </div>
+                    );
+                }
+                if (upper === 'DB') {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <strong style={{ color: '#15803d' }}>{v}</strong>
+                            <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+                                {t('ตู้กระจายไฟย่อย — ไม่นับรวมกำลังไฟซ้ำระหว่าง MDB กับ ELE, kWh', 'Sub-main DB — Excluded from power sum between MDB and ELE/kWh')}
+                            </span>
+                        </div>
+                    );
+                }
+                if (upper === 'ELE' || upper === 'KWH') {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <strong style={{ color: '#854d0e' }}>{v}</strong>
+                            <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#fef9c3', color: '#854d0e', border: '1px solid #fde047' }}>
+                                {t('มิเตอร์ไฟฟ้าปลายทาง (End-user / Load Meter)', 'End-user Load Meter')}
+                            </span>
+                        </div>
+                    );
+                }
+                return <strong>{v}</strong>;
+            },
+        },
         {
             key: 'is_active', title: t('สถานะ', 'Status'),
             render: (v: boolean) => (
@@ -211,7 +250,7 @@ const MeterSubTypesPage: React.FC = () => {
 
                 <div className="form-group">
                     <label className="form-label">{t('ชื่อ Sub Type', 'Sub Type Name')} <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" placeholder={t('เช่น ELE, MDB, CHILLER', 'e.g. ELE, MDB, CHILLER')}
+                    <input type="text" className="form-control" placeholder={t('เช่น MDB, DB, ELE, KWH, CHILLER', 'e.g. MDB, DB, ELE, KWH, CHILLER')}
                         value={form.subTypeName} onChange={(e) => setForm({ ...form, subTypeName: e.target.value })} autoFocus />
                 </div>
 

@@ -139,12 +139,14 @@ const MetersPage: React.FC = () => {
 
     // Filter states (temp selections)
     const [tempMeterTypeId, setTempMeterTypeId] = useState('');
+    const [tempMeterSubTypeId, setTempMeterSubTypeId] = useState('');
     const [tempSiteId, setTempSiteId] = useState('');
     const [tempBuildingId, setTempBuildingId] = useState('');
     const [tempZoneId, setTempZoneId] = useState('');
 
     // Applied filter states
     const [filterMeterTypeId, setFilterMeterTypeId] = useState('');
+    const [filterMeterSubTypeId, setFilterMeterSubTypeId] = useState('');
     const [filterSiteId, setFilterSiteId] = useState('');
     const [filterBuildingId, setFilterBuildingId] = useState('');
     const [filterZoneId, setFilterZoneId] = useState('');
@@ -184,6 +186,7 @@ const MetersPage: React.FC = () => {
         try {
             const params: any = { page, limit };
             if (filterMeterTypeId) params.meterTypeId = filterMeterTypeId;
+            if (filterMeterSubTypeId) params.meterSubTypeId = filterMeterSubTypeId;
             if (filterSiteId) params.siteId = filterSiteId;
             if (filterBuildingId) params.buildingId = filterBuildingId;
             if (filterZoneId) params.zoneId = filterZoneId;
@@ -193,7 +196,7 @@ const MetersPage: React.FC = () => {
             setTotal(res.data.pagination?.total || 0);
         } catch (err) { console.error(err); }
         setLoading(false);
-    }, [page, limit, filterMeterTypeId, filterSiteId, filterBuildingId, filterZoneId, search]);
+    }, [page, limit, filterMeterTypeId, filterMeterSubTypeId, filterSiteId, filterBuildingId, filterZoneId, search]);
 
     const fetchLookups = useCallback(async () => {
         try {
@@ -531,6 +534,7 @@ const MetersPage: React.FC = () => {
 
     const handleShowData = () => {
         setFilterMeterTypeId(tempMeterTypeId);
+        setFilterMeterSubTypeId(tempMeterSubTypeId);
         setFilterSiteId(tempSiteId);
         setFilterBuildingId(tempBuildingId);
         setFilterZoneId(tempZoneId);
@@ -871,7 +875,39 @@ const MetersPage: React.FC = () => {
             render: (_: any, row: any) => (language === 'en' ? (row.building_name_en || row.building_name) : (row.building_name_th || row.building_name)) || '—',
         },
         { key: 'zone_name', title: t('โซน', 'Zone') },
-        { key: 'meter_type_name', title: t('ประเภท', 'Type'), render: (_: any, row: any) => row.sub_type_name ? `${row.meter_type_name} / ${row.sub_type_name}` : (row.meter_type_name || '—') },
+        { key: 'meter_type_name', title: t('ประเภท', 'Type'), render: (_: any, row: any) => row.meter_type_name || '—' },
+        {
+            key: 'sub_type_name',
+            title: t('ประเภทย่อย', 'Sub Type'),
+            render: (_: any, row: any) => {
+                const st = String(row.sub_type_name || '').trim();
+                if (!st) return '—';
+                const upper = st.toUpperCase();
+                const isMdb = upper.includes('MDB');
+                const isDb = upper === 'DB' || upper.startsWith('DB ') || upper.startsWith('DB-');
+                const bg = isMdb ? '#ffedd5' : isDb ? '#dcfce7' : '#fef9c3';
+                const fg = isMdb ? '#c2410c' : isDb ? '#15803d' : '#854d0e';
+                const border = isMdb ? '#fdba74' : isDb ? '#86efac' : '#fde047';
+                return (
+                    <span
+                        title={isDb ? t('มิเตอร์ DB (ตู้กระจายไฟย่อย) จะไม่ถูกนับรวมกำลังไฟซ้ำซ้อนระหว่าง MDB กับ ELE, kWh', 'DB Meter (Sub-main) is excluded from total power aggregation between MDB and ELE/kWh') : undefined}
+                        style={{
+                            fontFamily: MONO,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 7px',
+                            borderRadius: 4,
+                            background: bg,
+                            color: fg,
+                            border: `1px solid ${border}`,
+                            display: 'inline-block',
+                        }}
+                    >
+                        {st}
+                    </span>
+                );
+            },
+        },
         {
             key: 'meter_brand_name', title: t('รุ่น', 'Model'),
             render: (v: string) => v ? <span className="badge badge-info">{v}</span> : '—',
@@ -1025,10 +1061,27 @@ const MetersPage: React.FC = () => {
                     <select
                         style={{ fontFamily: MONO, fontSize: '12px', padding: '5px 8px', background: C.panel, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 0, minWidth: 120 }}
                         value={tempMeterTypeId}
-                        onChange={e => setTempMeterTypeId(e.target.value)}
+                        onChange={e => { setTempMeterTypeId(e.target.value); setTempMeterSubTypeId(''); }}
                     >
                         <option value="">— {t('ทั้งหมด', 'ALL')} —</option>
                         {types.map(t => <option key={t.meter_type_id} value={t.meter_type_id}>{t.meter_type_name}</option>)}
+                    </select>
+
+                    <label style={{ fontFamily: MONO, fontWeight: 700, fontSize: '10.5px', color: C.sub, letterSpacing: '0.5px', textTransform: 'uppercase', marginLeft: 4 }}>{t('ประเภทย่อย', 'SUB TYPE')}</label>
+                    <select
+                        style={{ fontFamily: MONO, fontSize: '12px', padding: '5px 8px', background: C.panel, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 0, minWidth: 120 }}
+                        value={tempMeterSubTypeId}
+                        onChange={e => setTempMeterSubTypeId(e.target.value)}
+                    >
+                        <option value="">— {t('ทั้งหมด', 'ALL')} —</option>
+                        {(tempMeterTypeId
+                            ? (types.find((t: any) => t.meter_type_id === parseInt(tempMeterTypeId))?.sub_types || [])
+                            : types.flatMap((t: any) => (t.sub_types || []).map((st: any) => ({ ...st, parentName: t.meter_type_name })))
+                        ).map((st: any) => (
+                            <option key={st.meter_sub_type_id} value={st.meter_sub_type_id}>
+                                {tempMeterTypeId ? st.sub_type_name : `${st.parentName} — ${st.sub_type_name}`}
+                            </option>
+                        ))}
                     </select>
                 </div>
 
@@ -1148,7 +1201,7 @@ const MetersPage: React.FC = () => {
                                     ['Room Code', 'รหัสห้อง', 'Room Code', 'R-101, R-102, K-01'],
                                     ['Room Name', 'ชื่อห้อง', 'Room Name', 'Main Pump Room, Oven Area, Server Room'],
                                     ['Meter Group', 'กลุ่มมิเตอร์', 'Meter grouping', 'ส่วนกลาง, Tenant, Utilities, Production'],
-                                    ['Meter Type', 'ประเภทมิเตอร์', 'Supported Types: ELE, WAT, GAS, MDB, SOL, Humidity, Temperature', 'ELE (ไฟฟ้า), WAT (น้ำ), GAS, MDB, SOL'],
+                                    ['Meter Type', 'ประเภทมิเตอร์ / ประเภทย่อย', 'Supported Power Subtypes: MDB, DB, ELE, KWH (or WAT, GAS, SOL)', 'MDB (เมนหลัก), DB (ตู้กระจายไฟย่อย), ELE, KWH, WAT (น้ำ)'],
                                     ['Meter Code', 'รหัสมิเตอร์ (ต้องไม่ซ้ำกัน)', 'Unique Meter Code (Required)', 'MTR-001, MTR-002, WAT-001'],
                                     ['Meter Name', 'ชื่อมิเตอร์', 'Meter display name', 'Main Production Meter, Oven Meter 1'],
                                     ['Meter Model', 'ยี่ห้อและรุ่นมิเตอร์', 'Model Name (Auto-created if not exists)', 'MPR-45S, PM5110, SDM630, M4M 30'],
@@ -1251,15 +1304,48 @@ const MetersPage: React.FC = () => {
                         </select>
                     </div>
                     <div className="form-group">
-                        <label className="form-label">{t('ประเภทย่อย', 'Sub Type')}</label>
+                        <label className="form-label">{t('ประเภทย่อย (Meter Subtype)', 'Sub Type')}</label>
                         <select className="form-control" value={form.meterSubTypeId} onChange={e => setForm({ ...form, meterSubTypeId: e.target.value })}>
                             <option value="">— {t('เลือก', 'Select')} —</option>
-                            {(types.find((t: any) => t.meter_type_id === parseInt(form.meterTypeId))?.sub_types || []).map((st: any) => (
-                                <option key={st.meter_sub_type_id} value={st.meter_sub_type_id}>{st.sub_type_name}</option>
-                            ))}
+                            {(types.find((t: any) => t.meter_type_id === parseInt(form.meterTypeId))?.sub_types || []).map((st: any) => {
+                                const nameUpper = String(st.sub_type_name || '').trim().toUpperCase();
+                                const desc = nameUpper === 'MDB'
+                                    ? ` (${t('ตู้เมนหลัก Main MDB', 'Main MDB')})`
+                                    : nameUpper === 'DB'
+                                        ? ` (${t('ตู้กระจายไฟย่อย — ไม่นับรวมซ้ำกับ MDB / ELE, kWh', 'Sub-main DB — Excluded from sum')})`
+                                        : nameUpper === 'ELE'
+                                            ? ` (${t('มิเตอร์ไฟฟ้าปลายทาง Power Meter', 'End-user Power Meter')})`
+                                            : nameUpper === 'KWH'
+                                                ? ` (${t('มิเตอร์วัดหน่วยไฟฟ้าปลายทาง kWh Meter', 'End-user kWh Meter')})`
+                                                : '';
+                                return (
+                                    <option key={st.meter_sub_type_id} value={st.meter_sub_type_id}>
+                                        {st.sub_type_name}{desc}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
                 </div>
+                {(() => {
+                    const selectedSub = (types.find((t: any) => t.meter_type_id === parseInt(form.meterTypeId))?.sub_types || [])
+                        .find((st: any) => st.meter_sub_type_id === parseInt(form.meterSubTypeId));
+                    const subName = String(selectedSub?.sub_type_name || '').trim().toUpperCase();
+                    if (subName === 'DB' || subName.startsWith('DB ') || subName.startsWith('DB-')) {
+                        return (
+                            <div style={{ fontSize: 12, color: '#15803d', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '7px 10px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Info size={14} style={{ flexShrink: 0 }} />
+                                <span>
+                                    {t(
+                                        'มิเตอร์ประเภทย่อย DB (Distribution Board) อยู่คั่นกลางระหว่าง MDB กับ ELE, kWh ระบบจะไม่นำค่าของ DB มานับรวมกำลังไฟ (kW) หรือหน่วยไฟฟ้า (kWh) ซ้ำซ้อน',
+                                        'DB (Distribution Board) meters sit between MDB and ELE/kWh and are excluded from total power/energy aggregation to prevent double-counting.'
+                                    )}
+                                </span>
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
 
                 <div className="form-row">
                     <div className="form-group">

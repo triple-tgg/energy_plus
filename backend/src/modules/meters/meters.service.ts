@@ -63,7 +63,7 @@ export class MetersService {
             offset = 0;
             page = 1;
         }
-        const { siteId, buildingId, zoneId, meterTypeId, search } = queryParams;
+        const { siteId, buildingId, zoneId, meterTypeId, meterSubTypeId, subTypeId, search } = queryParams;
         let whereClause = 'WHERE 1=1';
         const params: any[] = [];
 
@@ -72,6 +72,8 @@ export class MetersService {
         if (buildingId) { params.push(parseInt(buildingId)); whereClause += ` AND m.building_id = $${params.length}`; }
         if (zoneId) { params.push(parseInt(zoneId)); whereClause += ` AND m.zone_id = $${params.length}`; }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); whereClause += ` AND m.meter_type_id = $${params.length}`; }
+        const effectiveSubTypeId = meterSubTypeId || subTypeId;
+        if (effectiveSubTypeId) { params.push(parseInt(effectiveSubTypeId)); whereClause += ` AND m.meter_sub_type_id = $${params.length}`; }
         if (search) { params.push(`%${search}%`); whereClause += ` AND (m.meter_name ILIKE $${params.length} OR m.meter_code ILIKE $${params.length})`; }
         if (queryParams.activeOnly === true || queryParams.activeOnly === 'true') {
             whereClause += ' AND m.is_active = true';
@@ -517,9 +519,58 @@ export class MetersService {
             };
 
             // Helper: get or create meter type
+            const POWER_SUBTYPE_NAMES = new Set(['MDB', 'DB', 'ELE', 'KWH', 'CHILLER', 'AIR', 'SOLAR', 'SOL', 'LIGHTING', 'PLUG', 'LIFT']);
+            const meterSubTypeCache = new Map<string, number>();
+            const existingSubTypes = await client.query(`SELECT meter_sub_type_id, meter_type_id, sub_type_name FROM meter_sub_type`);
+            existingSubTypes.rows.forEach((r: any) => {
+                meterSubTypeCache.set(`${r.meter_type_id}_${String(r.sub_type_name || '').trim().toUpperCase()}`, r.meter_sub_type_id);
+            });
+
+            const getOrCreateMeterSubType = async (parentTypeId: number, subTypeName: string): Promise<number | null> => {
+                if (!parentTypeId || !subTypeName) return null;
+                let normalized = subTypeName.trim().toUpperCase();
+                if (normalized === 'SOL') normalized = 'SOLAR';
+                const cacheKey = `${parentTypeId}_${normalized}`;
+                if (meterSubTypeCache.has(cacheKey)) return meterSubTypeCache.get(cacheKey)!;
+                const existing = await client.query(
+                    `SELECT meter_sub_type_id FROM meter_sub_type WHERE meter_type_id = $1 AND LOWER(sub_type_name) = LOWER($2) LIMIT 1`,
+                    [parentTypeId, normalized]
+                );
+                if (existing.rows.length > 0) {
+                    const id = existing.rows[0].meter_sub_type_id;
+                    meterSubTypeCache.set(cacheKey, id);
+                    return id;
+                }
+                const res = await client.query(
+                    `INSERT INTO meter_sub_type (meter_type_id, sub_type_name, is_active) VALUES ($1, $2, true) RETURNING meter_sub_type_id`,
+                    [parentTypeId, normalized]
+                );
+                const id = res.rows[0].meter_sub_type_id;
+                meterSubTypeCache.set(cacheKey, id);
+                return id;
+            };
+
             const getOrCreateMeterType = async (typeName: string): Promise<number | null> => {
                 if (!typeName) return null;
                 const trimmed = typeName.trim();
+                const upper = trimmed.toUpperCase();
+                // Map common Power & Water aliases to standard parent types
+                if (POWER_SUBTYPE_NAMES.has(upper) || upper === 'POWER' || upper === 'POW') {
+                    const powerType = await client.query(`SELECT meter_type_id FROM meter_type WHERE meter_type_id = 1 OR LOWER(meter_type_name) = 'power' ORDER BY meter_type_id LIMIT 1`);
+                    if (powerType.rows.length > 0) {
+                        const id = powerType.rows[0].meter_type_id;
+                        meterTypeCache.set(trimmed, id);
+                        return id;
+                    }
+                }
+                if (upper === 'WAT' || upper === 'WATER') {
+                    const waterType = await client.query(`SELECT meter_type_id FROM meter_type WHERE meter_type_id = 2 OR LOWER(meter_type_name) = 'water' ORDER BY meter_type_id LIMIT 1`);
+                    if (waterType.rows.length > 0) {
+                        const id = waterType.rows[0].meter_type_id;
+                        meterTypeCache.set(trimmed, id);
+                        return id;
+                    }
+                }
                 if (meterTypeCache.has(trimmed)) return meterTypeCache.get(trimmed)!;
                 // Try to find existing first (case-insensitive)
                 const existing = await client.query(
@@ -619,6 +670,12 @@ export class MetersService {
                     const buildingId = await getOrCreateBuilding(buildingName, siteId);
                     const zoneId = await getOrCreateZone(zoneName, buildingId);
                     const meterTypeId = await getOrCreateMeterType(meterTypeName);
+                    const rawSubTypeCandidate = String(row.meterSubType || '').trim()
+                        || (POWER_SUBTYPE_NAMES.has(meterTypeName.toUpperCase()) ? meterTypeName : '')
+                        || (POWER_SUBTYPE_NAMES.has(String(row.meterGroup || '').trim().toUpperCase()) ? String(row.meterGroup).trim() : '');
+                    const meterSubTypeId = (meterTypeId && rawSubTypeCandidate)
+                        ? await getOrCreateMeterSubType(meterTypeId, rawSubTypeCandidate)
+                        : null;
                     const meterBrandId = await getOrCreateMeterBrand(row.meterName || '', row.meterModel || '');
                     const loopId = await getOrCreateLoop(row.loop);
 
@@ -710,7 +767,8 @@ export class MetersService {
                                 converter=$21, status=$22, last_modified_by=$23, last_modified_on=NOW(),
                                 address=COALESCE($25, address), redis_datatype=$26,
                                 multiply=COALESCE($27, multiply), external_meter_id=COALESCE($28, external_meter_id),
-                                ip_converter=COALESCE($29, ip_converter)
+                                ip_converter=COALESCE($29, ip_converter),
+                                meter_sub_type_id=COALESCE($30, meter_sub_type_id)
                              WHERE meter_id=$24`,
                             [
                                 meterCode,
@@ -742,24 +800,25 @@ export class MetersService {
                                 multiply,
                                 externalMeterId,
                                 ipConverter,
+                                meterSubTypeId,
                             ]
                         );
                     } else {
                         // INSERT new meter
                         const inserted = await client.query(
                             `INSERT INTO meter (
-                                meter_code, meter_name, address, meter_brand_id, meter_type_id, loop_id,
+                                meter_code, meter_name, address, meter_brand_id, meter_type_id, meter_sub_type_id, loop_id,
                                 site_id, building_id, zone_id, is_active, ip_address, port_number,
                                 room_code, room_name, phase, circuit, floor, site, site_el,
                                 meter_group, max_kwh, subaddress, converter, status, created_by, created_on,
                                 redis_datatype, multiply, external_meter_id, ip_converter
                              )
                              VALUES (
-                                $1, $2, $3, $4, $5, $6,
-                                $7, $8, $9, true, $10, $11,
-                                $12, $13, $14, $15, $16, $17, $18,
-                                $19, $20, $21, $22, $23, $24, NOW(),
-                                $25, COALESCE($26, 1), $27, $28
+                                $1, $2, $3, $4, $5, $6, $7,
+                                $8, $9, $10, true, $11, $12,
+                                $13, $14, $15, $16, $17, $18, $19,
+                                $20, $21, $22, $23, $24, $25, NOW(),
+                                $26, COALESCE($27, 1), $28, $29
                              )
                              RETURNING meter_id`,
                             [
@@ -768,6 +827,7 @@ export class MetersService {
                                 modbusAddr,
                                 meterBrandId,
                                 meterTypeId,
+                                meterSubTypeId,
                                 loopId,
                                 siteId,
                                 buildingId,

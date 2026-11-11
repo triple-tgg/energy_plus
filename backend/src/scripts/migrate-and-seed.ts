@@ -140,9 +140,17 @@ export async function migrateAndSeed(closePool: boolean = true) {
         meter_brand_name VARCHAR(100) NOT NULL,
         model_name VARCHAR(100),
         notes VARCHAR(500),
-        is_active BOOLEAN DEFAULT true
+        is_active BOOLEAN DEFAULT true,
+        created_by VARCHAR(100),
+        created_on TIMESTAMPTZ DEFAULT NOW(),
+        last_modified_by VARCHAR(100),
+        last_modified_on TIMESTAMPTZ
       )
     `);
+        await client.query(`ALTER TABLE meter_brand ADD COLUMN IF NOT EXISTS created_by VARCHAR(100)`);
+        await client.query(`ALTER TABLE meter_brand ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`);
+        await client.query(`ALTER TABLE meter_brand ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(100)`);
+        await client.query(`ALTER TABLE meter_brand ADD COLUMN IF NOT EXISTS last_modified_on TIMESTAMPTZ`);
         console.log('  ✅ meter_brand');
 
         // Meter Type
@@ -181,12 +189,20 @@ export async function migrateAndSeed(closePool: boolean = true) {
       CREATE TABLE IF NOT EXISTS loop (
         loop_id SERIAL PRIMARY KEY,
         loop_name VARCHAR(100),
-        port_no INTEGER,
+        port_no VARCHAR(50),
         baudrate INTEGER DEFAULT 9600,
+        stopbit INTEGER DEFAULT 1,
+        parity VARCHAR(10) DEFAULT 'N',
+        databit INTEGER DEFAULT 8,
+        remark VARCHAR(500),
         description VARCHAR(500),
         is_active BOOLEAN DEFAULT true
       )
     `);
+        await client.query(`ALTER TABLE loop ADD COLUMN IF NOT EXISTS stopbit INTEGER DEFAULT 1`);
+        await client.query(`ALTER TABLE loop ADD COLUMN IF NOT EXISTS parity VARCHAR(10) DEFAULT 'N'`);
+        await client.query(`ALTER TABLE loop ADD COLUMN IF NOT EXISTS databit INTEGER DEFAULT 8`);
+        await client.query(`ALTER TABLE loop ADD COLUMN IF NOT EXISTS remark VARCHAR(500)`);
         console.log('  ✅ loop');
 
         // Protocol
@@ -780,6 +796,12 @@ export async function migrateAndSeed(closePool: boolean = true) {
                  )`,
                 [st.typeId, st.name, st.sortOrder]
             );
+            await client.query(
+                `UPDATE meter_sub_type
+                 SET sort_order = $3, is_active = true
+                 WHERE meter_type_id = $1 AND LOWER(sub_type_name) = LOWER($2::varchar)`,
+                [st.typeId, st.name, st.sortOrder]
+            );
         }
         await client.query(`
             SELECT setval(
@@ -787,13 +809,72 @@ export async function migrateAndSeed(closePool: boolean = true) {
                 COALESCE((SELECT MAX(meter_sub_type_id) FROM meter_sub_type), 1)
             )
         `);
-        console.log('  ✅ meter_sub_type (Standard sub types for all 8 meter types)');
+        console.log('  ✅ meter_sub_type (Standard sub types for all 8 meter types including Power: MDB, DB, ELE, KWH)');
+
+        // --- Meter Brands / Models (reference data) ---
+        const standardBrands = [
+            { brand: 'Schneider Electric', model: 'PM5110', notes: 'Power Meter 3-Phase Modbus RS485 (สำหรับ MDB / DB / ELE)' },
+            { brand: 'Schneider Electric', model: 'PM5350', notes: 'Power Meter 3-Phase Digital Analyzer (สำหรับ MDB / DB)' },
+            { brand: 'Schneider Electric', model: 'PM2230', notes: 'PowerLogic PM2000 Series (สำหรับ DB / ELE)' },
+            { brand: 'Entes', model: 'MPR-45S', notes: 'Network Analyzer 3P4W Modbus (สำหรับ MDB / DB / ELE)' },
+            { brand: 'ABB', model: 'M4M 30', notes: 'Network Analyzer Modbus RTU/TCP (สำหรับ MDB / DB)' },
+            { brand: 'Mitsubishi', model: 'ME96SS', notes: 'Electronic Multi-Measuring Instrument (สำหรับ Main MDB)' },
+            { brand: 'Eastron', model: 'SDM630-Modbus', notes: '3-Phase Multifunction DIN Rail Meter (สำหรับ ELE / KWH)' },
+            { brand: 'Eastron', model: 'SDM120-Modbus', notes: '1-Phase DIN Rail kWh Meter (สำหรับ KWH ปลายทาง)' },
+            { brand: 'Digital Water', model: 'WaterFlow-50', notes: 'Ultrasonic / Pulse Water Meter (สำหรับมิเตอร์น้ำ)' },
+            { brand: 'Manual Meter', model: 'Standard Analog/Digital', notes: 'มิเตอร์จดหน่วยแบบ Manual / สแกน QR Code (ทศนิยม 3 ตำแหน่ง)' },
+        ];
+        for (const b of standardBrands) {
+            await client.query(
+                `INSERT INTO meter_brand (meter_brand_name, model_name, notes, is_active, created_by, created_on)
+                 SELECT $1::varchar, $2::varchar, $3::varchar, true, 'system', NOW()
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM meter_brand
+                     WHERE LOWER(meter_brand_name) = LOWER($1::varchar)
+                       AND LOWER(COALESCE(model_name, '')) = LOWER($2::varchar)
+                 )`,
+                [b.brand, b.model, b.notes]
+            );
+        }
+        await client.query(`
+            SELECT setval(
+                'meter_brand_meter_brand_id_seq',
+                COALESCE((SELECT MAX(meter_brand_id) FROM meter_brand), 1)
+            )
+        `);
+        console.log('  ✅ meter_brand (10 standard meter models)');
+
+        // --- Loops (reference data) ---
+        const standardLoops = [
+            { portNo: 1, name: 'Loop 1', baudrate: 9600, stopbit: 1, parity: 'N', databit: 8, remark: 'Loop 1 — Main RS485 Bus (MDB / DB)' },
+            { portNo: 2, name: 'Loop 2', baudrate: 9600, stopbit: 1, parity: 'N', databit: 8, remark: 'Loop 2 — Sub-meter RS485 Bus (ELE / KWH)' },
+            { portNo: 3, name: 'Loop 3', baudrate: 9600, stopbit: 1, parity: 'N', databit: 8, remark: 'Loop 3 — Tenant / Floor RS485 Bus' },
+            { portNo: 4, name: 'Loop 4', baudrate: 9600, stopbit: 1, parity: 'N', databit: 8, remark: 'Loop 4 — Water & Utility Meters' },
+        ];
+        for (const l of standardLoops) {
+            await client.query(
+                `INSERT INTO loop (loop_name, port_no, baudrate, stopbit, parity, databit, remark, is_active)
+                 SELECT $1::varchar, $2, $3, $4, $5::varchar, $6, $7::varchar, true
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM loop WHERE port_no::text = $2::text
+                 )`,
+                [l.name, l.portNo, l.baudrate, l.stopbit, l.parity, l.databit, l.remark]
+            );
+        }
+        await client.query(`
+            SELECT setval(
+                'loop_loop_id_seq',
+                COALESCE((SELECT MAX(loop_id) FROM loop), 1)
+            )
+        `);
+        console.log('  ✅ loop (4 communication loops)');
 
         // --- Protocols (reference data) ---
         const protocols = [
             { id: 1, name: 'Modbus RTU' },
             { id: 2, name: 'Modbus TCP' },
             { id: 3, name: 'BACnet' },
+            { id: 4, name: 'MQTT / Redis PubSub' },
         ];
         for (const p of protocols) {
             await client.query(
@@ -802,8 +883,8 @@ export async function migrateAndSeed(closePool: boolean = true) {
                 [p.id, p.name]
             );
         }
-        await client.query(`SELECT setval('protocol_protocol_id_seq', (SELECT GREATEST(MAX(protocol_id), 3) FROM protocol))`);
-        console.log('  ✅ protocol (3 protocols)');
+        await client.query(`SELECT setval('protocol_protocol_id_seq', (SELECT GREATEST(MAX(protocol_id), 4) FROM protocol))`);
+        console.log('  ✅ protocol (4 protocols)');
 
         // --- Energy Values (reference data) ---
         const energyValues = [
@@ -888,6 +969,72 @@ export async function migrateAndSeed(closePool: boolean = true) {
             );
         }
         console.log('  ✅ user_permission');
+
+        // --- Billing Config & TOU Tariff Config & Default Alarm Group ---
+        await client.query(`
+            ALTER TABLE billing_config
+            ADD COLUMN IF NOT EXISTS rate_mode VARCHAR(20) DEFAULT 'tiered',
+            ADD COLUMN IF NOT EXISTS tier1_limit NUMERIC(10, 2) DEFAULT 200.00,
+            ADD COLUMN IF NOT EXISTS tier1_rate NUMERIC(10, 4) DEFAULT 3.0000,
+            ADD COLUMN IF NOT EXISTS tier2_rate NUMERIC(10, 4) DEFAULT 4.2200,
+            ADD COLUMN IF NOT EXISTS service_charge NUMERIC(10, 4) DEFAULT 24.6200,
+            ADD COLUMN IF NOT EXISTS ft_rate NUMERIC(10, 4) DEFAULT 0.1623,
+            ADD COLUMN IF NOT EXISTS vat_percent NUMERIC(5, 2) DEFAULT 7.00,
+            ADD COLUMN IF NOT EXISTS created_by VARCHAR(100),
+            ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(100),
+            ADD COLUMN IF NOT EXISTS last_modified_on TIMESTAMPTZ
+        `);
+        await client.query(`
+            INSERT INTO billing_config (
+                effective_date, unit_price, rate_mode, tier1_limit,
+                tier1_rate, tier2_rate, service_charge, ft_rate, vat_percent,
+                description, is_active, created_by, created_on
+            )
+            SELECT '2026-01-01', 4.1500, 'tiered', 200.00,
+                   3.0000, 4.2200, 24.6200, 0.1623, 7.00,
+                   'อัตราค่าไฟฟ้ามาตรฐาน (Standard Tiered Tariff)', true, 'system', NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM billing_config)
+        `);
+        console.log('  ✅ billing_config (default tariff)');
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS tou_tariff_config (
+                id SERIAL PRIMARY KEY,
+                effective_date DATE NOT NULL,
+                on_peak_rate NUMERIC(10, 4) NOT NULL DEFAULT 5.7982,
+                off_peak_rate NUMERIC(10, 4) NOT NULL DEFAULT 2.6369,
+                demand_rate NUMERIC(10, 4) NOT NULL DEFAULT 210.0000,
+                pf_penalty_rate NUMERIC(10, 4) NOT NULL DEFAULT 56.0700,
+                pf_threshold_factor NUMERIC(10, 4) NOT NULL DEFAULT 0.6197,
+                service_charge NUMERIC(10, 4) NOT NULL DEFAULT 38.2200,
+                ft_rate NUMERIC(10, 4) NOT NULL DEFAULT 0.1623,
+                vat_percent NUMERIC(5, 2) NOT NULL DEFAULT 7.00,
+                is_active BOOLEAN DEFAULT true,
+                created_by VARCHAR(100),
+                created_on TIMESTAMPTZ DEFAULT NOW(),
+                last_modified_by VARCHAR(100),
+                last_modified_on TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
+        await client.query(`
+            INSERT INTO tou_tariff_config (
+                effective_date, on_peak_rate, off_peak_rate, demand_rate,
+                pf_penalty_rate, pf_threshold_factor, service_charge, ft_rate, vat_percent,
+                is_active, created_by, created_on
+            )
+            SELECT '2026-01-01', 5.7982, 2.6369, 210.0000,
+                   56.0700, 0.6197, 38.2200, 0.1623, 7.00,
+                   true, 'system', NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM tou_tariff_config)
+        `);
+        console.log('  ✅ tou_tariff_config (default TOU tariff)');
+
+        await client.query(`
+            INSERT INTO alarm_group (group_name, email, is_active, created_on)
+            SELECT 'Engineering & Facility Alert Group', 'engineering@example.com', true, NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM alarm_group)
+        `);
+        console.log('  ✅ alarm_group (default alert group)');
 
         // --- System License ---
         // Try to generate a cryptographically signed license.

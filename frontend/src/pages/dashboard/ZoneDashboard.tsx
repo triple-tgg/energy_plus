@@ -169,6 +169,13 @@ const METER_TYPE_INFO: Record<number, { icon: string; color: string }> = {
 const getMeterTypeInfo = (id: number) => METER_TYPE_INFO[id] || METER_TYPE_INFO[1];
 
 const period = (m: MeterData) => Math.max(0, m.import_kwhr - m.periodStart_kwhr);
+/** มิเตอร์ประเภท DB (Distribution Board) คั่นกลางระหว่าง MDB กับ ELE, kWh จะไม่ถูกนับรวมกำลังไฟ/พลังงานซ้ำซ้อน */
+const isDbMeter = (m: MeterData): boolean => {
+    const sub = String(m.sub_type_name || '').trim().toUpperCase();
+    const typ = String(m.meter_type_name || '').trim().toUpperCase();
+    return sub === 'DB' || sub.startsWith('DB ') || sub.startsWith('DB-')
+        || typ === 'DB' || typ.startsWith('DB ') || typ.startsWith('DB-');
+};
 const isRealtime = (m: MeterData) => m.data_source === 'realtime' || m.data_source === 'actual';
 function meterStatus(m: MeterData, now: number): string {
     if (m.disabled || m.is_active === false) return 'inactive';
@@ -791,7 +798,7 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
             if (dim === 'building') {
                 const list: { id: string; name: string; weight: number }[] = [];
                 tree.forEach((b) => b.children?.forEach((bd) => {
-                    const w = meters.filter((m) => m.pathIds[1] === bd.id).reduce((s, m) => s + period(m), 0);
+                    const w = meters.filter((m) => m.pathIds[1] === bd.id && !isDbMeter(m)).reduce((s, m) => s + period(m), 0);
                     const short = b.name.replace('สาขา', '');
                     list.push({ id: bd.id, name: `${formatShortBranchName(short, t)}·${formatNodeName(bd.name, t)}`, weight: w });
                 }));
@@ -799,7 +806,7 @@ function Compare({ meters, tree, now, C, comparison }: CompareProps) {
             }
             return tree.map((b) => ({
                 id: b.id, name: formatShortBranchName(b.name.replace('สาขา', ''), t),
-                weight: meters.filter((m) => m.pathIds[0] === b.id).reduce((s, m) => s + period(m), 0),
+                weight: meters.filter((m) => m.pathIds[0] === b.id && !isDbMeter(m)).reduce((s, m) => s + period(m), 0),
             }));
         }
         return Array.from(map.entries()).map(([id, name]) => ({
@@ -1202,13 +1209,24 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     }, [language, currentSiteId, currentBuildingId, currentFloor, currentZoneId, variant, isWater]);
 
     const now = clock;
+    const selectedSubTypeName = useMemo(() => {
+        if (!filterTypeId || !filterSubTypeId) return '';
+        const typeObj = meterTypes.find((t: any) => t.meter_type_id === parseInt(filterTypeId));
+        const subObj = (typeObj?.sub_types || []).find((st: any) => st.meter_sub_type_id === parseInt(filterSubTypeId));
+        return String(subObj?.sub_type_name || '').trim().toUpperCase();
+    }, [meterTypes, filterTypeId, filterSubTypeId]);
+    const isFilteringDbOnly = selectedSubTypeName === 'DB' || selectedSubTypeName.startsWith('DB ') || selectedSubTypeName.startsWith('DB-');
+
     const metersUnder = (p: string[]) => {
         let list = meters.filter((m) => p.every((id, i) => m.pathIds[i] === id));
         if (filterTypeId) list = list.filter(m => m.meter_type_id === parseInt(filterTypeId));
         if (filterSubTypeId) list = list.filter(m => m.meter_sub_type_id === parseInt(filterSubTypeId));
         return list;
     };
-    const scopeKw = () => metersUnder(path).reduce((s, m) => s + (m.disabled ? 0 : m.kw_3ph), 0);
+    const sumMetersKwh = (list: MeterData[]) =>
+        list.reduce((s, m) => s + (!isFilteringDbOnly && isDbMeter(m) ? 0 : period(m)), 0);
+    const scopeKw = () =>
+        metersUnder(path).reduce((s, m) => s + (m.disabled || (!isFilteringDbOnly && isDbMeter(m)) ? 0 : m.kw_3ph), 0);
 
     // กราฟ Realtime: รีเซ็ตเมื่อเปลี่ยนขอบเขต, เก็บตัวอย่างทุก 1 นาที (สูงสุด ~1 ชั่วโมง)
     useEffect(() => {
@@ -1226,7 +1244,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
             return { node, kwh: period(m), status: meterStatus(m, now), count: 1, counts: statusCounts([m], now), m };
         }
         const sub = metersUnder([...path, node.id]);
-        return { node, kwh: sub.reduce((s, m) => s + period(m), 0), status: aggStatus(sub, now), count: sub.length, counts: statusCounts(sub, now) };
+        return { node, kwh: sumMetersKwh(sub), status: aggStatus(sub, now), count: sub.length, counts: statusCounts(sub, now) };
     });
     const sorted = [...items].sort((a, b) => (sortDesc ? b.kwh - a.kwh : a.kwh - b.kwh));
 
@@ -1273,7 +1291,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
 
     const scope = metersUnder(path);
     const counts = statusCounts(scope, now);
-    const totalKwh = scope.reduce((s, m) => s + period(m), 0);
+    const totalKwh = sumMetersKwh(scope);
 
     const go = (id: string) => { setPath([...path, id]); setSelected(null); };
     const jump = (i: number) => { setPath(path.slice(0, i)); setSelected(null); };

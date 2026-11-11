@@ -233,11 +233,13 @@ export class ReportsService {
         const meterFilters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
         const mdbScope = String(mdb || '').toLowerCase();
-        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_sub_type mst WHERE mst.meter_sub_type_id = m.meter_sub_type_id AND mst.sub_type_name ILIKE '%MDB%') OR EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        const DB_MATCH = `(EXISTS (SELECT 1 FROM meter_sub_type mst_db WHERE mst_db.meter_sub_type_id = m.meter_sub_type_id AND (UPPER(TRIM(mst_db.sub_type_name)) = 'DB' OR UPPER(TRIM(mst_db.sub_type_name)) LIKE 'DB %' OR UPPER(TRIM(mst_db.sub_type_name)) LIKE 'DB-%')) OR EXISTS (SELECT 1 FROM meter_type mt_db WHERE mt_db.meter_type_id = m.meter_type_id AND (UPPER(TRIM(mt_db.meter_type_name)) = 'DB' OR UPPER(TRIM(mt_db.meter_type_name)) LIKE 'DB %' OR UPPER(TRIM(mt_db.meter_type_name)) LIKE 'DB-%')) OR UPPER(TRIM(COALESCE(m.meter_group, ''))) = 'DB')`;
         if (mdbScope === 'only') {
             meterFilters.push(MDB_MATCH);
         } else if (mdbScope === 'exclude') {
             meterFilters.push(`NOT ${MDB_MATCH}`);
+            meterFilters.push(`NOT ${DB_MATCH}`);
         }
 
         const siteIds = parseSiteIds(siteId);
@@ -485,7 +487,7 @@ export class ReportsService {
         const params: any[] = [];
         const meterFilters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
-        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_sub_type mst WHERE mst.meter_sub_type_id = m.meter_sub_type_id AND mst.sub_type_name ILIKE '%MDB%') OR EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
         meterFilters.push(MDB_MATCH);
 
         const siteIds = parseSiteIds(siteId);
@@ -741,11 +743,13 @@ export class ReportsService {
         const meterFilters: string[] = ['m.is_active IS DISTINCT FROM false'];
 
         const mdbScope = String(mdb || '').toLowerCase();
-        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        const MDB_MATCH = `(EXISTS (SELECT 1 FROM meter_sub_type mst WHERE mst.meter_sub_type_id = m.meter_sub_type_id AND mst.sub_type_name ILIKE '%MDB%') OR EXISTS (SELECT 1 FROM meter_type mt WHERE mt.meter_type_id = m.meter_type_id AND mt.meter_type_name ILIKE '%MDB%') OR m.meter_name ILIKE '%MDB%' OR m.meter_code ILIKE '%MDB%')`;
+        const DB_MATCH = `(EXISTS (SELECT 1 FROM meter_sub_type mst_db WHERE mst_db.meter_sub_type_id = m.meter_sub_type_id AND (UPPER(TRIM(mst_db.sub_type_name)) = 'DB' OR UPPER(TRIM(mst_db.sub_type_name)) LIKE 'DB %' OR UPPER(TRIM(mst_db.sub_type_name)) LIKE 'DB-%')) OR EXISTS (SELECT 1 FROM meter_type mt_db WHERE mt_db.meter_type_id = m.meter_type_id AND (UPPER(TRIM(mt_db.meter_type_name)) = 'DB' OR UPPER(TRIM(mt_db.meter_type_name)) LIKE 'DB %' OR UPPER(TRIM(mt_db.meter_type_name)) LIKE 'DB-%')) OR UPPER(TRIM(COALESCE(m.meter_group, ''))) = 'DB')`;
         if (mdbScope === 'only') {
             meterFilters.push(MDB_MATCH);
         } else if (mdbScope === 'exclude') {
             meterFilters.push(`NOT ${MDB_MATCH}`);
+            meterFilters.push(`NOT ${DB_MATCH}`);
         }
 
         const siteIds = parseSiteIds(siteId);

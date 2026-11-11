@@ -8,6 +8,22 @@ import { parseSiteIds } from '../../utils/siteFilter';
 const MDB_METER_SQL = `(EXISTS (SELECT 1 FROM meter_sub_type mst_mdb WHERE mst_mdb.meter_sub_type_id = m.meter_sub_type_id AND mst_mdb.sub_type_name ILIKE '%MDB%')
     OR EXISTS (SELECT 1 FROM meter_type mt_mdb WHERE mt_mdb.meter_type_id = m.meter_type_id AND mt_mdb.meter_type_name ILIKE '%MDB%'))`;
 
+// มิเตอร์ DB (Distribution Board / ตู้กระจายไฟย่อย) คั่นกลางระหว่าง MDB กับ ELE, kWh
+// จะไม่ถูกนับรวมกำลังไฟ (kW) หรือพลังงานสะสม (kWh) ซ้ำซ้อนระหว่าง MDB กับ ELE, kWh
+const DB_METER_SQL = `(
+    EXISTS (
+        SELECT 1 FROM meter_sub_type mst_db
+        WHERE mst_db.meter_sub_type_id = m.meter_sub_type_id
+          AND (UPPER(TRIM(mst_db.sub_type_name)) = 'DB' OR UPPER(TRIM(mst_db.sub_type_name)) LIKE 'DB %' OR UPPER(TRIM(mst_db.sub_type_name)) LIKE 'DB-%')
+    )
+    OR EXISTS (
+        SELECT 1 FROM meter_type mt_db
+        WHERE mt_db.meter_type_id = m.meter_type_id
+          AND (UPPER(TRIM(mt_db.meter_type_name)) = 'DB' OR UPPER(TRIM(mt_db.meter_type_name)) LIKE 'DB %' OR UPPER(TRIM(mt_db.meter_type_name)) LIKE 'DB-%')
+    )
+    OR UPPER(TRIM(COALESCE(m.meter_group, ''))) = 'DB'
+)`;
+
 const numberOrNull = (value: any): number | null => {
     if (value === undefined || value === null || value === '') return null;
     const parsed = Number(value);
@@ -26,9 +42,9 @@ export class DashboardService {
         const floor = numberOrNull(queryParams.floor);
         const zoneId = numberOrNull(queryParams.zoneId);
 
-        // MDB scope: มิเตอร์ที่เป็นชนิด "MDB" ระบุจาก meter_sub_type หรือ meter_type ชื่อ MDB (case-insensitive)
+        // MDB & DB scope:
         //   mdb=only    → เอาเฉพาะมิเตอร์ MDB (หน้า /dashboard/mdb)
-        //   mdb=exclude → ตัดมิเตอร์ MDB ออก (หน้า /dashboard/zone)
+        //   mdb=exclude → ตัดมิเตอร์ MDB ออก และในการรวมกำลังไฟ/พลังงาน (trend & comparison) ไม่นับรวมมิเตอร์ DB เพื่อป้องกันการคิดซ้ำระหว่าง MDB กับ ELE, kWh
         const mdbScope = String(queryParams.mdb || '').toLowerCase();
         const MDB_MATCH = MDB_METER_SQL;
         const mdbSql = mdbScope === 'only'
@@ -36,6 +52,11 @@ export class DashboardService {
             : mdbScope === 'exclude'
                 ? ` AND NOT ${MDB_MATCH}`
                 : '';
+        const aggScopeSql = mdbScope === 'only'
+            ? ` AND ${MDB_MATCH}`
+            : mdbScope === 'exclude'
+                ? ` AND NOT ${MDB_MATCH} AND NOT ${DB_METER_SQL}`
+                : ` AND NOT ${DB_METER_SQL}`;
 
         const params: any[] = [];
         let meterFilter = 'WHERE 1=1';
@@ -167,7 +188,7 @@ export class DashboardService {
             trendParams.push(zoneId);
             trendFilters.push(`m.zone_id = $${trendParams.length}`);
         }
-        const trendSiteFilter = (trendFilters.length > 0 ? 'AND ' + trendFilters.join(' AND ') : '') + mdbSql;
+        const trendSiteFilter = (trendFilters.length > 0 ? 'AND ' + trendFilters.join(' AND ') : '') + aggScopeSql;
         const bucketExpr = (source: string) => `
             date_trunc('hour', ${source})
               + (floor(extract(minute from ${source}) / $1::int) * $1::int) * interval '1 minute'
@@ -224,7 +245,7 @@ export class DashboardService {
                 LEFT JOIN buildings b ON m.building_id = b.building_id
                 WHERE m.is_active IS DISTINCT FROM false
                   ${comparisonSiteSql}
-                  ${mdbSql}
+                  ${aggScopeSql}
             ),
             hourly_meter AS (
                 SELECT
@@ -481,7 +502,11 @@ export class DashboardService {
             dateFilter = `AND d.date_keep >= NOW() - INTERVAL '7 days'`;
         }
 
-        const meterFilters: string[] = ['m.is_active = true'];
+        const meterFilters: string[] = [
+            'm.is_active = true',
+            `NOT ${MDB_METER_SQL}`,
+            `NOT ${DB_METER_SQL}`,
+        ];
         const siteIds = parseSiteIds(siteId);
         if (siteIds) { params.push(siteIds); meterFilters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (zoneId) { params.push(parseInt(zoneId)); meterFilters.push(`m.zone_id = $${params.length}`); }
@@ -552,7 +577,13 @@ export class DashboardService {
         if (siteIds) { params.push(siteIds); filters.push(`m.site_id = ANY($${params.length}::int[])`); }
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
-        if (meterId) { params.push(parseInt(meterId)); filters.push(`m.meter_id = $${params.length}`); }
+        if (meterId) {
+            params.push(parseInt(meterId));
+            filters.push(`m.meter_id = $${params.length}`);
+        } else {
+            // เมื่อรวมกำลังไฟ (Demand kW) ทั้งไซต์/อาคาร/โซน ให้ไม่นับรวมมิเตอร์ DB เพื่อไม่ให้ซ้ำซ้อนระหว่าง MDB กับ ELE, kWh
+            filters.push(`NOT ${DB_METER_SQL}`);
+        }
         if (startDate) { params.push(startDate); filters.push(`r.received_at >= ($${params.length}::date::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
         else filters.push(`r.received_at >= date_trunc('day', NOW() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok'`);
         if (endDate) { params.push(endDate); filters.push(`r.received_at < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok')`); }
@@ -717,7 +748,13 @@ export class DashboardService {
         if (buildingId) { params.push(parseInt(buildingId)); filters.push(`m.building_id = $${params.length}`); }
         if (zoneId) { params.push(parseInt(zoneId)); filters.push(`m.zone_id = $${params.length}`); }
         if (meterTypeId) { params.push(parseInt(meterTypeId)); filters.push(`m.meter_type_id = $${params.length}`); }
-        if (meterId) { params.push(parseInt(meterId)); filters.push(`m.meter_id = $${params.length}`); }
+        if (meterId) {
+            params.push(parseInt(meterId));
+            filters.push(`m.meter_id = $${params.length}`);
+        } else {
+            // เมื่อรวมกำลังไฟ (Demand kW) ทั้งไซต์/อาคาร/โซน ให้ไม่นับรวมมิเตอร์ DB เพื่อไม่ให้ซ้ำซ้อนระหว่าง MDB กับ ELE, kWh
+            filters.push(`NOT ${DB_METER_SQL}`);
+        }
         const dateFilters: string[] = [];
         if (startDate) {
             params.push(startDate);
@@ -810,6 +847,7 @@ export class DashboardService {
             filters.push(MDB_MATCH);
         } else if (mdbScope === 'exclude') {
             filters.push(`NOT ${MDB_MATCH}`);
+            filters.push(`NOT ${DB_METER_SQL}`);
         }
 
         const siteIds = parseSiteIds(siteId);
