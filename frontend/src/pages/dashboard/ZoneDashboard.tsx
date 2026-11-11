@@ -136,6 +136,10 @@ interface ItemData {
     count: number;
     counts: StatusCount;
     m?: MeterData;
+    dbMeters?: MeterData[];
+    dbKwh?: number;
+    dbKw?: number;
+    loadCount?: number;
 }
 
 interface ComparisonRow {
@@ -410,6 +414,11 @@ function SingleLine({ main, feeders, onPick, C }: SingleLineProps) {
                                         <StatusDot s={f.status} size={8} C={C} /><span style={{ fontWeight: 600, fontSize: 12, color: C.ink }}>{formatNodeName(f.node.name, t)}</span>
                                     </div>
                                     <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 700, color: C.ink }}>{fmt(f.kwh)} <span style={{ fontSize: 10, color: C.sub }}>kWh</span></div>
+                                    {f.dbMeters && f.dbMeters.length > 0 && (
+                                        <div style={{ fontFamily: MONO, fontSize: 9.5, color: '#10B981', marginTop: 2, padding: '1px 5px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)' }} title={t('ข้อมูลมิเตอร์ DB ประจำชั้น (Information Only · ไม่นับรวมยอดใช้ไฟ)', 'Floor DB Meter Info (Not included in total consumption)')}>
+                                            ℹ️ DB: {fmt(f.dbKwh || 0)} kWh
+                                        </div>
+                                    )}
                                     <div style={{ marginTop: 2 }}><StatusTally counts={f.counts} size={9.5} C={C} /></div>
                                 </button>
                             </div>
@@ -425,9 +434,10 @@ function SingleLine({ main, feeders, onPick, C }: SingleLineProps) {
 interface ZonePlanProps {
     items: ItemData[];
     onPick: (it: ItemData) => void;
+    onPickMeter?: (m: MeterData) => void;
     C: Theme;
 }
-function ZonePlan({ items, onPick, C }: ZonePlanProps) {
+function ZonePlan({ items, onPick, onPickMeter, C }: ZonePlanProps) {
     const { t } = useLanguage();
     return (
         <div style={{ border: `2px solid ${C.ink}`, background: C.panel, padding: 6 }}>
@@ -446,6 +456,27 @@ function ZonePlan({ items, onPick, C }: ZonePlanProps) {
                                 <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 24, fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</span>
                                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>kWh</span>
                             </div>
+                            {it.dbMeters && it.dbMeters.length > 0 && (
+                                <div
+                                    onClick={(e) => {
+                                        if (onPickMeter && it.dbMeters && it.dbMeters.length === 1) {
+                                            e.stopPropagation();
+                                            onPickMeter(it.dbMeters[0]);
+                                        }
+                                    }}
+                                    style={{
+                                        marginTop: 6, marginBottom: 4, padding: '4px 8px',
+                                        background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)',
+                                        fontFamily: MONO, fontSize: 10.5, color: '#10B981',
+                                        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6
+                                    }}
+                                    title={t('ข้อมูลมิเตอร์ตู้ DB ประจำโซน (แสดงเป็น Information เท่านั้น ไม่นับรวมยอดใช้ไฟ)', 'Zone DB Meter Information (Reference only, excluded from total energy)')}
+                                >
+                                    <span style={{ fontWeight: 700 }}>ℹ️ DB Info ({it.dbMeters.map(d => d.code).join(', ')}):</span>
+                                    <span style={{ fontWeight: 700 }}>{fmt(it.dbKwh || 0, 3)} kWh</span>
+                                    <span style={{ color: C.sub, fontSize: 9.5 }}>· {fmt(it.dbKw || 0, 2)} kW ({t('ไม่นับรวม', 'Excl.')})</span>
+                                </div>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.sub }}>{it.count} METERS</span>
                                 <StatusTally counts={it.counts} C={C} />
@@ -574,6 +605,14 @@ function MeterTable({ groups, now, onPick, C }: MeterTableProps) {
                                             <td style={{ ...tdx(), textAlign: 'left', whiteSpace: 'nowrap', position: 'sticky', left: 30, background: C.panel, zIndex: 1 }}>
                                                 <b>{m.code}</b>
                                                 {isRealtime(m) && <span style={{ marginLeft: 6, color: C.green, fontSize: 10, fontWeight: 700 }}>RT</span>}
+                                                {isDbMeter(m) && (
+                                                    <span style={{
+                                                        marginLeft: 6, padding: '1px 5px', fontSize: 9.5, fontWeight: 700,
+                                                        background: 'rgba(16,185,129,0.15)', color: '#10B981', border: '1px solid rgba(16,185,129,0.4)'
+                                                    }} title={t('มิเตอร์ตู้ DB (แสดงเป็น Information เท่านั้น ไม่นับรวมการใช้พลังงาน)', 'DB Meter (Information only, excluded from energy aggregation)')}>
+                                                        DB · INFO
+                                                    </span>
+                                                )}
                                                 <span style={{ color: C.sub }}> {m.device}</span>
                                             </td>
                                             <td style={{ ...tdx(), textAlign: 'center' }}><span style={{ display: 'inline-flex' }}><StatusDot s={it.status} C={C} /></span></td>
@@ -711,6 +750,25 @@ function MeterDetail({ m, now, onClose, C }: MeterDetailProps) {
                         🕐 {new Date(m.received_at).toLocaleString(t('th-TH', 'en-US'), { timeZone: 'Asia/Bangkok' })}
                     </div>
                 </div>
+
+                {isDbMeter(m) && (
+                    <div style={{
+                        padding: '8px 16px',
+                        background: 'rgba(16,185,129,0.12)',
+                        borderBottom: '1px solid rgba(16,185,129,0.35)',
+                        fontFamily: MONO,
+                        fontSize: 11,
+                        color: '#10B981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                    }}>
+                        <span>ℹ️</span>
+                        <span>
+                            <b>DB Meter (Information Only)</b> — {t('แสดงข้อมูลอ้างอิงประจำตึก/ชั้น/โซนตาม Location (ไม่ถูกนำไปบวกรวมในการคำนวณการใช้พลังงานรวม)', 'Reference information for this Building/Floor/Zone (excluded from total energy consumption)')}
+                        </span>
+                    </div>
+                )}
 
                 {/* Data Table */}
                 <div style={{ padding: '0' }}>
@@ -1244,7 +1302,21 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
             return { node, kwh: period(m), status: meterStatus(m, now), count: 1, counts: statusCounts([m], now), m };
         }
         const sub = metersUnder([...path, node.id]);
-        return { node, kwh: sumMetersKwh(sub), status: aggStatus(sub, now), count: sub.length, counts: statusCounts(sub, now) };
+        const dbList = sub.filter(isDbMeter);
+        const loadList = sub.filter((m) => !isDbMeter(m));
+        const dbKwh = dbList.reduce((s, m) => s + period(m), 0);
+        const dbKw = dbList.reduce((s, m) => s + (m.disabled ? 0 : m.kw_3ph), 0);
+        return {
+            node,
+            kwh: sumMetersKwh(sub),
+            status: aggStatus(sub, now),
+            count: sub.length,
+            counts: statusCounts(sub, now),
+            dbMeters: dbList,
+            dbKwh,
+            dbKw,
+            loadCount: loadList.length,
+        };
     });
     const sorted = [...items].sort((a, b) => (sortDesc ? b.kwh - a.kwh : a.kwh - b.kwh));
 
@@ -1279,6 +1351,27 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                     <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: fitFontSize(e.value, 22), fontWeight: 700, color: C.ink, overflowWrap: 'anywhere', minWidth: 0 }}>{e.value}</span>
                     <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>{e.unit}</span>
                 </div>); })()}
+                {it.dbMeters && it.dbMeters.length > 0 && (
+                    <div
+                        onClick={(e) => {
+                            if (it.dbMeters && it.dbMeters.length === 1) {
+                                e.stopPropagation();
+                                setSelected(it.dbMeters[0]);
+                            }
+                        }}
+                        style={{
+                            marginTop: 6, padding: '3px 6px',
+                            background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)',
+                            fontFamily: MONO, fontSize: 9.5, color: '#10B981',
+                            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4,
+                        }}
+                        title={t('ข้อมูลมิเตอร์ตู้ DB ประจำอาคาร/สาขา (แสดงเป็น Information เท่านั้น ไม่นับรวมยอดใช้ไฟ)', 'Building/Site DB Meter Info (Reference only, excluded from total consumption)')}
+                    >
+                        <span style={{ fontWeight: 700 }}>ℹ️ DB ({it.dbMeters.length}):</span>
+                        <span style={{ fontWeight: 700 }}>{fmt(it.dbKwh || 0, 3)} kWh</span>
+                        <span style={{ color: C.sub }}>({t('ไม่คิดรวม', 'Info')})</span>
+                    </div>
+                )}
                 <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 10.5, color: C.sub, display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: 0.3 }}>
                     <span>{it.node.level === 'room' ? `${it.m!.device} · L${it.m!.loop}` : `${it.count} MTR`}</span>
                     {it.node.level === 'room'
@@ -1290,6 +1383,9 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
     };
 
     const scope = metersUnder(path);
+    const scopeDbMeters = scope.filter(isDbMeter);
+    const scopeDbKwh = scopeDbMeters.reduce((s, m) => s + period(m), 0);
+    const scopeDbKw = scopeDbMeters.reduce((s, m) => s + (m.disabled ? 0 : m.kw_3ph), 0);
     const counts = statusCounts(scope, now);
     const totalKwh = sumMetersKwh(scope);
 
@@ -1520,13 +1616,33 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                     {/* Summary strip */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', background: C.panel, borderBottom: `1px solid ${C.line}`, margin: '0 16px 16px', border: `1px solid ${C.line}` }}>
                         <div style={{ padding: '11px 18px', borderRight: `1px solid ${C.line}`, minWidth: 180 }}>
-                            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, textTransform: 'uppercase' }}>{t('รวม · งวดนี้', 'Total · This Period')}</div>
+                            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.sub, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span>{t('รวม · งวดนี้', 'Total · This Period')}</span>
+                                {scopeDbMeters.length > 0 && !isFilteringDbOnly && (
+                                    <span style={{ fontSize: 9, padding: '1px 4px', background: 'rgba(16,185,129,0.12)', color: '#10B981', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                        {t('ไม่รวม DB', 'Excl. DB')}
+                                    </span>
+                                )}
+                            </div>
                             {(() => { const e = fmtEnergy(totalKwh); return (
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }} title={`${fmt(totalKwh)} kWh`}>
                                 <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: fitFontSize(e.value, 24), fontWeight: 700, color: C.accent, overflowWrap: 'anywhere' }}>{e.value}</span>
                                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.sub }}>{e.unit}</span>
                             </div>); })()}
                         </div>
+                        {scopeDbMeters.length > 0 && (
+                            <div style={{ padding: '11px 16px', borderRight: `1px solid ${C.line}`, background: 'rgba(16,185,129,0.06)', minWidth: 185 }} title={t('ข้อมูลมิเตอร์ตู้ DB ประจำพื้นที่ (แสดงเป็น Information เท่านั้น ไม่นับรวมในการใช้พลังงาน)', 'DB Meter Information (Reference only, excluded from total energy consumption)')}>
+                                <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: 0.5, color: '#10B981', fontWeight: 700 }}>
+                                    ℹ️ {t(`DB METER · INFO (${scopeDbMeters.length})`, `DB METER · INFO (${scopeDbMeters.length})`)}
+                                </div>
+                                {(() => { const e = fmtEnergy(scopeDbKwh); return (
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 2 }}>
+                                    <span style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 18, fontWeight: 700, color: '#10B981' }}>{e.value}</span>
+                                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>{e.unit}</span>
+                                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>· {fmt(scopeDbKw, 2)} kW ({t('ไม่คิดรวม', 'Info')})</span>
+                                </div>); })()}
+                            </div>
+                        )}
                         {STATUS_ORDER.map((s) => (
                             <div key={s} style={{ padding: '11px 16px', borderRight: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 9, minWidth: 110 }}>
                                 <StatusDot s={s} size={11} C={C} />
@@ -1544,6 +1660,64 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                             </div>
                         </div>
                     </div>
+
+                    {/* DB Meter Information Panel (ประจำตึก / ชั้น / โซน ตาม Location — ไม่นับรวมการใช้พลังงาน) */}
+                    {scopeDbMeters.length > 0 && (
+                        <div style={{
+                            margin: '0 16px 14px', padding: '10px 14px',
+                            background: C.panel, border: `1px solid rgba(16,185,129,0.4)`, borderLeft: '4px solid #10B981',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: MONO, fontSize: 11, fontWeight: 700, color: '#10B981' }}>
+                                    <span>ℹ️ DB METER INFORMATION · {t(`ข้อมูลมิเตอร์ตู้ DB ประจำ${LEVEL_TH[level]} (${formatNodeName(currentName || t('ทุกสาขา', 'All Sites'), t)})`, `DB Meter Reference for ${LEVEL_EN[level]} (${formatNodeName(currentName || 'All Sites', t)})`)}</span>
+                                </div>
+                                <span style={{ fontFamily: MONO, fontSize: 10, color: C.sub, background: 'rgba(16,185,129,0.1)', padding: '2px 8px', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                    {t('แสดงเพื่ออ้างอิงตาม Location (ตึก/ชั้น/โซน) · ไม่ถูกนับรวมในยอดการใช้พลังงาน', 'Displayed as location reference (Building/Floor/Zone) · Excluded from total energy consumption')}
+                                </span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                                {scopeDbMeters.map((dbm) => {
+                                    const dbSt = meterStatus(dbm, now);
+                                    const locLabel = dbm.pathNames.slice(1).map(p => formatNodeName(p, t)).join(' › ');
+                                    return (
+                                        <button
+                                            key={dbm.id}
+                                            onClick={() => setSelected(dbm)}
+                                            className="ec-card"
+                                            style={{
+                                                textAlign: 'left', cursor: 'pointer', padding: '8px 10px',
+                                                background: C.panel2, border: `1px solid ${C.line}`, borderLeft: '3px solid #10B981',
+                                                display: 'flex', flexDirection: 'column', gap: 4, color: C.ink
+                                            }}
+                                            title={t('คลิกเพื่อดูรายละเอียดค่าทางไฟฟ้าของตู้ DB', 'Click to view DB meter electrical parameters')}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                                <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: C.ink, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                                    <StatusDot s={dbSt} size={8} C={C} />
+                                                    <span>[{dbm.code}] {dbm.device}</span>
+                                                </span>
+                                                <span style={{ fontFamily: MONO, fontSize: 9, padding: '1px 5px', background: 'rgba(16,185,129,0.15)', color: '#10B981', fontWeight: 700 }}>
+                                                    DB · INFO
+                                                </span>
+                                            </div>
+                                            <div style={{ fontFamily: MONO, fontSize: 10, color: C.sub }}>
+                                                📍 {locLabel}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', fontFamily: MONO, marginTop: 2 }}>
+                                                <span style={{ fontSize: 13, fontWeight: 700, color: '#10B981' }}>
+                                                    {fmt(period(dbm), 3)} <span style={{ fontSize: 9.5, color: C.sub, fontWeight: 500 }}>kWh</span>
+                                                </span>
+                                                <span style={{ fontSize: 11, color: C.ink, fontWeight: 600 }}>
+                                                    {fmt(dbm.kw_3ph, 2)} <span style={{ fontSize: 9.5, color: C.sub }}>kW</span>
+                                                    <span style={{ fontSize: 9.5, color: C.sub, marginLeft: 6 }}>{ dbm.vl1 > 0 ? `${fmt(dbm.vl1, 1)}V` : '' }</span>
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Body */}
                     <div style={{ display: 'grid', gridTemplateColumns: level === 4 ? '1fr' : 'minmax(0,1.55fr) minmax(0,1fr)', gap: 14, padding: '0 16px 16px' }}>
@@ -1659,6 +1833,19 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                                                 transition: 'width 0.5s ease',
                                                             }} />
                                                         </div>
+                                                        {it.dbMeters && it.dbMeters.length > 0 && (
+                                                            <div style={{
+                                                                display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6,
+                                                                fontFamily: MONO, fontSize: 10, color: '#10B981', marginTop: 2
+                                                            }}>
+                                                                <span style={{
+                                                                    padding: '1px 6px', background: 'rgba(16,185,129,0.1)',
+                                                                    border: '1px solid rgba(16,185,129,0.35)', fontWeight: 700
+                                                                }}>
+                                                                    ℹ️ DB {t('ประจำชั้น', 'Floor Info')} ({it.dbMeters.map(d => d.code).join(', ')}): {fmt(it.dbKwh || 0, 3)} kWh · {fmt(it.dbKw || 0, 2)} kW ({t('ไม่นับรวม', 'Excl.')})
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     {/* Total energy & % of building */}
@@ -1682,7 +1869,7 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                     </div>
                                 )
                             ) : level === 3 ? (
-                                <ZonePlan items={zoneItems} onPick={openItem} C={C} />
+                                <ZonePlan items={zoneItems} onPick={openItem} onPickMeter={(m) => setSelected(m)} C={C} />
                             ) : level === 4 ? (
                                 <MeterTable groups={loopGroups} now={now} onPick={(m) => setSelected(m)} C={C} />
                             ) : (
@@ -1729,6 +1916,11 @@ const ZoneDashboard: React.FC<ZoneDashboardProps> = ({ variant = 'zone' }) => {
                                                             {formatNodeName(it.node.name, t)}
                                                             {hasRealtime && <span style={{ marginLeft: 6, color: C.green, fontFamily: MONO, fontSize: 10, fontWeight: 700 }}>RT</span>}
                                                             {it.node.level === 'room' && <span style={{ color: C.sub, fontFamily: MONO, fontSize: 10.5 }}> {it.m!.channel}</span>}
+                                                            {it.dbMeters && it.dbMeters.length > 0 && (
+                                                                <div style={{ fontFamily: MONO, fontSize: 9.5, color: '#10B981', marginTop: 2 }}>
+                                                                    ℹ️ DB ({it.dbMeters.length}): {fmt(it.dbKwh || 0, 2)} kWh ({t('ไม่คิดรวม', 'Info')})
+                                                                </div>
+                                                            )}
                                                         </td>
                                                         <td style={{ ...td(), textAlign: 'right', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: C.ink }}>{fmt(it.kwh)}</td>
                                                         <td style={{ ...td(), textAlign: 'center', whiteSpace: 'nowrap' }}>

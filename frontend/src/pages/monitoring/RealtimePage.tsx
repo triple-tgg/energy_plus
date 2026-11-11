@@ -1043,14 +1043,24 @@ const RealtimePage: React.FC = () => {
 
     // Summary calculations
     const now = Date.now();
+    const isDbRealtimeMeter = (m: RealtimeMeterData): boolean => {
+        const sub = String(m.sub_type_name || '').trim().toUpperCase();
+        const typ = String(m.meter_type_name || '').trim().toUpperCase();
+        return sub === 'DB' || sub.startsWith('DB ') || sub.startsWith('DB-')
+            || typ === 'DB' || typ.startsWith('DB ') || typ.startsWith('DB-');
+    };
     const totalMeters = meters.length;
     const onlineMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'online');
     const zeroMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'zero');
     const noSignalMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'offline');
     const inactiveMeters = meters.filter(m => getMeterRealtimeStatus(m, now) === 'inactive');
 
-    const totalPower = onlineMeters.reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
-    const totalEnergy = meters.reduce((sum, m) => sum + (m.import_kwhr || 0), 0);
+    const dbMeters = meters.filter(isDbRealtimeMeter);
+    const dbPower = onlineMeters.filter(isDbRealtimeMeter).reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
+    const dbEnergy = dbMeters.reduce((sum, m) => sum + (m.import_kwhr || 0), 0);
+
+    const totalPower = onlineMeters.filter(m => !isDbRealtimeMeter(m)).reduce((sum, m) => sum + (m.kw_3ph || 0), 0);
+    const totalEnergy = meters.filter(m => !isDbRealtimeMeter(m)).reduce((sum, m) => sum + (m.import_kwhr || 0), 0);
 
     // Calculate Average Power Factor across online meters with valid readings
     const pfMeters = onlineMeters.map(m => {
@@ -1234,8 +1244,13 @@ const RealtimePage: React.FC = () => {
                         {totalPower.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW
                     </h3>
                     <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
-                        {t('ความต้องการกำลังไฟฟ้ารวมเรียลไทม์', 'AGGREGATED REALTIME POWER DEMAND')}
+                        {t('ความต้องการกำลังไฟฟ้ารวมเรียลไทม์ (ไม่รวม DB)', 'AGGREGATED REALTIME POWER DEMAND (EXCL. DB)')}
                     </span>
+                    {dbMeters.length > 0 && (
+                        <div style={{ marginTop: 6, padding: '3px 6px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)', fontFamily: MONO, fontSize: 10, color: '#10B981', fontWeight: 700 }}>
+                            ℹ️ DB Info ({dbMeters.length}): {dbPower.toLocaleString([], { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kW ({t('ไม่คิดรวม', 'Info')})
+                        </div>
+                    )}
                 </div>
 
                 {/* 2. Total Energy */}
@@ -1248,8 +1263,13 @@ const RealtimePage: React.FC = () => {
                         {totalEnergy.toLocaleString([], { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh
                     </h3>
                     <span style={{ fontSize: '11px', color: C.sub, fontWeight: 600, fontFamily: MONO }}>
-                        {t('พลังงานไฟฟ้าสะสมรวมทุกมิเตอร์', 'ACCUMULATED ENERGY ACROSS METERS')}
+                        {t('พลังงานไฟฟ้าสะสมรวมทุกมิเตอร์ (ไม่รวม DB)', 'ACCUMULATED ENERGY ACROSS METERS (EXCL. DB)')}
                     </span>
+                    {dbMeters.length > 0 && (
+                        <div style={{ marginTop: 6, padding: '3px 6px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)', fontFamily: MONO, fontSize: 10, color: '#10B981', fontWeight: 700 }}>
+                            ℹ️ DB Info ({dbMeters.length}): {dbEnergy.toLocaleString([], { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh ({t('ไม่คิดรวม', 'Info')})
+                        </div>
+                    )}
                 </div>
 
                 {/* 3. Average Power Factor */}
@@ -1697,7 +1717,15 @@ const RealtimePage: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td style={{ padding: '14px 8px', fontWeight: 700, color: C.accent }}>
-                                                {m.meter_code}
+                                                <span>{m.meter_code}</span>
+                                                {isDbRealtimeMeter(m) && (
+                                                    <span style={{
+                                                        marginLeft: 6, padding: '1px 5px', fontSize: 9.5, fontWeight: 700,
+                                                        background: 'rgba(16,185,129,0.15)', color: '#10B981', border: '1px solid rgba(16,185,129,0.4)'
+                                                    }} title={t('มิเตอร์ตู้ DB (แสดงเป็น Information เท่านั้น ไม่นับรวมการใช้พลังงาน)', 'DB Meter (Information only, excluded from energy aggregation)')}>
+                                                        DB · INFO
+                                                    </span>
+                                                )}
                                             </td>
                                             <td style={{ padding: '14px 8px' }}>
                                                 <div style={{ fontWeight: 600 }}>{m.meter_name || '—'}</div>
