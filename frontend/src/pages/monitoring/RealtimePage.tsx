@@ -3,12 +3,13 @@ import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 import {
     Activity, ShieldAlert, Cpu, Radio, Zap, RefreshCw, AlertTriangle, LayoutGrid, X,
     ChevronDown, Gauge, BatteryCharging, TrendingUp, BarChart2, Check, RotateCcw,
-    SlidersHorizontal, Layers, Filter, Sparkles, Clock, Eye, EyeOff, Search
+    SlidersHorizontal, Layers, Filter, Sparkles, Clock, Eye, EyeOff, Search, Download
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { realtimeApi } from '../../api/client';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
+import { exportChartToJpg } from '../../utils/exportChart';
 
 const MONO = 'ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace';
 
@@ -368,6 +369,39 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
 
     const locationParts = [meter.building_name, meter.zone_name, meter.floor != null ? `${t('ชั้น', 'Fl.')} ${meter.floor}` : ''].filter(Boolean);
 
+    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const [exporting, setExporting] = useState(false);
+
+    const handleExportJpg = async () => {
+        if (!chartContainerRef.current) return;
+        setExporting(true);
+        try {
+            const timeLabel = TIME_RANGES.find(tr => tr.minutes === minutes);
+            const rangeText = timeLabel ? (language === 'th' ? timeLabel.labelTh : timeLabel.labelEn) : `${minutes}m`;
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const fileName = `${meter.meter_code || 'meter'}_graph_${rangeText}_${dateStr}`;
+            const locationStr = [meter.site_name, meter.building_name, meter.zone_name].filter(Boolean).join(' › ');
+
+            await exportChartToJpg({
+                element: chartContainerRef.current,
+                fileName,
+                title: `${meter.meter_name} (${meter.meter_code})`,
+                subtitle: `${locationStr ? locationStr + ' · ' : ''}${t('ช่วงเวลา', 'Range')}: ${rangeText} · ${new Date().toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: TIMEZONE_TH })}`,
+                backgroundColor: C.panel,
+                textColor: C.ink,
+                legend: activeMetricDefs.map(m => ({
+                    label: language === 'th' ? m.labelTh : m.labelEn,
+                    color: m.color,
+                    unit: m.unit,
+                })),
+            });
+        } catch (err) {
+            console.error('Failed to export graph to JPG:', err);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     // Summary calculations
     const latestKwh = meter.import_kwhr;
     const currentKw = meter.kw_3ph;
@@ -455,6 +489,24 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
                                 </button>
                             ))}
                         </div>
+
+                        {/* Export JPG Button */}
+                        <button
+                            onClick={handleExportJpg}
+                            disabled={exporting || loading || historyData.length === 0}
+                            title={t('ส่งออกกราฟเป็นไฟล์ JPG', 'Export Graph as JPG')}
+                            style={{
+                                background: C.panel2, border: `1px solid ${C.line}`, color: C.ink,
+                                cursor: exporting || loading || historyData.length === 0 ? 'not-allowed' : 'pointer',
+                                padding: '5px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 5,
+                                fontFamily: MONO, fontSize: 11, fontWeight: 600,
+                                opacity: exporting || loading || historyData.length === 0 ? 0.6 : 1,
+                                transition: 'all 0.15s ease',
+                            }}
+                        >
+                            <Download size={13} color={C.accent} />
+                            <span>{exporting ? t('กำลังส่งออก...', 'Exporting...') : 'JPG'}</span>
+                        </button>
 
                         {/* Refresh Button */}
                         <button
@@ -609,7 +661,7 @@ const MeterGraphModal: React.FC<MeterGraphModalProps> = ({
                             }}>{t('เปิดค่าเริ่มต้น (Power / Voltage / Current / PF)', 'Reset to Default Metrics')}</button>
                         </div>
                     ) : (
-                        <div style={{ width: '100%', height: 350 }}>
+                        <div ref={chartContainerRef} style={{ width: '100%', height: 350 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={historyData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={C.line} opacity={0.6} />
