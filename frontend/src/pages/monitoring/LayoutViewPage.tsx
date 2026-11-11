@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { alarmsApi, layoutsApi, meterDataApi, metersApi, realtimeApi, sitesApi } from '../../api/client';
@@ -173,6 +173,38 @@ const mapRealtimeMeterData = (row: any) => {
     };
 };
 
+/** Normalize floor string for comparison (e.g. "ชั้น 1" -> "1", "Fl. 02" -> "2", "1F" -> "1") */
+const normalizeFloorValue = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    let s = String(val).trim().toLowerCase();
+    if (!s) return '';
+    s = s.replace(/^(?:ชั้นที่|ชั้น|floor|fl\.?|f)\s*/i, '');
+    s = s.replace(/(?:f|fl)$/i, '');
+    if (/^\d+$/.test(s)) {
+        s = String(parseInt(s, 10));
+    }
+    return s.trim();
+};
+
+/** Extract explicit floor numbers/codes mentioned in layout name / position / image_name */
+const extractFloorsFromText = (text: string): string[] => {
+    if (!text) return [];
+    const results = new Set<string>();
+    const prefixRegex = /(?:ชั้นที่|ชั้น|floor|fl\.?)\s*([a-z0-9]+)/gi;
+    let m: RegExpExecArray | null;
+    while ((m = prefixRegex.exec(text)) !== null) {
+        const norm = normalizeFloorValue(m[1]);
+        if (norm) results.add(norm);
+    }
+    const tokenRegex = /(?:^|[\s_\-\(\[/])(?:f0*(\d+)|0*(\d+)(?:f|fl)|([bB]\d+)(?:f|fl)?)(?:$|[\s_\-\)\]\./])/g;
+    while ((m = tokenRegex.exec(text)) !== null) {
+        const raw = m[1] || m[2] || m[3];
+        const norm = normalizeFloorValue(raw);
+        if (norm) results.add(norm);
+    }
+    return Array.from(results);
+};
+
 const LayoutViewPage: React.FC = () => {
     const { theme } = useTheme();
     const { user } = useAuth();
@@ -309,23 +341,180 @@ const LayoutViewPage: React.FC = () => {
         }));
     }, [allBuildings, selectedSiteFilter, language]);
 
-    // Floor options extracted from meters & filtered by site and building
+    // Layouts filtered by user site access permissions
+    const userAccessibleLayouts = useMemo(() => {
+        if (user?.siteAccessMode === 'all') {
+            return layouts;
+        }
+        if (!user?.sites || user.sites.length === 0) {
+            return layouts;
+        }
+        const allowedIds = new Set(user.sites.map((s: any) => Number(s.siteId)));
+        return layouts.filter((l: any) => {
+            if (l.site_id && allowedIds.has(Number(l.site_id))) return true;
+            if (!l.site_id && Array.isArray(l.linked_site_ids) && l.linked_site_ids.some((sid: any) => allowedIds.has(Number(sid)))) return true;
+            return !l.site_id;
+        });
+    }, [layouts, user]);
+
+    // Helper: evaluate if a layout matches a specific Site filter
+    const matchLayoutSite = useCallback((l: any, siteFilter: string): { matches: boolean; score: number } => {
+        if (siteFilter === 'all') return { matches: true, score: 0 };
+        const targetSiteId = Number(siteFilter);
+        const linkedSiteIds = (Array.isArray(l.linked_site_ids) ? l.linked_site_ids : []).map(Number);
+
+        let explicitSiteId = l.site_id != null ? Number(l.site_id) : null;
+        if (explicitSiteId == null && l.building_id != null) {
+            const bObj = allBuildings.find((b: any) => Number(b.id || b.building_id) === Number(l.building_id));
+            if (bObj?.site_id != null) explicitSiteId = Number(bObj.site_id);
+        }
+
+        if (explicitSiteId != null) {
+            if (explicitSiteId === targetSiteId) return { matches: true, score: 100 };
+            if (linkedSiteIds.includes(targetSiteId)) return { matches: true, score: 60 };
+            return { matches: false, score: 0 };
+        }
+
+        if (linkedSiteIds.includes(targetSiteId)) {
+            return { matches: true, score: linkedSiteIds.length === 1 ? 90 : 60 };
+        }
+        if (linkedSiteIds.length > 0) {
+            return { matches: false, score: 0 };
+        }
+
+        const sObj = allSites.find((s: any) => Number(s.site_id || s.id) === targetSiteId);
+        const sNames = [sObj?.site_name, sObj?.site_name_th, sObj?.site_name_en, sObj?.site_code]
+            .filter(Boolean)
+            .map(s => String(s).trim().toLowerCase());
+        const layoutText = [l.name, l.position, l.image_name].filter(Boolean).join(' ').toLowerCase();
+        if (sNames.some(sn => sn && layoutText.includes(sn))) {
+            return { matches: true, score: 75 };
+        }
+        return { matches: false, score: 0 };
+    }, [allBuildings, allSites]);
+
+    // Helper: evaluate if a layout matches a specific Building filter
+    const matchLayoutBuilding = useCallback((l: any, buildingFilter: string): { matches: boolean; score: number } => {
+        if (buildingFilter === 'all') return { matches: true, score: 0 };
+        const targetBuildingId = Number(buildingFilter);
+        const linkedBuildingIds = (Array.isArray(l.linked_building_ids) ? l.linked_building_ids : []).map(Number);
+
+        if (l.building_id != null) {
+            if (Number(l.building_id) === targetBuildingId) return { matches: true, score: 100 };
+            if (linkedBuildingIds.includes(targetBuildingId)) return { matches: true, score: 60 };
+            return { matches: false, score: 0 };
+        }
+
+        if (linkedBuildingIds.includes(targetBuildingId)) {
+            return { matches: true, score: linkedBuildingIds.length === 1 ? 90 : 60 };
+        }
+        if (linkedBuildingIds.length > 0) {
+            return { matches: false, score: 0 };
+        }
+
+        const bObj = allBuildings.find((b: any) => Number(b.id || b.building_id) === targetBuildingId);
+        const bNames = [bObj?.building_name, bObj?.building_name_th, bObj?.building_name_en, bObj?.name]
+            .filter(Boolean)
+            .map(s => String(s).trim().toLowerCase());
+        const layoutText = [l.name, l.position, l.image_name].filter(Boolean).join(' ').toLowerCase();
+        if (bNames.some(bn => bn && layoutText.includes(bn))) {
+            return { matches: true, score: 80 };
+        }
+        return { matches: false, score: 0 };
+    }, [allBuildings]);
+
+    // Helper: evaluate if a layout matches a specific Floor filter
+    const matchLayoutFloor = useCallback((l: any, floorFilter: string): { matches: boolean; score: number } => {
+        if (floorFilter === 'all') return { matches: true, score: 0 };
+        const targetFloor = normalizeFloorValue(floorFilter);
+        if (!targetFloor) return { matches: true, score: 0 };
+
+        const explicitFloor = normalizeFloorValue(l.floor);
+        if (explicitFloor) {
+            return explicitFloor === targetFloor ? { matches: true, score: 100 } : { matches: false, score: 0 };
+        }
+
+        const textFloors = extractFloorsFromText([l.name, l.position, l.image_name].filter(Boolean).join(' '));
+        if (textFloors.length > 0) {
+            return textFloors.includes(targetFloor) ? { matches: true, score: 95 } : { matches: false, score: 0 };
+        }
+
+        const linkedFloors = (Array.isArray(l.linked_floors) ? l.linked_floors : [])
+            .map(normalizeFloorValue)
+            .filter(Boolean);
+        if (linkedFloors.length > 0) {
+            if (linkedFloors.includes(targetFloor)) {
+                return { matches: true, score: linkedFloors.length === 1 ? 85 : 50 };
+            }
+            return { matches: false, score: 0 };
+        }
+
+        return { matches: false, score: 0 };
+    }, []);
+
+    // Helper: evaluate if a layout matches a specific Zone filter
+    const matchLayoutZone = useCallback((l: any, zoneFilter: string): { matches: boolean; score: number } => {
+        if (zoneFilter === 'all') return { matches: true, score: 0 };
+        const targetZoneId = Number(zoneFilter);
+        const linkedZoneIds = (Array.isArray(l.linked_zone_ids) ? l.linked_zone_ids : []).map(Number);
+
+        if (linkedZoneIds.includes(targetZoneId)) {
+            return { matches: true, score: linkedZoneIds.length === 1 ? 90 : 60 };
+        }
+        if (linkedZoneIds.length > 0) {
+            return { matches: false, score: 0 };
+        }
+
+        const zObj = allZones.find((z: any) => Number(z.id || z.zone_id) === targetZoneId);
+        const zNames = [zObj?.zone_name, zObj?.zone_name_th, zObj?.zone_name_en, zObj?.name]
+            .filter(Boolean)
+            .map(s => String(s).trim().toLowerCase());
+        const layoutText = [l.name, l.position, l.image_name].filter(Boolean).join(' ').toLowerCase();
+        if (zNames.some(zn => zn && layoutText.includes(zn))) {
+            return { matches: true, score: 75 };
+        }
+        return { matches: false, score: 0 };
+    }, [allZones]);
+
+    // Floor options extracted from meters & layouts, filtered by site and building
     const floorOptions = useMemo(() => {
-        const floors = new Set<string>();
+        const floorMap = new Map<string, string>(); // normalized -> display string
+        const addFloor = (raw: any) => {
+            if (raw === null || raw === undefined) return;
+            const trimmed = String(raw).trim();
+            if (!trimmed) return;
+            const norm = normalizeFloorValue(trimmed);
+            if (norm && !floorMap.has(norm)) {
+                floorMap.set(norm, norm.toUpperCase());
+            }
+        };
+
         allMeters.forEach((m: any) => {
             if (m.floor !== null && m.floor !== undefined && String(m.floor).trim() !== '') {
                 if (selectedSiteFilter !== 'all' && Number(m.site_id) !== Number(selectedSiteFilter)) return;
                 if (selectedBuildingFilter !== 'all' && Number(m.building_id) !== Number(selectedBuildingFilter)) return;
-                floors.add(String(m.floor));
+                addFloor(m.floor);
             }
         });
-        return Array.from(floors).sort((a, b) => {
+
+        userAccessibleLayouts.forEach((l: any) => {
+            if (!matchLayoutSite(l, selectedSiteFilter).matches) return;
+            if (!matchLayoutBuilding(l, selectedBuildingFilter).matches) return;
+            if (l.floor) addFloor(l.floor);
+            const textFloors = extractFloorsFromText([l.name, l.position, l.image_name].filter(Boolean).join(' '));
+            textFloors.forEach(addFloor);
+            if (Array.isArray(l.linked_floors)) {
+                l.linked_floors.forEach(addFloor);
+            }
+        });
+
+        return Array.from(floorMap.values()).sort((a, b) => {
             const na = parseFloat(a);
             const nb = parseFloat(b);
             if (!isNaN(na) && !isNaN(nb)) return na - nb;
             return a.localeCompare(b);
         });
-    }, [allMeters, selectedSiteFilter, selectedBuildingFilter]);
+    }, [allMeters, userAccessibleLayouts, selectedSiteFilter, selectedBuildingFilter, matchLayoutSite, matchLayoutBuilding]);
 
     // Zone options filtered by selected site / building
     const zoneOptions = useMemo(() => {
@@ -344,30 +533,36 @@ const LayoutViewPage: React.FC = () => {
         }));
     }, [allZones, selectedBuildingFilter, selectedSiteFilter, buildingOptions, language]);
 
-    // Layouts filtered by user site access permissions
-    const userAccessibleLayouts = useMemo(() => {
-        if (user?.siteAccessMode === 'all') {
-            return layouts;
-        }
-        if (!user?.sites || user.sites.length === 0) {
-            return layouts;
-        }
-        const allowedIds = new Set(user.sites.map((s: any) => Number(s.siteId)));
-        return layouts.filter((l: any) => !l.site_id || allowedIds.has(Number(l.site_id)));
-    }, [layouts, user]);
-
-    // Layouts filtered by user-selected Site & Building dropdowns
+    // Layouts filtered & ranked by user-selected Site, Building, Floor, and Zone dropdowns
     const displayedLayouts = useMemo(() => {
-        return userAccessibleLayouts.filter((l: any) => {
-            if (selectedSiteFilter !== 'all' && Number(l.site_id) !== Number(selectedSiteFilter)) {
-                return false;
-            }
-            if (selectedBuildingFilter !== 'all' && Number(l.building_id) !== Number(selectedBuildingFilter)) {
-                return false;
-            }
-            return true;
-        });
-    }, [userAccessibleLayouts, selectedSiteFilter, selectedBuildingFilter]);
+        const hasFilters = selectedSiteFilter !== 'all' || selectedBuildingFilter !== 'all' || selectedFloorFilter !== 'all' || selectedZoneFilter !== 'all';
+        const scored: Array<{ layout: any; score: number }> = [];
+
+        for (const l of userAccessibleLayouts) {
+            const sMatch = matchLayoutSite(l, selectedSiteFilter);
+            if (!sMatch.matches) continue;
+
+            const bMatch = matchLayoutBuilding(l, selectedBuildingFilter);
+            if (!bMatch.matches) continue;
+
+            const fMatch = matchLayoutFloor(l, selectedFloorFilter);
+            if (!fMatch.matches) continue;
+
+            const zMatch = matchLayoutZone(l, selectedZoneFilter);
+            if (!zMatch.matches) continue;
+
+            scored.push({
+                layout: l,
+                score: sMatch.score + bMatch.score + fMatch.score + zMatch.score,
+            });
+        }
+
+        if (hasFilters) {
+            scored.sort((a, b) => b.score - a.score || a.layout.id - b.layout.id);
+        }
+
+        return scored.map(item => item.layout);
+    }, [userAccessibleLayouts, selectedSiteFilter, selectedBuildingFilter, selectedFloorFilter, selectedZoneFilter, matchLayoutSite, matchLayoutBuilding, matchLayoutFloor, matchLayoutZone]);
 
     const hasActiveHierarchyFilters = selectedSiteFilter !== 'all' || selectedBuildingFilter !== 'all' || selectedFloorFilter !== 'all' || selectedZoneFilter !== 'all';
 
@@ -425,16 +620,15 @@ const LayoutViewPage: React.FC = () => {
         return () => clearInterval(timer);
     }, [isLooping, loopIntervalSeconds, displayedLayouts, selectedId]);
 
-    // Sync selected layout id when displayedLayouts changes
+    // Sync selected layout id when displayedLayouts changes (e.g. when Site / Building / Floor / Zone filter changes)
     useEffect(() => {
         if (displayedLayouts.length > 0) {
-            if (!selectedId || !displayedLayouts.some(l => l.id === selectedId)) {
-                setSelectedId(displayedLayouts[0].id);
-            }
+            setSelectedId(displayedLayouts[0].id);
         } else {
             setSelectedId(null);
         }
-    }, [displayedLayouts, selectedId]);
+        setLoopProgress(0);
+    }, [displayedLayouts]);
 
     // Refresh the latest realtime imported energy used by the meter list.
     useEffect(() => {
@@ -494,7 +688,7 @@ const LayoutViewPage: React.FC = () => {
             result = result.filter((m: any) => Number(m.building_id) === Number(selectedBuildingFilter));
         }
         if (selectedFloorFilter !== 'all') {
-            result = result.filter((m: any) => String(m.floor) === String(selectedFloorFilter));
+            result = result.filter((m: any) => normalizeFloorValue(m.floor) === normalizeFloorValue(selectedFloorFilter));
         }
         if (selectedZoneFilter !== 'all') {
             result = result.filter((m: any) => Number(m.zone_id) === Number(selectedZoneFilter));
@@ -544,17 +738,27 @@ const LayoutViewPage: React.FC = () => {
         });
     }, [allMeters, linkedMeterIds, selectedSiteFilter, selectedBuildingFilter, selectedFloorFilter, selectedZoneFilter, activeLegendFilter, activeStatusFilter, points, meterSearch, meterTypeFilter, latestMeterData, activeAlerts]);
 
-    // Load points when layout changes
+    // Load points & update layout image immediately when layout changes
     useEffect(() => {
-        if (!selectedId) return;
+        if (!selectedId) {
+            setSelectedLayout(null);
+            setPoints([]);
+            return;
+        }
         setZoom(1);
         setPopupPoint(null);
+        const cached = layouts.find((l: any) => Number(l.id) === Number(selectedId));
+        if (cached) {
+            setSelectedLayout(cached);
+        }
+        let cancelled = false;
         (async () => {
             try {
                 const [layoutRes, pointsRes] = await Promise.all([
                     layoutsApi.getById(selectedId),
                     layoutsApi.getPoints(selectedId),
                 ]);
+                if (cancelled) return;
                 setSelectedLayout(layoutRes.data.data);
                 setPoints((pointsRes.data.data || []).map((pt: any) => ({
                     ...pt,
@@ -562,12 +766,14 @@ const LayoutViewPage: React.FC = () => {
                     y_percent: parseFloat(pt.y_percent) || 0,
                 })));
             } catch (err) {
+                if (cancelled) return;
                 console.error(err);
-                setSelectedLayout(null);
+                if (!cached) setSelectedLayout(null);
                 setPoints([]);
             }
         })();
-    }, [selectedId]);
+        return () => { cancelled = true; };
+    }, [selectedId, layouts]);
 
     // Zoom handlers
     const handleZoomIn = () => setZoom(z => Math.min(ZOOM_MAX, z + ZOOM_STEP));
@@ -639,7 +845,7 @@ const LayoutViewPage: React.FC = () => {
             }
             if (selectedFloorFilter !== 'all') {
                 const meter = allMeters.find(m => Number(m.meter_id) === Number(pt.meter_id));
-                if (meter && String(meter.floor) !== String(selectedFloorFilter)) return false;
+                if (meter && normalizeFloorValue(meter.floor) !== normalizeFloorValue(selectedFloorFilter)) return false;
             }
             if (selectedZoneFilter !== 'all') {
                 const meter = allMeters.find(m => Number(m.meter_id) === Number(pt.meter_id));
@@ -727,7 +933,10 @@ const LayoutViewPage: React.FC = () => {
                                 displayedLayouts.map((l: any) => {
                                     const bName = language === 'en' ? (l.building_name_en || l.building_name) : (l.building_name_th || l.building_name);
                                     const sName = language === 'en' ? (l.site_name_en || l.site_name) : (l.site_name_th || l.site_name);
-                                    const locTag = bName || sName ? ` [${[sName, bName].filter(Boolean).join(' · ')}]` : '';
+                                    const fRaw = l.floor || (Array.isArray(l.linked_floors) && l.linked_floors.length === 1 ? l.linked_floors[0] : '');
+                                    const fName = fRaw ? `${t('ชั้น', 'Fl.')} ${fRaw}` : '';
+                                    const locParts = [sName, bName, fName].filter(Boolean);
+                                    const locTag = locParts.length > 0 ? ` [${locParts.join(' · ')}]` : '';
                                     return (<option key={l.id} value={l.id}>{l.name}{locTag}</option>);
                                 })
                             )}
@@ -1232,7 +1441,7 @@ const LayoutViewPage: React.FC = () => {
                                     position: 'relative', display: 'inline-block',
                                     width: '100%',
                                 }}>
-                                    <img src={selectedLayout.image_url} alt={selectedLayout.name}
+                                    <img key={selectedLayout.id} src={selectedLayout.image_url} alt={selectedLayout.name}
                                         style={{
                                             width: '100%',
                                             objectFit: 'contain', display: 'block',

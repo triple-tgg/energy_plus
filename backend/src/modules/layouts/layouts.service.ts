@@ -3,28 +3,85 @@ import { parsePagination } from '../../utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 
 export class LayoutsService {
+    private schemaReady = false;
+
+    private async ensureSchema() {
+        if (this.schemaReady) return;
+        try {
+            await query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL`);
+            await query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS building_id INTEGER REFERENCES buildings(building_id) ON DELETE SET NULL`);
+            await query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS floor VARCHAR(50)`);
+            this.schemaReady = true;
+        } catch {
+            // ignore if already exists or read-only
+        }
+    }
+
     async getLayouts(queryParams: any) {
+        await this.ensureSchema();
         const { page, limit, offset } = parsePagination(queryParams);
         const params: any[] = [];
         const filters: string[] = [];
         if (queryParams.siteId || queryParams.site_id) {
             params.push(parseInt(queryParams.siteId || queryParams.site_id, 10));
-            filters.push(`l.site_id = $${params.length}`);
+            filters.push(`COALESCE(l.site_id, b.site_id) = $${params.length}`);
         }
         if (queryParams.buildingId || queryParams.building_id) {
             params.push(parseInt(queryParams.buildingId || queryParams.building_id, 10));
             filters.push(`l.building_id = $${params.length}`);
         }
+        if (queryParams.floor) {
+            params.push(String(queryParams.floor).trim());
+            filters.push(`LOWER(TRIM(COALESCE(l.floor, ''))) = LOWER($${params.length})`);
+        }
         const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
 
-        const countResult = await query(`SELECT COUNT(*) FROM layouts l ${whereClause}`, params);
+        const countResult = await query(
+            `SELECT COUNT(*)
+             FROM layouts l
+             LEFT JOIN buildings b ON l.building_id = b.building_id
+             ${whereClause}`,
+            params
+        );
         const total = parseInt(countResult.rows[0].count, 10);
 
         params.push(limit, offset);
         const result = await query(
-            `SELECT l.*,
+            `SELECT l.id, l.name, l.position, l.image_name, l.image_url,
+                    COALESCE(l.site_id, b.site_id) AS site_id,
+                    l.building_id,
+                    l.floor,
+                    l.created_at, l.updated_at,
                     s.site_name, s.site_name_th, s.site_name_en,
                     b.building_name, b.building_name_th, b.building_name_en,
+                    COALESCE(
+                        (SELECT json_agg(DISTINCT m.site_id)
+                         FROM layout_points lp
+                         JOIN meter m ON lp.meter_id = m.meter_id
+                         WHERE lp.layout_id = l.id AND m.site_id IS NOT NULL
+                        ), '[]'::json
+                    ) AS linked_site_ids,
+                    COALESCE(
+                        (SELECT json_agg(DISTINCT m.building_id)
+                         FROM layout_points lp
+                         JOIN meter m ON lp.meter_id = m.meter_id
+                         WHERE lp.layout_id = l.id AND m.building_id IS NOT NULL
+                        ), '[]'::json
+                    ) AS linked_building_ids,
+                    COALESCE(
+                        (SELECT json_agg(DISTINCT TRIM(m.floor::text))
+                         FROM layout_points lp
+                         JOIN meter m ON lp.meter_id = m.meter_id
+                         WHERE lp.layout_id = l.id AND m.floor IS NOT NULL AND TRIM(m.floor::text) <> ''
+                        ), '[]'::json
+                    ) AS linked_floors,
+                    COALESCE(
+                        (SELECT json_agg(DISTINCT m.zone_id)
+                         FROM layout_points lp
+                         JOIN meter m ON lp.meter_id = m.meter_id
+                         WHERE lp.layout_id = l.id AND m.zone_id IS NOT NULL
+                        ), '[]'::json
+                    ) AS linked_zone_ids,
                     COALESCE(
                         (SELECT json_agg(json_build_object(
                             'point_type', summary.point_type,
@@ -49,8 +106,8 @@ export class LayoutsService {
                         ), '[]'::json
                     ) AS point_summary
              FROM layouts l
-             LEFT JOIN sites s ON l.site_id = s.site_id
              LEFT JOIN buildings b ON l.building_id = b.building_id
+             LEFT JOIN sites s ON COALESCE(l.site_id, b.site_id) = s.site_id
              ${whereClause}
              ORDER BY l.id DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
             params
@@ -59,13 +116,18 @@ export class LayoutsService {
     }
 
     async getLayoutById(id: number) {
+        await this.ensureSchema();
         const result = await query(
-            `SELECT l.*,
+            `SELECT l.id, l.name, l.position, l.image_name, l.image_url,
+                    COALESCE(l.site_id, b.site_id) AS site_id,
+                    l.building_id,
+                    l.floor,
+                    l.created_at, l.updated_at,
                     s.site_name, s.site_name_th, s.site_name_en,
                     b.building_name, b.building_name_th, b.building_name_en
              FROM layouts l
-             LEFT JOIN sites s ON l.site_id = s.site_id
              LEFT JOIN buildings b ON l.building_id = b.building_id
+             LEFT JOIN sites s ON COALESCE(l.site_id, b.site_id) = s.site_id
              WHERE l.id = $1`,
             [id]
         );
@@ -75,16 +137,26 @@ export class LayoutsService {
         return result.rows[0];
     }
 
-    async createLayout(data: { name: string; position?: string; image_name?: string; image_url?: string; site_id?: number | null; building_id?: number | null }) {
+    async createLayout(data: { name: string; position?: string; image_name?: string; image_url?: string; site_id?: number | null; building_id?: number | null; floor?: string | null }) {
+        await this.ensureSchema();
         const result = await query(
-            `INSERT INTO layouts (name, position, image_name, image_url, site_id, building_id, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) RETURNING *`,
-            [data.name, data.position || null, data.image_name || null, data.image_url || null, data.site_id || null, data.building_id || null]
+            `INSERT INTO layouts (name, position, image_name, image_url, site_id, building_id, floor, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW()) RETURNING *`,
+            [
+                data.name,
+                data.position || null,
+                data.image_name || null,
+                data.image_url || null,
+                data.site_id || null,
+                data.building_id || null,
+                data.floor ? String(data.floor).trim() : null,
+            ]
         );
         return result.rows[0];
     }
 
-    async updateLayout(id: number, data: { name: string; position?: string; image_name?: string; image_url?: string; site_id?: number | null; building_id?: number | null }) {
+    async updateLayout(id: number, data: { name: string; position?: string; image_name?: string; image_url?: string; site_id?: number | null; building_id?: number | null; floor?: string | null }) {
+        await this.ensureSchema();
         const existing = await this.getLayoutById(id);
 
         const result = await query(
@@ -95,8 +167,9 @@ export class LayoutsService {
                  image_url = COALESCE($4, image_url), 
                  site_id = $5,
                  building_id = $6,
+                 floor = $7,
                  updated_at = NOW() 
-             WHERE id = $7 RETURNING *`,
+             WHERE id = $8 RETURNING *`,
             [
                 data.name,
                 data.position || null,
@@ -104,6 +177,7 @@ export class LayoutsService {
                 data.image_url || null,
                 data.site_id !== undefined ? data.site_id : existing.site_id,
                 data.building_id !== undefined ? data.building_id : existing.building_id,
+                data.floor !== undefined ? (data.floor ? String(data.floor).trim() : null) : existing.floor,
                 id
             ]
         );

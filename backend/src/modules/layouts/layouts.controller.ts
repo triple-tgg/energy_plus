@@ -28,6 +28,7 @@ export class LayoutsController {
             const { name, position } = req.body;
             const site_id = req.body.site_id ? parseInt(req.body.site_id, 10) : (req.body.siteId ? parseInt(req.body.siteId, 10) : null);
             const building_id = req.body.building_id ? parseInt(req.body.building_id, 10) : (req.body.buildingId ? parseInt(req.body.buildingId, 10) : null);
+            const floor = req.body.floor !== undefined && String(req.body.floor).trim() !== '' ? String(req.body.floor).trim() : null;
             let image_name = undefined;
             let image_url = undefined;
 
@@ -42,6 +43,7 @@ export class LayoutsController {
                 position,
                 site_id,
                 building_id,
+                floor,
                 image_name,
                 image_url
             });
@@ -58,6 +60,7 @@ export class LayoutsController {
             const { name, position } = req.body;
             const site_id = req.body.site_id !== undefined ? (req.body.site_id ? parseInt(req.body.site_id, 10) : null) : (req.body.siteId !== undefined ? (req.body.siteId ? parseInt(req.body.siteId, 10) : null) : undefined);
             const building_id = req.body.building_id !== undefined ? (req.body.building_id ? parseInt(req.body.building_id, 10) : null) : (req.body.buildingId !== undefined ? (req.body.buildingId ? parseInt(req.body.buildingId, 10) : null) : undefined);
+            const floor = req.body.floor !== undefined ? (String(req.body.floor).trim() !== '' ? String(req.body.floor).trim() : null) : undefined;
             let image_name = undefined;
             let image_url = undefined;
 
@@ -72,6 +75,7 @@ export class LayoutsController {
                 position,
                 site_id,
                 building_id,
+                floor,
                 image_name,
                 image_url
             });

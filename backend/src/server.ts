@@ -181,12 +181,14 @@ const startServer = async () => {
                 position VARCHAR(100),
                 site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL,
                 building_id INTEGER REFERENCES buildings(building_id) ON DELETE SET NULL,
+                floor VARCHAR(50),
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         `);
         await pool.query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL`);
         await pool.query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS building_id INTEGER REFERENCES buildings(building_id) ON DELETE SET NULL`);
+        await pool.query(`ALTER TABLE IF EXISTS layouts ADD COLUMN IF NOT EXISTS floor VARCHAR(50)`);
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS layout_points (

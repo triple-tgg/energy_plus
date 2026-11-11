@@ -17,6 +17,7 @@ interface LayoutForm {
     position: string;
     siteId: string;
     buildingId: string;
+    floor: string;
     imageFile: File | null;
 }
 
@@ -33,7 +34,7 @@ interface LayoutPoint {
     config?: any;
 }
 
-const emptyForm: LayoutForm = { name: '', imageName: '', position: '', siteId: '', buildingId: '', imageFile: null };
+const emptyForm: LayoutForm = { name: '', imageName: '', position: '', siteId: '', buildingId: '', floor: '', imageFile: null };
 
 const POINT_TYPES = STANDARD_METER_TYPES.map(t => ({
     key: String(t.id),
@@ -221,12 +222,14 @@ const LayoutSettingsPage: React.FC = () => {
 
     const handleEdit = (row: any) => {
         setEditId(row.id);
+        const inferredFloor = row.floor || (Array.isArray(row.linked_floors) && row.linked_floors.length === 1 ? row.linked_floors[0] : '');
         setForm({
             name: row.name || '',
             imageName: row.image_name || '',
             position: row.position || '',
             siteId: row.site_id ? String(row.site_id) : '',
             buildingId: row.building_id ? String(row.building_id) : '',
+            floor: inferredFloor ? String(inferredFloor) : '',
             imageFile: null
         });
         setFormError('');
@@ -240,8 +243,9 @@ const LayoutSettingsPage: React.FC = () => {
             const formData = new FormData();
             formData.append('name', form.name);
             formData.append('position', form.position);
-            if (form.siteId) formData.append('site_id', form.siteId);
-            if (form.buildingId) formData.append('building_id', form.buildingId);
+            formData.append('site_id', form.siteId || '');
+            formData.append('building_id', form.buildingId || '');
+            formData.append('floor', form.floor || '');
             if (form.imageFile) formData.append('image', form.imageFile);
             if (editId) {
                 await layoutsApi.update(editId, formData);
@@ -373,6 +377,15 @@ const LayoutSettingsPage: React.FC = () => {
             key: 'building_name',
             title: t('อาคาร', 'Building'),
             render: (_: any, row: any) => (language === 'en' ? (row.building_name_en || row.building_name) : (row.building_name_th || row.building_name)) || '—',
+        },
+        {
+            key: 'floor',
+            title: t('ชั้น', 'Floor'),
+            render: (_: any, row: any) => {
+                if (row.floor) return row.floor;
+                if (Array.isArray(row.linked_floors) && row.linked_floors.length > 0) return row.linked_floors.join(', ');
+                return '—';
+            },
         },
         { key: 'image_name', title: t('ชื่อไฟล์รูปภาพ', 'Image Name') },
         {
@@ -572,6 +585,16 @@ const LayoutSettingsPage: React.FC = () => {
                             </option>
                         ))}
                     </select>
+                </div>
+                <div className="form-group">
+                    <label className="form-label">{t('ชั้น', 'Floor')}</label>
+                    <input
+                        type="text"
+                        className="form-control"
+                        value={form.floor}
+                        onChange={e => setForm({ ...form, floor: e.target.value })}
+                        placeholder={t('เช่น 1, 2, G, B1', 'e.g. 1, 2, G, B1')}
+                    />
                 </div>
                 <div className="form-group">
                     <label className="form-label">{t('คำอธิบาย', 'Description')}</label>
