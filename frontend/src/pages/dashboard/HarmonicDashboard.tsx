@@ -3,11 +3,12 @@ import {
     Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine,
     ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { Activity, AlertTriangle, BarChart3, Clock, Gauge, RefreshCw, ShieldAlert, Waves, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, Clock, Gauge, RefreshCw, ShieldAlert, Waves, Zap, Download } from 'lucide-react';
 import { powerQualityApi } from '../../api/client';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { exportChartToJpg } from '../../utils/exportChart';
 
 /* ─────────────────────────── theme / constants ─────────────────────────── */
 
@@ -96,7 +97,7 @@ const unwrap = (res: any) => res?.data?.data ?? res?.data;
 
 const HarmonicDashboard: React.FC = () => {
     const { theme } = useTheme();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const { user } = useAuth();
     const C = THEMES[theme];
 
@@ -255,6 +256,53 @@ const HarmonicDashboard: React.FC = () => {
         return v > l.thdBad ? C.red : v > l.thdWarn ? C.yellow : C.green;
     };
 
+    const orderTrendRef = useRef<HTMLDivElement>(null);
+    const thdTrendRef = useRef<HTMLDivElement>(null);
+    const spectrumRef = useRef<HTMLDivElement>(null);
+
+    const exportSpectrum = async () => {
+        if (!spectrumRef.current || !source) return;
+        const meterName = source.meter_name || source.meter_code || source.channel;
+        await exportChartToJpg({
+            element: spectrumRef.current,
+            fileName: `${source.meter_code || 'meter'}_spectrum_${datatype}`,
+            title: `${t('สเปกตรัมฮาร์มอนิก', 'HARMONIC SPECTRUM')} — ${t(cfg.th, cfg.en)} (${meterName})`,
+            subtitle: `${source.site_name || ''} · ${spectrum ? `${t('ช่วง 15 นาที', '15-min bucket')} ${fmtTime(spectrum.bucketStart)}` : ''} · ${new Date().toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: 'Asia/Bangkok' })}`,
+            backgroundColor: C.cardBg,
+            textColor: C.ink,
+        });
+    };
+
+    const exportOrderTrend = async () => {
+        if (!orderTrendRef.current || !source) return;
+        const opt = TIME_OPTIONS.find(o => o.hours === hours);
+        const rangeText = opt ? (language === 'th' ? opt.labelTh : opt.labelEn) : `${hours}h`;
+        const meterName = source.meter_name || source.meter_code || source.channel;
+        await exportChartToJpg({
+            element: orderTrendRef.current,
+            fileName: `${source.meter_code || 'meter'}_order_trend_${rangeText}`,
+            title: `${t('แนวโน้มรายลำดับ', 'ORDER TREND')} — ${cfg.phases[trendPhase]} (${meterName})`,
+            subtitle: `${source.site_name || ''} · ${t('ช่วงเวลา', 'Range')}: ${rangeText} · ${new Date().toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: 'Asia/Bangkok' })}`,
+            backgroundColor: C.cardBg,
+            textColor: C.ink,
+        });
+    };
+
+    const exportThdTrend = async () => {
+        if (!thdTrendRef.current || !source) return;
+        const opt = TIME_OPTIONS.find(o => o.hours === hours);
+        const rangeText = opt ? (language === 'th' ? opt.labelTh : opt.labelEn) : `${hours}h`;
+        const meterName = source.meter_name || source.meter_code || source.channel;
+        await exportChartToJpg({
+            element: thdTrendRef.current,
+            fileName: `${source.meter_code || 'meter'}_thd_trend_${rangeText}`,
+            title: `${t('แนวโน้ม THD', 'THD TREND')} — ${t(cfg.th, cfg.en)} (${meterName})`,
+            subtitle: `${source.site_name || ''} · ${t('ช่วงเวลา', 'Range')}: ${rangeText} · ${new Date().toLocaleString(language === 'th' ? 'th-TH' : 'en-US', { timeZone: 'Asia/Bangkok' })}`,
+            backgroundColor: C.cardBg,
+            textColor: C.ink,
+        });
+    };
+
     /* ─────────────── render helpers ─────────────── */
 
     const card: React.CSSProperties = { background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 10, padding: '14px 16px' };
@@ -403,11 +451,33 @@ const HarmonicDashboard: React.FC = () => {
 
                         {/* Spectrum + Top table */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.2fr) minmax(280px, 1fr)', gap: 12, marginBottom: 16 }}>
-                            <div style={card}>
+                            <div style={card} ref={spectrumRef}>
                                 {cardTitle(<BarChart3 size={14} />, `${t('สเปกตรัมฮาร์มอนิก', 'HARMONIC SPECTRUM')} — ${t(cfg.th, cfg.en)} (% ${t('ของ fundamental', 'of fundamental')})`,
-                                    <span style={{ fontSize: 10, color: C.sub, fontFamily: MONO }}>
-                                        {spectrum ? `${t('ช่วง 15 นาที', '15-min bucket')} ${fmtTime(spectrum.bucketStart)} · ${spectrum.sampleCount} ${t('ตัวอย่าง', 'samples')}` : ''}
-                                    </span>)}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={exportSpectrum}
+                                            title={t('ส่งออกกราฟเป็น JPG', 'Export chart as JPG')}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                padding: '3px 8px',
+                                                fontSize: 11,
+                                                fontFamily: MONO,
+                                                borderRadius: 6,
+                                                border: `1px solid ${C.line}`,
+                                                background: C.panel,
+                                                color: C.ink,
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <Download size={11} /> JPG
+                                        </button>
+                                        <span style={{ fontSize: 10, color: C.sub, fontFamily: MONO }}>
+                                            {spectrum ? `${t('ช่วง 15 นาที', '15-min bucket')} ${fmtTime(spectrum.bucketStart)} · ${spectrum.sampleCount} ${t('ตัวอย่าง', 'samples')}` : ''}
+                                        </span>
+                                    </div>)}
                                 {spectrumData.length === 0 ? empty(t('ไม่มีข้อมูลสเปกตรัมสำหรับประเภทนี้', 'No spectrum for this type'), 300) : (
                                     <ResponsiveContainer width="100%" height={300}>
                                         <BarChart data={spectrumData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }} barGap={1} barCategoryGap="18%">
@@ -491,12 +561,34 @@ const HarmonicDashboard: React.FC = () => {
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 12, marginBottom: 16 }}>
-                            <div style={card}>
+                            <div style={card} ref={orderTrendRef}>
                                 {cardTitle(<Waves size={14} />, `${t('แนวโน้มรายลำดับ', 'ORDER TREND')} — ${cfg.phases[trendPhase]}`,
-                                    <div style={{ display: 'flex', gap: 4 }}>
-                                        {cfg.phases.map((p, i) => (
-                                            <button key={p} onClick={() => setTrendPhase(i)} style={{ ...pill(trendPhase === i), padding: '3px 8px', fontSize: 11 }}>{p}</button>
-                                        ))}
+                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                        <button
+                                            type="button"
+                                            onClick={exportOrderTrend}
+                                            title={t('ส่งออกกราฟเป็น JPG', 'Export chart as JPG')}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                padding: '3px 8px',
+                                                fontSize: 11,
+                                                fontFamily: MONO,
+                                                borderRadius: 6,
+                                                border: `1px solid ${C.line}`,
+                                                background: C.panel,
+                                                color: C.ink,
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <Download size={11} /> JPG
+                                        </button>
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                            {cfg.phases.map((p, i) => (
+                                                <button key={p} onClick={() => setTrendPhase(i)} style={{ ...pill(trendPhase === i), padding: '3px 8px', fontSize: 11 }}>{p}</button>
+                                            ))}
+                                        </div>
                                     </div>)}
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
                                     {ORDERS.filter((h) => h <= 25).map((h) => {
@@ -524,8 +616,29 @@ const HarmonicDashboard: React.FC = () => {
                                 )}
                             </div>
 
-                            <div style={card}>
-                                {cardTitle(<Gauge size={14} />, `${t('แนวโน้ม THD', 'THD TREND')} — ${t(cfg.th, cfg.en)} (${t('เฉลี่ย 15 นาที', '15-min avg')})`)}
+                            <div style={card} ref={thdTrendRef}>
+                                {cardTitle(<Gauge size={14} />, `${t('แนวโน้ม THD', 'THD TREND')} — ${t(cfg.th, cfg.en)} (${t('เฉลี่ย 15 นาที', '15-min avg')})`,
+                                    <button
+                                        type="button"
+                                        onClick={exportThdTrend}
+                                        title={t('ส่งออกกราฟเป็น JPG', 'Export chart as JPG')}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            padding: '3px 8px',
+                                            fontSize: 11,
+                                            fontFamily: MONO,
+                                            borderRadius: 6,
+                                            border: `1px solid ${C.line}`,
+                                            background: C.panel,
+                                            color: C.ink,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <Download size={11} /> JPG
+                                    </button>
+                                )}
                                 {thdTrendData.length === 0 ? empty(t('ยังไม่มีข้อมูล THD', 'No THD history yet'), 270) : (
                                     <ResponsiveContainer width="100%" height={270}>
                                         <LineChart data={thdTrendData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
