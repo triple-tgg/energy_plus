@@ -36,6 +36,18 @@ interface RealtimeStats {
     rows_older_than_24h: number;
     rows_older_than_7d: number;
     rows_older_than_30d: number;
+    historical?: {
+        actual_total_rows: number;
+        actual_oldest_record: string | null;
+        actual_newest_record: string | null;
+        actual_table_size: string;
+        actual_within_3m: number;
+        actual_older_than_3m: number;
+        kwh_rows: number;
+        ele_rows: number;
+        mdb_tou_rows: number;
+        water_rows: number;
+    };
 }
 
 const DataCleanupPage: React.FC = () => {
@@ -48,7 +60,12 @@ const DataCleanupPage: React.FC = () => {
     const [retentionHours, setRetentionHours] = useState(24);
     const [purging, setPurging] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
-    const [result, setResult] = useState<{ deleted: number; message: string } | null>(null);
+    const [result, setResult] = useState<{
+        deleted: number;
+        realtimeDeleted?: number;
+        historicalCompacted?: number;
+        message: string;
+    } | null>(null);
     const [error, setError] = useState('');
 
     const fetchStats = useCallback(async () => {
@@ -121,9 +138,85 @@ const DataCleanupPage: React.FC = () => {
 
                 {result && (
                     <div style={{ background: C.green + '18', color: C.green, padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <CheckCircle size={16} /> {t(`ลบข้อมูลสำเร็จ ${result.deleted.toLocaleString()} รายการ`, `Successfully deleted ${result.deleted.toLocaleString()} records`)}
+                        <CheckCircle size={16} />
+                        {t(
+                            `ดำเนินการสำเร็จ: ลบ Realtime เก่า ${(result.realtimeDeleted ?? result.deleted).toLocaleString()} รายการ และบีบอัดข้อมูลเกิน 3 เดือน ${(result.historicalCompacted ?? 0).toLocaleString()} รายการ`,
+                            `Completed: Deleted ${(result.realtimeDeleted ?? result.deleted).toLocaleString()} realtime records and compacted ${(result.historicalCompacted ?? 0).toLocaleString()} historical records (> 3 months)`
+                        )}
                     </div>
                 )}
+
+                {/* Retention Policy Summary Table */}
+                <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 10, padding: '16px 20px', marginBottom: 24 }}>
+                    <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, color: C.ink, marginBottom: 12, letterSpacing: 1 }}>
+                        {t('นโยบายการเก็บข้อมูลเพื่อประหยัดพื้นที่ (TIME STAMP RETENTION POLICY)', 'TIME STAMP DATA RETENTION POLICY')}
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: MONO }}>
+                            <thead>
+                                <tr style={{ borderBottom: `1px solid ${C.line}`, color: C.sub, textAlign: 'left' }}>
+                                    <th style={{ padding: '8px 10px' }}>{t('ประเภทข้อมูล / มิเตอร์', 'Category / Meter Type')}</th>
+                                    <th style={{ padding: '8px 10px' }}>{t('ช่วงที่ 1 (0 - 3 เดือนแรก)', 'First 3 Months')}</th>
+                                    <th style={{ padding: '8px 10px' }}>{t('หลัง 3 เดือน (> 3 เดือน)', 'After 3 Months')}</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>{t('จำนวนข้อมูลปัจจุบัน', 'Current Records')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {[
+                                    {
+                                        name: t('Realtime (เตือน Alarm)', 'Realtime (Alarm Monitoring)'),
+                                        phase1: t('เก็บทุกวินาที (เก็บไว้ 24 ชม.)', 'Every second (Keep 24 hrs)'),
+                                        phase2: t('ลบอัตโนมัติหลัง 24 ชม. (อ้างอิงข้อ 1-3)', 'Purged after 24 hrs (Ref. rules 1-3)'),
+                                        count: stats ? formatNumber(stats.total_rows) : '-',
+                                        badgeColor: C.accent,
+                                    },
+                                    {
+                                        name: t('ไฟฟ้า — 1. kWh', 'Electricity — 1. kWh'),
+                                        phase1: t('เก็บทุก 15 นาที (3 เดือนแรก)', 'Every 15 mins (First 3 months)'),
+                                        phase2: t('24 ชม. 1 ค่า (วันละ 1 ค่า)', '1 value per 24 hrs (Daily)'),
+                                        count: stats?.historical ? formatNumber(stats.historical.kwh_rows) : '-',
+                                        badgeColor: C.green,
+                                    },
+                                    {
+                                        name: t('ไฟฟ้า — 2. ELE', 'Electricity — 2. ELE'),
+                                        phase1: t('เก็บทุก 15 นาที (3 เดือนแรก)', 'Every 15 mins (First 3 months)'),
+                                        phase2: t('ชม.ละ 1 ค่า (ชั่วโมงละ 1 ค่า)', '1 value per hour (Hourly)'),
+                                        count: stats?.historical ? formatNumber(stats.historical.ele_rows) : '-',
+                                        badgeColor: C.yellow,
+                                    },
+                                    {
+                                        name: t('ไฟฟ้า — 3. Main MDB (TOU)', 'Electricity — 3. Main MDB (TOU)'),
+                                        phase1: t('เก็บทุก 15 นาที', 'Every 15 mins'),
+                                        phase2: t('เก็บทุก 15 นาที ตลอดการใช้งาน', 'Every 15 mins (Forever)'),
+                                        count: stats?.historical ? formatNumber(stats.historical.mdb_tou_rows) : '-',
+                                        badgeColor: C.accent,
+                                    },
+                                    {
+                                        name: t('น้ำ — 1. Water', 'Water — 1. Water'),
+                                        phase1: t('เก็บทุก 15 นาที (3 เดือนแรก)', 'Every 15 mins (First 3 months)'),
+                                        phase2: t('เหลือ 24 ชม. 1 ค่า (วันละ 1 ค่า)', '1 value per 24 hrs (Daily)'),
+                                        count: stats?.historical ? formatNumber(stats.historical.water_rows) : '-',
+                                        badgeColor: C.green,
+                                    },
+                                ].map((row, idx) => (
+                                    <tr key={idx} style={{ borderBottom: `1px solid ${C.line}60` }}>
+                                        <td style={{ padding: '9px 10px', fontWeight: 700, color: C.ink }}>{row.name}</td>
+                                        <td style={{ padding: '9px 10px', color: C.sub }}>{row.phase1}</td>
+                                        <td style={{ padding: '9px 10px', color: row.badgeColor, fontWeight: 600 }}>{row.phase2}</td>
+                                        <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700, color: C.ink }}>{row.count}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {stats?.historical && (
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${C.line}`, fontSize: 11.5, color: C.sub, fontFamily: MONO }}>
+                            <span>{t('ขนาดตาราง History (15m/1h/24h):', 'History Table Size:')} <strong style={{ color: C.ink }}>{stats.historical.actual_table_size}</strong></span>
+                            <span>{t('ภายใน 3 เดือน:', 'Within 3 Months:')} <strong style={{ color: C.green }}>{formatNumber(stats.historical.actual_within_3m)}</strong></span>
+                            <span>{t('เก่ากว่า 3 เดือน:', 'Older than 3 Months:')} <strong style={{ color: C.yellow }}>{formatNumber(stats.historical.actual_older_than_3m)}</strong></span>
+                        </div>
+                    )}
+                </div>
 
                 {/* Stats Cards */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
@@ -169,11 +262,11 @@ const DataCleanupPage: React.FC = () => {
                 <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 10, padding: '16px 20px' }}>
                     <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, color: C.ink, marginBottom: 12, letterSpacing: 1 }}>
                         <Trash2 size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                        {t('ล้างข้อมูล REALTIME', 'PURGE REALTIME DATA')}
+                        {t('ล้างข้อมูล REALTIME และบีบอัดข้อมูลเกิน 3 เดือน', 'PURGE REALTIME & COMPACT HISTORICAL DATA')}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        <label style={{ color: C.sub, fontSize: 13 }}>{t('ลบข้อมูลที่เก่ากว่า:', 'Delete data older than:')}</label>
+                        <label style={{ color: C.sub, fontSize: 13 }}>{t('ลบข้อมูล Realtime ที่เก่ากว่า:', 'Delete Realtime data older than:')}</label>
                         <select
                             value={retentionHours}
                             onChange={(e) => setRetentionHours(parseInt(e.target.value, 10))}
@@ -189,24 +282,24 @@ const DataCleanupPage: React.FC = () => {
 
                         <button
                             onClick={() => setShowConfirm(true)}
-                            disabled={purging || !stats || stats.total_rows === 0}
+                            disabled={purging || !stats || (stats.total_rows === 0 && (stats.historical?.actual_total_rows || 0) === 0)}
                             style={{
                                 background: C.red, color: '#fff', border: 'none', borderRadius: 6,
                                 padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                                opacity: (purging || !stats || stats.total_rows === 0) ? 0.5 : 1,
+                                opacity: (purging || !stats || (stats.total_rows === 0 && (stats.historical?.actual_total_rows || 0) === 0)) ? 0.5 : 1,
                                 display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO,
                                 transition: 'opacity 0.2s',
                             }}
                         >
                             <Trash2 size={14} />
-                            {purging ? t('กำลังลบ...', 'Deleting...') : t('ลบข้อมูล', 'Purge Data')}
+                            {purging ? t('กำลังดำเนินการ...', 'Processing...') : t('ดำเนินการล้างและบีบอัดข้อมูล', 'Run Cleanup & Compaction')}
                         </button>
                     </div>
 
                     <div style={{ color: C.sub, fontSize: 11, marginTop: 10, fontStyle: 'italic' }}>
                         {t(
-                            `⚠️ การลบข้อมูลนี้ไม่สามารถย้อนกลับได้ — ข้อมูลที่ถูกลบจะหายถาวร`,
-                            `⚠️ This action is irreversible — deleted data cannot be recovered`
+                            `ℹ️ ระบบทำงานอัตโนมัติทุกชั่วโมง: ลบ Realtime เกิน 24 ชม. และย่อข้อมูลที่เกิน 3 เดือน (kWh/น้ำ -> 24 ชม. 1 ค่า, ELE -> ชม.ละ 1 ค่า, Main MDB (TOU) -> เก็บทุก 15 นาทีตลอดการใช้งาน)`,
+                            `ℹ️ Runs automatically every hour: purges Realtime > 24h and compacts records > 3 months (kWh/Water -> 1/24h, ELE -> 1/hr, Main MDB (TOU) -> kept at 15m forever)`
                         )}
                     </div>
                 </div>

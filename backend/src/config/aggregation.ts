@@ -19,7 +19,8 @@ export const aggregationConfig = {
     minuteCron: process.env.AGGREGATION_MINUTE_CRON || '*/15 * * * *',
     dailyCron: process.env.AGGREGATION_DAILY_CRON || '0 0 * * *',
     monthlyCron: process.env.AGGREGATION_MONTHLY_CRON || '0 0 20 * *',
-    retentionCron: process.env.AGGREGATION_RETENTION_CRON || '30 2 * * *',
+    // Run retention & timestamp compaction every hour at minute 30 (keeps Realtime <= 24h and compacts > 3 months)
+    retentionCron: process.env.AGGREGATION_RETENTION_CRON || '30 * * * *',
     retentionMonths: parseNumber(process.env.AGGREGATION_RETENTION_MONTHS, 3),
     retentionHours: parseNumber(process.env.AGGREGATION_RETENTION_HOURS, 24),
     timezone: process.env.AGGREGATION_TIMEZONE || 'Asia/Bangkok',
