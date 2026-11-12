@@ -748,14 +748,15 @@ export async function migrateAndSeed(closePool: boolean = true) {
             { typeId: 1, name: 'MDB', sortOrder: 1 },
             { typeId: 1, name: 'DB', sortOrder: 2 },
             { typeId: 1, name: 'ELE', sortOrder: 3 },
-            { typeId: 1, name: 'KWH', sortOrder: 4 },
-            { typeId: 1, name: 'CHILLER', sortOrder: 5 },
-            { typeId: 1, name: 'AIR', sortOrder: 6 },
-            { typeId: 1, name: 'SOLAR', sortOrder: 7 },
-            { typeId: 1, name: 'LIGHTING', sortOrder: 8 },
-            { typeId: 1, name: 'PLUG', sortOrder: 9 },
-            { typeId: 1, name: 'LIFT', sortOrder: 10 },
-            { typeId: 1, name: 'OTHER', sortOrder: 11 },
+            { typeId: 1, name: 'PFC', sortOrder: 4 },
+            { typeId: 1, name: 'KWH', sortOrder: 5 },
+            { typeId: 1, name: 'CHILLER', sortOrder: 6 },
+            { typeId: 1, name: 'AIR', sortOrder: 7 },
+            { typeId: 1, name: 'SOLAR', sortOrder: 8 },
+            { typeId: 1, name: 'LIGHTING', sortOrder: 9 },
+            { typeId: 1, name: 'PLUG', sortOrder: 10 },
+            { typeId: 1, name: 'LIFT', sortOrder: 11 },
+            { typeId: 1, name: 'OTHER', sortOrder: 12 },
             // Water (2)
             { typeId: 2, name: 'MAIN', sortOrder: 1 },
             { typeId: 2, name: 'COOLING TOWER', sortOrder: 2 },
@@ -798,18 +799,73 @@ export async function migrateAndSeed(closePool: boolean = true) {
             );
             await client.query(
                 `UPDATE meter_sub_type
-                 SET sort_order = $3, is_active = true
-                 WHERE meter_type_id = $1 AND LOWER(sub_type_name) = LOWER($2::varchar)`,
+                 SET sub_type_name = $2::varchar, sort_order = $3, is_active = true
+                 WHERE meter_type_id = $1 AND LOWER(TRIM(sub_type_name)) = LOWER($2::varchar)`,
                 [st.typeId, st.name, st.sortOrder]
             );
         }
+
+        // Migrate legacy Meter Types (MDB, DB, ELE, PFC, kwh / KWH) into Sub Types of Power (meter_type_id = 1)
+        await client.query(`
+            UPDATE meter m
+            SET meter_type_id = 1,
+                meter_sub_type_id = target_mst.meter_sub_type_id
+            FROM meter_sub_type old_mst
+            JOIN meter_type mt ON mt.meter_type_id = old_mst.meter_type_id
+            JOIN meter_sub_type target_mst
+              ON target_mst.meter_type_id = 1
+             AND UPPER(TRIM(target_mst.sub_type_name)) = COALESCE(
+                 NULLIF(UPPER(TRIM(old_mst.sub_type_name)), ''),
+                 UPPER(TRIM(mt.meter_type_name))
+             )
+            WHERE m.meter_sub_type_id = old_mst.meter_sub_type_id
+              AND mt.meter_type_id <> 1
+              AND UPPER(TRIM(mt.meter_type_name)) IN ('MDB', 'DB', 'ELE', 'PFC', 'KWH')
+        `);
+        await client.query(`
+            UPDATE meter m
+            SET meter_type_id = 1,
+                meter_sub_type_id = mst.meter_sub_type_id
+            FROM meter_type mt, meter_sub_type mst
+            WHERE m.meter_type_id = mt.meter_type_id
+              AND mt.meter_type_id <> 1
+              AND mst.meter_type_id = 1
+              AND UPPER(TRIM(mt.meter_type_name)) IN ('MDB', 'DB', 'ELE', 'PFC', 'KWH')
+              AND UPPER(TRIM(mst.sub_type_name)) = UPPER(TRIM(mt.meter_type_name))
+        `);
+        await client.query(`
+            UPDATE meter m
+            SET meter_type_id = 1,
+                meter_sub_type_id = mst.meter_sub_type_id
+            FROM meter_sub_type mst
+            WHERE m.meter_sub_type_id IS NULL
+              AND (m.meter_type_id = 1 OR m.meter_type_id IS NULL)
+              AND mst.meter_type_id = 1
+              AND UPPER(TRIM(COALESCE(m.meter_group, ''))) = UPPER(TRIM(mst.sub_type_name))
+        `);
+        await client.query(`
+            DELETE FROM meter_sub_type mst
+            USING meter_type mt
+            WHERE mst.meter_type_id = mt.meter_type_id
+              AND mt.meter_type_id <> 1
+              AND UPPER(TRIM(mt.meter_type_name)) IN ('MDB', 'DB', 'ELE', 'PFC', 'KWH')
+        `);
+        await client.query(`
+            DELETE FROM meter_type
+            WHERE meter_type_id <> 1
+              AND UPPER(TRIM(meter_type_name)) IN ('MDB', 'DB', 'ELE', 'PFC', 'KWH')
+              AND NOT EXISTS (
+                  SELECT 1 FROM meter m WHERE m.meter_type_id = meter_type.meter_type_id
+              )
+        `);
+        await client.query(`SELECT setval('meter_type_meter_type_id_seq', (SELECT GREATEST(COALESCE(MAX(meter_type_id), 8), 8) FROM meter_type))`);
         await client.query(`
             SELECT setval(
                 'meter_sub_type_meter_sub_type_id_seq',
                 COALESCE((SELECT MAX(meter_sub_type_id) FROM meter_sub_type), 1)
             )
         `);
-        console.log('  ✅ meter_sub_type (Standard sub types for all 8 meter types including Power: MDB, DB, ELE, KWH)');
+        console.log('  ✅ meter_sub_type (Standard sub types for all 8 meter types including Power: MDB, DB, ELE, PFC, KWH + migrated legacy types)');
 
         // --- Meter Brands / Models (reference data) ---
         const standardBrands = [
@@ -854,9 +910,9 @@ export async function migrateAndSeed(closePool: boolean = true) {
         for (const l of standardLoops) {
             await client.query(
                 `INSERT INTO loop (loop_name, port_no, baudrate, stopbit, parity, databit, remark, is_active)
-                 SELECT $1::varchar, $2, $3, $4, $5::varchar, $6, $7::varchar, true
+                 SELECT $1::varchar, $2::int, $3::int, $4::int, $5::varchar, $6::int, $7::varchar, true
                  WHERE NOT EXISTS (
-                     SELECT 1 FROM loop WHERE port_no::text = $2::text
+                     SELECT 1 FROM loop WHERE port_no::text = ($2::int)::text
                  )`,
                 [l.name, l.portNo, l.baudrate, l.stopbit, l.parity, l.databit, l.remark]
             );

@@ -170,6 +170,16 @@ const MeterSubTypesPage: React.FC = () => {
                         </div>
                     );
                 }
+                if (upper === 'PFC') {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <strong style={{ color: '#0369a1' }}>{v}</strong>
+                            <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc' }}>
+                                {t('ตู้คาปาซิเตอร์แบงค์ / ปรับปรุงค่าเพาเวอร์แฟกเตอร์ (Power Factor Controller)', 'Power Factor Controller / Capacitor Bank')}
+                            </span>
+                        </div>
+                    );
+                }
                 return <strong>{v}</strong>;
             },
         },

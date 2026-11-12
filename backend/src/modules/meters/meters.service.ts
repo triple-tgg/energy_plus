@@ -246,7 +246,8 @@ export class MetersService {
         const { page, limit, offset } = parsePagination(queryParams);
         const activeOnly = queryParams.activeOnly === true || queryParams.activeOnly === 'true';
         const search = typeof queryParams.search === 'string' ? queryParams.search.trim() : '';
-        let whereClause = 'WHERE 1=1';
+        // Exclude legacy MDB, DB, ELE, PFC, KWH rows that have been migrated to Sub Types of Power (meter_type_id = 1)
+        let whereClause = `WHERE NOT (mt.meter_type_id <> 1 AND UPPER(TRIM(mt.meter_type_name)) IN ('MDB', 'DB', 'ELE', 'PFC', 'KWH'))`;
         const params: any[] = [];
         if (activeOnly) whereClause += ' AND mt.is_active = true';
         if (search) {
